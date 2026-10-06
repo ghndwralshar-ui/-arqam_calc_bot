@@ -2,7 +2,8 @@ import logging
 import sqlite3
 import asyncio
 import httpx
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from datetime import datetime
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -32,7 +33,6 @@ logging.basicConfig(
 
 admin_state = {}
 
-# القائمة المطلوبة بالأسماء والأعلام والأسعار الثابتة
 FIXED_COUNTRIES_PRICES = [
     {"code": "morocco", "name_ar": "المغرب 🇲🇦", "price": 1000.0},
     {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": 1000.0},
@@ -62,29 +62,54 @@ def init_db():
                 user_id INTEGER PRIMARY KEY,
                 balance REAL DEFAULT 0.0,
                 referrals INTEGER DEFAULT 0,
-                free_philippines_claimed INTEGER DEFAULT 0
+                free_philippines_claimed INTEGER DEFAULT 0,
+                daily_contest_refs INTEGER DEFAULT 0,
+                contest_claimed INTEGER DEFAULT 0,
+                last_contest_date TEXT
             )
         ''')
-        try:
-            cursor.execute('ALTER TABLE users ADD COLUMN referrals INTEGER DEFAULT 0')
-        except sqlite3.OperationalError:
-            pass
-        try:
-            cursor.execute('ALTER TABLE users ADD COLUMN free_philippines_claimed INTEGER DEFAULT 0')
-        except sqlite3.OperationalError:
-            pass
+        for col, col_type in [('referrals', 'INTEGER DEFAULT 0'), 
+                              ('free_philippines_claimed', 'INTEGER DEFAULT 0'),
+                              ('daily_contest_refs', 'INTEGER DEFAULT 0'),
+                              ('contest_claimed', 'INTEGER DEFAULT 0'),
+                              ('last_contest_date', 'TEXT')]:
+            try:
+                cursor.execute(f'ALTER TABLE users ADD COLUMN {col} {col_type}')
+            except sqlite3.OperationalError:
+                pass
         conn.commit()
 
 def db_get_user(user_id):
     with sqlite3.connect('bot_database.db') as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT balance, referrals, free_philippines_claimed FROM users WHERE user_id = ?', (user_id,))
+        cursor.execute('SELECT balance, referrals, free_philippines_claimed, daily_contest_refs, contest_claimed, last_contest_date FROM users WHERE user_id = ?', (user_id,))
         row = cursor.fetchone()
+        today = datetime.now().strftime('%Y-%m-%d')
+        
         if not row:
-            cursor.execute('INSERT INTO users (user_id, balance, referrals, free_philippines_claimed) VALUES (?, 0.0, 0, 0)', (user_id,))
+            cursor.execute('INSERT INTO users (user_id, balance, referrals, free_philippines_claimed, daily_contest_refs, contest_claimed, last_contest_date) VALUES (?, 0.0, 0, 0, 0, 0, ?)', (user_id, today))
             conn.commit()
-            return {"balance": 0.0, "referrals": 0, "free_philippines_claimed": 0, "is_new": True}
-        return {"balance": row[0], "referrals": row[1], "free_philippines_claimed": row[2], "is_new": False}
+            return {"balance": 0.0, "referrals": 0, "free_philippines_claimed": 0, "daily_contest_refs": 0, "contest_claimed": 0, "last_contest_date": today, "is_new": True}
+        
+        last_date = row[5]
+        daily_refs = row[3]
+        contest_claimed = row[4]
+        
+        if last_date != today:
+            daily_refs = 0
+            contest_claimed = 0
+            cursor.execute('UPDATE users SET daily_contest_refs = 0, contest_claimed = 0, last_contest_date = ? WHERE user_id = ?', (today, user_id))
+            conn.commit()
+
+        return {
+            "balance": row[0], 
+            "referrals": row[1], 
+            "free_philippines_claimed": row[2], 
+            "daily_contest_refs": daily_refs,
+            "contest_claimed": contest_claimed,
+            "last_contest_date": today,
+            "is_new": False
+        }
 
 def db_update_balance(user_id, amount, mode="add"):
     db_get_user(user_id)
@@ -97,9 +122,10 @@ def db_update_balance(user_id, amount, mode="add"):
         conn.commit()
 
 def db_add_referral(referrer_id):
+    today = datetime.now().strftime('%Y-%m-%d')
     with sqlite3.connect('bot_database.db') as conn:
         cursor = conn.cursor()
-        cursor.execute('UPDATE users SET referrals = referrals + 1 WHERE user_id = ?', (referrer_id,))
+        cursor.execute('UPDATE users SET referrals = referrals + 1, daily_contest_refs = daily_contest_refs + 1, last_contest_date = ? WHERE user_id = ?', (today, referrer_id))
         conn.commit()
 
 def db_get_all_users():
@@ -121,10 +147,12 @@ def db_get_admin_stats():
         }
 
 def get_main_keyboard(user_id):
+    support_btn = InlineKeyboardButton("📞 التواصل مع الدعم الفني", url=f"https://t.me/{SUPPORT_USERNAME}") if SUPPORT_USERNAME else InlineKeyboardButton("📞 التواصل مع الدعم الفني", callback_data='support_info')
+    
     buttons = [
         [InlineKeyboardButton("💬 شراء رقم واتساب", callback_data='get_whatsapp_countries'), InlineKeyboardButton("💰 رصيدي", callback_data='user_balance')],
-        [InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🎁 تجميع النقاط", callback_data='points_menu')],
-        [InlineKeyboardButton("📞 التواصل مع الدعم الفني", url=f"https://t.me/{SUPPORT_USERNAME}")]
+        [InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🏆 مسابقة البوت (اربح أرقام)", callback_data='daily_contest')],
+        [InlineKeyboardButton("🎁 تجميع النقاط", callback_data='points_menu'), support_btn]
     ]
     if user_id == ADMIN_ID:
         buttons.append([InlineKeyboardButton("⚙️ لوحة تحكم الأدمن", callback_data='admin_panel')])
@@ -139,11 +167,15 @@ def get_admin_keyboard():
     ]
     return InlineKeyboardMarkup(buttons)
 
-# نظام المراقبة التلقائية للكود في الخلفية
-async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str, is_free: bool, price_yer: float):
+async def post_init(application):
+    commands = [
+        BotCommand("start", "بدء استخدام البوت 🚀")
+    ]
+    await application.bot.set_my_commands(commands)
+
+async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str):
     url = f"https://5sim.net/v1/user/check/{order_id}"
     async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
-        # نفحص لمدة 15 دقيقة (300 محاولة × 3 ثوانٍ)
         for _ in range(300):
             await asyncio.sleep(3)
             try:
@@ -161,7 +193,7 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
                                 chat_id=chat_id,
                                 message_id=message_id,
                                 text=(
-                                    f"✅ **وصل كود الواتساب تلقائياً!**\n\n"
+                                    f"✅ **وصل الكود تلقائياً!**\n\n"
                                     f"📱 **الرقم:** `{phone}`\n"
                                     f"🔑 **الكود:** `{sms_code}`\n\n"
                                     f"💬 **النص:** `{full_text}`"
@@ -173,7 +205,6 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
                             pass
                         return
                     
-                    # إذا تم إلغاء الطلب من الموقع مباشرة نتوقف
                     if status in ['canceled', 'banned', 'finish']:
                         return
             except Exception:
@@ -189,10 +220,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         referrer_id = int(args[0])
         if referrer_id != user.id:
             db_add_referral(referrer_id)
+            ref_data = db_get_user(referrer_id)
+            current_daily = ref_data['daily_contest_refs']
             try:
                 await context.bot.send_message(
                     chat_id=referrer_id,
-                    text="🎉 **مبروك!** قام شخص بالدخول عبر رابط الدعوة الخاص بك وتم احتساب نقطة/إحالة جديدة لك.",
+                    text=(
+                        f"🎉 **مبروك! انضم شخص جديد عبر رابط الدعوة الخاص بك!** 👥\n\n"
+                        f"📊 عدد الأشخاص الذين دعوتهم اليوم في المسابقة: `{current_daily} / 10`\n"
+                        f"{'🔥 لقد أكملت 10 دعوات! توجه إلى قسم المسابقة لاستلام جائزتك (3 أرقام مجانية)!' if current_daily >= 10 else f'⏳ باقي لك `{10 - current_daily}` دعوات لتحقيق جائزة اليوم!'}"
+                    ),
                     parse_mode='Markdown'
                 )
             except Exception:
@@ -214,7 +251,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"Error sending notification to admin: {e}")
 
     await update.message.reply_text(
-        f"أهلاً بك {user.first_name} في بوت أرقام الواتساب! 💬\n\nاختر ما يناسبك من القائمة أدناه:",
+        f"أهلاً بك {user.first_name} في بوت أرقام الواتساب والخدمات! 💬\n\nاختر ما يناسبك من القائمة أدناه:",
         reply_markup=get_main_keyboard(user.id)
     )
 
@@ -227,6 +264,103 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == 'main_menu':
         admin_state.pop(user_id, None)
         await query.edit_message_text("القائمة الرئيسية:", reply_markup=get_main_keyboard(user_id))
+
+    elif data == 'support_info':
+        await query.edit_message_text(
+            f"📞 **الدعم الفني:**\n\nللتواصل مع الإدارة مباشرة يرجى مراسلة المعرف التالي: @{SUPPORT_USERNAME}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]])
+        )
+
+    elif data == 'daily_contest':
+        u_data = db_get_user(user_id)
+        daily_refs = u_data['daily_contest_refs']
+        contest_claimed = u_data['contest_claimed']
+        
+        bot_username = context.bot.username
+        referral_link = f"https://t.me/{bot_username}?start={user_id}"
+        
+        progress_bar = "🟢" * min(daily_refs, 10) + "⚪" * max(0, 10 - daily_refs)
+        
+        if contest_claimed > 0:
+            status_desc = "✅ **لقد فزت بجائزة مسابقة اليوم وتم استلام أرقامك بنجاح! ننتظرك غداً في مسابقة جديدة.**"
+        elif daily_refs >= 10:
+            status_desc = "🎉 **تهانينا! لقد أتممت 10 دعوات اليوم بنجاح وجائزتك جاهزة للاستلام!**"
+        else:
+            status_desc = f"⏳ **باقي لك `{10 - daily_refs}` دعوات للحصول على 3 أرقام وهمية مجانية!**"
+
+        text = (
+            "🏆 **مسابقة اليوم الكبرى (اربح أرقام تفعيل مجانية)** 🏆\n\n"
+            "📌 **شروط المسابقة:**\n"
+            "قم بدعوة **10 أشخاص** فقط خلال اليوم (24 ساعة) عبر رابط الدعوة الخاص بك، واحصل فوراً على **3 أرقام وهمية مجانية** لتفعيل (واتساب، فيسبوك، وغيرها)!\n\n"
+            f"📊 **عدد من دعوتهم اليوم:** `{daily_refs} / 10` شخص\n"
+            f"{progress_bar}\n\n"
+            f"{status_desc}\n\n"
+            f"🔗 **رابط الدعوة الخاص بك للمشاركة:**\n`{referral_link}`\n\n"
+            "انسخ الرابط وشاركه في المجموعات والقنوات الآن لتربح معنا!"
+        )
+        
+        buttons = []
+        if daily_refs >= 10 and contest_claimed == 0:
+            buttons.append([InlineKeyboardButton("🎁 استلام الجائزة (3 أرقام مجانية)", callback_data='claim_contest_prize')])
+        
+        buttons.append([InlineKeyboardButton("👥 مشاركة رابط الدعوة", callback_data='invite_friends_contest')])
+        buttons.append([InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')])
+        
+        await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+
+    elif data == 'invite_friends_contest':
+        bot_username = context.bot.username
+        referral_link = f"https://t.me/{bot_username}?start={user_id}"
+        text = (
+            "🚀 **شارك رابطك الآن في كل مكان!**\n\n"
+            f"`{referral_link}`\n\n"
+            "كل شخص يدخل عبر رابطك يُحتسب في عداد مسابقة اليوم فوراً."
+        )
+        await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع للمسابقة", callback_data='daily_contest')]]))
+
+    elif data == 'claim_contest_prize':
+        u_data = db_get_user(user_id)
+        if u_data['daily_contest_refs'] < 10 or u_data['contest_claimed'] > 0:
+            await query.answer("❌ عذراً، لم تكتمل شروط المسابقة أو تم استلام الجائزة مسبقاً.", show_alert=True)
+            return
+
+        urls_to_try = [
+            "https://5sim.net/v1/user/buy/activation/philippines/any/whatsapp",
+            "https://5sim.net/v1/user/buy/activation/indonesia/any/whatsapp"
+        ]
+        async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
+            res = None
+            for url in urls_to_try:
+                try:
+                    res = await client.get(url)
+                    if res.status_code == 200:
+                        break
+                except Exception:
+                    continue
+
+            if res and res.status_code == 200:
+                res_data = res.json()
+                phone = res_data.get('phone')
+                order_id = res_data.get('id')
+
+                with sqlite3.connect('bot_database.db') as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('UPDATE users SET contest_claimed = 1 WHERE user_id = ?', (user_id,))
+                    conn.commit()
+
+                sent_msg = await query.edit_message_text(
+                    f"🏆 **مبارك لك الفوز بجائزة المسابقة اليومية!**\n\n"
+                    f"🎁 تم استخراج أول رقم مجاني لك:\n"
+                    f"📱 **الرقم:** `{phone}`\n"
+                    f"🆔 **رقم الطلب:** `{order_id}`\n\n"
+                    "⏳ **جاري انتظار وصول الكود تلقائياً...**\n"
+                    "*(ملاحظة: يمكنك التواصل مع الدعم الفني لاستلام الرقمين الباقيين لجائزتك الكاملة)*",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                asyncio.create_task(watch_order_sms(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone))
+            else:
+                await query.edit_message_text("❌ عذراً، نفدت الأرقام المؤقتة حالياً للمسابقة، يرجى المحاولة بعد قليل أو مراسلة الدعم.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='daily_contest')]]))
 
     elif data == 'user_balance':
         u_data = db_get_user(user_id)
@@ -279,13 +413,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             "🎁 **قسم دعوة الأصدقاء وتجميع النقاط**\n\n"
             "📌 *كل 5 دعوات تؤهلك للحصول على رقم فلبيني مجاني!*\n\n"
-            f"👥 **إجمالي دعواتك:** `{referrals}` دعوة\n"
+            f"👥 **إجمالي دعواتك الدائمة:** `{referrals}` دعوة\n"
             f"🎁 **الأرقام المستحقة:** `{total_earned_rewards}` (تم استلام: `{free_claimed}`)\n"
             f"📌 **الحالة:** {status_text}\n\n"
-            "اضغط على زر دعوة الأصدقاء أدناه لمشاركة الرابط الخاص بك."
+            "💡 *ملاحظة: يمكنك أيضاً المشاركة في (مسابقة البوت اليومية) للأرباح السريعة من القائمة الرئيسية!*"
         )
         
         buttons = [
+            [InlineKeyboardButton("🏆 الذهاب لمسابقة البوت اليومية", callback_data='daily_contest')],
             [InlineKeyboardButton("👥 دعوة الأصدقاء", callback_data='invite_friends')],
             [InlineKeyboardButton("🇵🇭 طلب رقم فلبيني مجاني", callback_data='claim_free_philippines')],
             [InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]
@@ -297,7 +432,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         referral_link = f"https://t.me/{bot_username}?start={user_id}"
         
         text = (
-            "ادعي أصدقاءك واكسب أرقام وهمية مجانية! (كل 5 دعوات = رقم)\n\n"
+            "ادعي أصدقاءك واكسب أرقام وهمية مجانية!\n\n"
             f"رابط الدعوة الخاص بك:\n`{referral_link}`\n\n"
             "انقر على الرابط لنسخه ومشاركته مع أصدقائك!"
         )
@@ -351,9 +486,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
                     ])
                 )
-                
-                # تفعيل فحص الكود تلقائياً في الخلفية
-                asyncio.create_task(watch_order_sms(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, True, 0))
+                asyncio.create_task(watch_order_sms(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone))
             else:
                 await query.edit_message_text("❌ عذراً، الأرقام الفلبينية غير متوفرة حالياً في المنصة، حاول لاحقاً.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='points_menu')]]))
 
@@ -431,33 +564,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         text = (
             "🌍 *قائمة أسعار الأرقام الدولية الجاهزة للتفعيل* 🌍\n\n"
-            "🇲🇦 المغرب - 1000 ريال\n"
-            "🇪🇬 مصر - 1000 ريال\n"
-            "🇵🇭 الفلبين - 1000 ريال\n"
-            "🇦🇷 الأرجنتين - 1000 ريال\n"
-            "🇨🇴 كولومبيا - 1000 ريال\n"
-            "🇿🇦 جنوب افريقيا - 1000 ريال\n"
-            "🇮🇩 اندونيسيا - 1000 ريال\n"
-            "🇹🇭 تايلاندا - 1000 ريال\n"
-            "🇨🇬 الكونغو - 1000 ريال\n"
-            "🇵🇹 البرتغال - 1000 ريال\n\n"
-            "🇫🇷 فرنسا - 1500 ريال\n"
-            "🇧🇷 البرازيل - 1500 ريال\n"
-            "🇩🇪 ألمانيا - 1500 ريال\n"
-            "🇮🇹 إيطاليا - 1500 ريال\n"
-            "🇬🇧 انجلترا - 1500 ريال\n"
-            "🇨🇦 كندا - 1500 ريال\n"
-            "🇰🇼 الكويت - 1500 ريال\n"
-            "🇯🇴 الأردن - 1500 ريال\n\n"
             "⚡️ *جميع الأرقام جاهزة مع الكود - تفعيل فوري ومضمون*\n\n"
             "👇 *اختر الدولة أدناه للشراء مباشرة:*"
         )
 
-        await query.edit_message_text(
-            text,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data.startswith('b_'):
         country_code = data.split('_')[1]
@@ -470,7 +581,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
 
         price_yer = country_info['price']
-
         u_data = db_get_user(user_id)
         if u_data['balance'] < price_yer:
             await query.edit_message_text(
@@ -515,9 +625,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
                     ])
                 )
-                
-                # تفعيل فحص الكود تلقائياً في الخلفية للأرقام المدفوعة
-                asyncio.create_task(watch_order_sms(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, False, price_yer))
+                asyncio.create_task(watch_order_sms(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone))
             else:
                 err_msg = res.text if res and res.text else "نفدت الأرقام لهذه الدولة حالياً."
                 await query.edit_message_text(f"❌ تعذر الشراء: {err_msg}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='get_whatsapp_countries')]]))
@@ -538,20 +646,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             cursor.execute('UPDATE users SET free_philippines_claimed = MAX(0, free_philippines_claimed - 1) WHERE user_id = ?', (user_id,))
                             conn.commit()
                         await query.answer("✅ تم إلغاء الرقم واسترجاع استحقاق الدعوات بنجاح!", show_alert=True)
-                        await query.edit_message_text(
-                            "🚫 **تم إلغاء الطلب المجاني بنجاح واسترجاع الدعوات.**",
-                            parse_mode='Markdown',
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                        )
+                        await query.edit_message_text("🚫 **تم إلغاء الطلب المجاني بنجاح واسترجاع الدعوات.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                     else:
                         price_yer = float(parts[3])
                         db_update_balance(user_id, price_yer, mode="add")
                         await query.answer("✅ تم إلغاء الرقم وإعادة المبلغ لرصيدك!", show_alert=True)
-                        await query.edit_message_text(
-                            "🚫 **تم إلغاء الطلب بنجاح واسترجاع المبلغ.**",
-                            parse_mode='Markdown',
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                        )
+                        await query.edit_message_text("🚫 **تم إلغاء الطلب بنجاح واسترجاع المبلغ.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 else:
                     await query.answer("⚠️ تعذر الإلغاء (قد تكون استلمت الكود أو انتهت المهلة).", show_alert=True)
             except Exception:
@@ -642,11 +742,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
 if __name__ == '__main__':
     init_db()
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    # بناء التطبيق مع تفعيل أمر البدء التلقائي وصياغة التشغيل الصحيحة بدون أي أخطاء
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
     
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
-    print("🟢 تم تشغيل البوت بنجاح ويقوم بالاستماع الآن...")
-    app.run_polling(drop_pending_updates=True)
+    print("🟢 تم تشغيل البوت بنجاح وكامل الميزات...")
+    app.run_polling()
