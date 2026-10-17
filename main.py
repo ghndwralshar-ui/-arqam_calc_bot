@@ -424,7 +424,7 @@ TWITTER_COUNTRIES = [
     {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(1.10)},
     {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(1.05)},
     {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(1.05)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(1.05)},
+    {"code": "uzbekistan", "name_ar": "أوزبكستان UZ", "price": mult_price(1.05)},
     {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(1.20)},
     {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.30)},
     {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.40)},
@@ -544,6 +544,7 @@ def get_admin_keyboard():
         [InlineKeyboardButton("📊 تحديث الإحصائيات الشاملة", callback_data='admin_panel')],
         [InlineKeyboardButton("🏆 قائمة أطراف الإحالات (Top 5)", callback_data='admin_top_refs')],
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
+        [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
         [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
         [InlineKeyboardButton("👥 إدارة المشرفين (إضافة / حذف)", callback_data='admin_manage_subadmins')],
         [InlineKeyboardButton("📢 إدارة الاشتراك الإجباري (إضافة / حذف)", callback_data='admin_manage_forced')],
@@ -1667,6 +1668,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
         )
 
+    elif data == 'admin_send_gift_user':
+        if not is_admin_or_sub(user_id): return
+        admin_state[user_id] = {'action': 'waiting_for_gift_id_amount'}
+        await query.edit_message_text(
+            "🎁 **إرسال هدية مالية لشخص عبر الآيدي:**\n\n"
+            "أرسل الآن (آيدي المستخدم) و(مبلغ الهدية بالدولار) بمسافة بينهما.\n"
+            "*(مثال: `6472852297 1.50`)*",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
+        )
+
     elif data == 'admin_add_balance':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'add_balance'}
@@ -1911,6 +1923,36 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 return
             except Exception:
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 0.75 أو 2).")
+                return
+
+        if action == 'waiting_for_gift_id_amount':
+            try:
+                parts = update.message.text.strip().split()
+                target_id = int(parts[0])
+                gift_amount = float(parts[1])
+                if gift_amount <= 0:
+                    raise ValueError()
+                
+                db_update_balance(target_id, gift_amount, mode="add")
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=target_id,
+                        text=f"🎁 **تهانينا القلبية! وصلتك هدية مالية خاصة من الإدارة بقيمة `${gift_amount:.2f}`** 🚀✨",
+                        parse_mode='Markdown'
+                    )
+                except Exception:
+                    pass
+
+                await update.message.reply_text(
+                    f"✅ **تم إرسال الهدية المالية بنجاح تام!**\n\n👤 للمستخدم: `{target_id}`\n🎁 مبلغ الهدية: `${gift_amount:.2f}`",
+                    parse_mode='Markdown',
+                    reply_markup=get_admin_keyboard()
+                )
+                admin_state.pop(user_id, None)
+                return
+            except Exception:
+                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي والمبلغ بمسافة بينهم (مثال: `6472852297 1.50`).")
                 return
 
         if action in ['add_balance', 'deduct_balance']:
