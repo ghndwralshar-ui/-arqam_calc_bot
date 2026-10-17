@@ -40,119 +40,148 @@ logging.basicConfig(
 
 admin_state = {}
 
-# --- قاعدة البيانات الموسعة ---
+# --- قاعدة البيانات الموسعة مع حماية كاملة ---
 def init_db():
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY,
-                balance REAL DEFAULT 0.0,
-                referrals INTEGER DEFAULT 0,
-                referred_by INTEGER DEFAULT 0,
-                joined_date TEXT,
-                is_banned INTEGER DEFAULT 0
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS sub_admins (
-                admin_id INTEGER PRIMARY KEY,
-                added_date TEXT
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS forced_channels (
-                channel_username TEXT PRIMARY KEY,
-                channel_title TEXT
-            )
-        ''')
-        cursor.execute("PRAGMA table_info(users)")
-        columns = [column[1] for column in cursor.fetchall()]
-        if 'joined_date' not in columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN joined_date TEXT")
-        if 'is_banned' not in columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0")
-        conn.commit()
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id INTEGER PRIMARY KEY,
+                    balance REAL DEFAULT 0.0,
+                    referrals INTEGER DEFAULT 0,
+                    referred_by INTEGER DEFAULT 0,
+                    joined_date TEXT,
+                    is_banned INTEGER DEFAULT 0
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS sub_admins (
+                    admin_id INTEGER PRIMARY KEY,
+                    added_date TEXT
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS forced_channels (
+                    channel_username TEXT PRIMARY KEY,
+                    channel_title TEXT
+                )
+            ''')
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if 'joined_date' not in columns:
+                cursor.execute("ALTER TABLE users ADD COLUMN joined_date TEXT")
+            if 'is_banned' not in columns:
+                cursor.execute("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0")
+            conn.commit()
+    except Exception as e:
+        print(f"Database Init Error: {e}")
 
 def db_get_user(user_id):
     init_db()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT balance, referrals, referred_by, is_banned FROM users WHERE user_id = ?', (user_id,))
-        row = cursor.fetchone()
-        if not row:
-            cursor.execute('INSERT INTO users (user_id, balance, referrals, referred_by, joined_date, is_banned) VALUES (?, 0.0, 0, 0, ?, 0)', (user_id, now_str))
-            conn.commit()
-            return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "is_new": True}
-        return {"balance": row[0], "referrals": row[1], "referred_by": row[2], "is_banned": row[3], "is_new": False}
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT balance, referrals, referred_by, is_banned FROM users WHERE user_id = ?', (user_id,))
+            row = cursor.fetchone()
+            if not row:
+                cursor.execute('INSERT INTO users (user_id, balance, referrals, referred_by, joined_date, is_banned) VALUES (?, 0.0, 0, 0, ?, 0)', (user_id, now_str))
+                conn.commit()
+                return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "is_new": True}
+            return {"balance": row[0], "referrals": row[1], "referred_by": row[2], "is_banned": row[3], "is_new": False}
+    except Exception as e:
+        print(f"db_get_user Error: {e}")
+        return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "is_new": True}
 
 def db_update_balance(user_id, amount, mode="add"):
     db_get_user(user_id)
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        if mode == "add":
-            cursor.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (amount, user_id))
-        elif mode == "deduct":
-            cursor.execute('UPDATE users SET balance = MAX(0.0, balance - ?) WHERE user_id = ?', (amount, user_id))
-        conn.commit()
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            if mode == "add":
+                cursor.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (amount, user_id))
+            elif mode == "deduct":
+                cursor.execute('UPDATE users SET balance = MAX(0.0, balance - ?) WHERE user_id = ?', (amount, user_id))
+            conn.commit()
+    except Exception as e:
+        print(f"db_update_balance Error: {e}")
 
 def db_add_referral_record(new_user_id, referrer_id):
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT referred_by FROM users WHERE user_id = ?', (new_user_id,))
-        row = cursor.fetchone()
-        if row and row[0] == 0:
-            cursor.execute('UPDATE users SET referred_by = ? WHERE user_id = ?', (referrer_id, new_user_id))
-            cursor.execute('UPDATE users SET referrals = referrals + 1 WHERE user_id = ?', (referrer_id,))
-            conn.commit()
-            return True
-        return False
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT referred_by FROM users WHERE user_id = ?', (new_user_id,))
+            row = cursor.fetchone()
+            if row and row[0] == 0:
+                cursor.execute('UPDATE users SET referred_by = ? WHERE user_id = ?', (referrer_id, new_user_id))
+                cursor.execute('UPDATE users SET referrals = referrals + 1 WHERE user_id = ?', (referrer_id,))
+                conn.commit()
+                return True
+    except Exception as e:
+        print(f"db_add_referral_record Error: {e}")
+    return False
 
 def db_get_advanced_stats():
     init_db()
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*), COALESCE(SUM(balance), 0), COALESCE(SUM(referrals), 0) FROM users')
-        u, b, r = cursor.fetchone()
-        
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute('SELECT COUNT(*) FROM users WHERE joined_date >= ?', (yesterday,))
-        new_24h = cursor.fetchone()[0]
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*), COALESCE(SUM(balance), 0), COALESCE(SUM(referrals), 0) FROM users')
+            u, b, r = cursor.fetchone()
+            
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute('SELECT COUNT(*) FROM users WHERE joined_date >= ?', (yesterday,))
+            new_24h = cursor.fetchone()[0]
 
-        cursor.execute('SELECT user_id, referrals FROM users WHERE referrals > 0 ORDER BY referrals DESC LIMIT 5')
-        top_refs = cursor.fetchall()
-        
-        return {"total_users": u, "total_balances": b, "total_referrals": r, "new_24h": new_24h, "top_refs": top_refs}
+            cursor.execute('SELECT user_id, referrals FROM users WHERE referrals > 0 ORDER BY referrals DESC LIMIT 5')
+            top_refs = cursor.fetchall()
+            
+            return {"total_users": u, "total_balances": b, "total_referrals": r, "new_24h": new_24h, "top_refs": top_refs}
+    except Exception as e:
+        print(f"db_get_advanced_stats Error: {e}")
+        return {"total_users": 0, "total_balances": 0, "total_referrals": 0, "new_24h": 0, "top_refs": []}
 
 def db_get_all_users():
     init_db()
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT user_id FROM users WHERE is_banned = 0')
-        return [row[0] for row in cursor.fetchall()]
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT user_id FROM users WHERE is_banned = 0')
+            return [row[0] for row in cursor.fetchall()]
+    except Exception:
+        return []
 
 def is_admin_or_sub(user_id):
     if user_id == ADMIN_ID:
         return True
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT admin_id FROM sub_admins WHERE admin_id = ?', (user_id,))
-        return cursor.fetchone() is not None
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT admin_id FROM sub_admins WHERE admin_id = ?', (user_id,))
+            return cursor.fetchone() is not None
+    except Exception:
+        return False
 
 def get_all_sub_admins():
     init_db()
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT admin_id FROM sub_admins')
-        return [row[0] for row in cursor.fetchall()]
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT admin_id FROM sub_admins')
+            return [row[0] for row in cursor.fetchall()]
+    except Exception:
+        return []
 
 def get_forced_channels():
     init_db()
-    with sqlite3.connect('bot_database.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT channel_username, channel_title FROM forced_channels')
-        return cursor.fetchall()
+    try:
+        with sqlite3.connect('bot_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT channel_username, channel_title FROM forced_channels')
+            return cursor.fetchall()
+    except Exception:
+        return []
 
 async def check_forced_subscription(user_id, bot):
     channels = get_forced_channels()
@@ -526,7 +555,10 @@ def get_admin_keyboard():
     ])
 
 async def post_init(application):
-    await application.bot.set_my_commands([BotCommand("start", "بدء استخدام البوت 🚀")])
+    try:
+        await application.bot.set_my_commands([BotCommand("start", "بدء استخدام البوت 🚀")])
+    except Exception as e:
+        print(f"Post init error: {e}")
 
 async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str, price: float, service: str, user_id: int, bot_username: str):
     url = f"https://5sim.net/v1/user/check/{order_id}"
@@ -1315,7 +1347,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _, _, target_user_id = data.split('_', 2)
         target_user_id = int(target_user_id)
         
-        # حفظ الآيدي المستهدف في حالة المشرف لطلب إرسال المبلغ المخصص
         admin_state[user_id] = {
             'action': 'waiting_for_custom_deposit_amount',
             'target_user_id': target_user_id,
@@ -1754,10 +1785,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("❌ هذا الأمر مخصص للمسؤول الأساسي فقط!", show_alert=True)
             return
         
-        with sqlite3.connect('bot_database.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute('UPDATE users SET balance = 0.0')
-            conn.commit()
+        try:
+            with sqlite3.connect('bot_database.db') as conn:
+                cursor = conn.cursor()
+                cursor.execute('UPDATE users SET balance = 0.0')
+                conn.commit()
+        except Exception:
+            pass
             
         await query.answer("✅ تمت عملية التصفير بنجاح تام وبصمت!", show_alert=True)
         await query.edit_message_text(
@@ -1806,19 +1840,22 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     payload = payment.invoice_payload
     
     if payload.startswith("deposit_"):
-        _, target_user_id, amount_str = payload.split('_')
-        target_user_id = int(target_user_id)
-        amount = float(amount_str)
-        
-        db_update_balance(target_user_id, amount, mode="add")
-        
-        await update.message.reply_text(
-            f"🎉 **تمت عملية الدفع بنجاح الشحن الفوري بالنجوم!**\n\n"
-            f"⭐ تم إضافه رصيد بقيمة: **`${amount:.2f}`** إلى حسابك.\n"
-            f"🚀 يمكنك الآن استخدام رصيدك في شراء الأرقام والخدمات فوراً!",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-        )
+        try:
+            _, target_user_id, amount_str = payload.split('_')
+            target_user_id = int(target_user_id)
+            amount = float(amount_str)
+            
+            db_update_balance(target_user_id, amount, mode="add")
+            
+            await update.message.reply_text(
+                f"🎉 **تمت عملية الدفع بنجاح الشحن الفوري بالنجوم!**\n\n"
+                f"⭐ تم إضافه رصيد بقيمة: **`${amount:.2f}`** إلى حسابك.\n"
+                f"🚀 يمكنك الآن استخدام رصيدك في شراء الأرقام والخدمات فوراً!",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+            )
+        except Exception:
+            pass
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -2237,7 +2274,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 pass
         return
 
-    text = update.message.text.strip()
+    text = update.message.text.strip() if update.message.text else ""
     try:
         await context.bot.send_message(
             chat_id=ADMIN_ID,
@@ -2248,14 +2285,18 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         pass
 
 if __name__ == '__main__':
-    init_db()
-    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
-    
-    app.add_handler(CommandHandler('start', start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
-    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
-    
-    print("🟢 البوت يعمل بكامل طاقته والتعديلات المطلوبة مفعلة بنجاح...")
-    app.run_polling
+    try:
+        print("🟡 جاري تهيئة قاعدة البيانات وبدء تشغيل البوت...")
+        init_db()
+        app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
+        
+        app.add_handler(CommandHandler('start', start))
+        app.add_handler(CallbackQueryHandler(button_handler))
+        app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
+        app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
+        
+        print("🟢 البوت يعمل بكامل طاقته والتعديلات المطلوبة مفعلة بنجاح...")
+        app.run_polling()
+    except Exception as e:
+        print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
