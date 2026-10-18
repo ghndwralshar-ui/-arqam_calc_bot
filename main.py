@@ -40,7 +40,7 @@ logging.basicConfig(
 
 admin_state = {}
 
-# --- قاعدة البيانات الموسعة مع حماية كاملة ---
+# --- قاعدة البيانات الموسعة مع حماية كاملة وعداد المستخدمين ---
 def init_db():
     try:
         with sqlite3.connect('bot_database.db') as conn:
@@ -52,7 +52,8 @@ def init_db():
                     referrals INTEGER DEFAULT 0,
                     referred_by INTEGER DEFAULT 0,
                     joined_date TEXT,
-                    is_banned INTEGER DEFAULT 0
+                    is_banned INTEGER DEFAULT 0,
+                    user_sequence INTEGER DEFAULT 0
                 )
             ''')
             cursor.execute('''
@@ -73,6 +74,8 @@ def init_db():
                 cursor.execute("ALTER TABLE users ADD COLUMN joined_date TEXT")
             if 'is_banned' not in columns:
                 cursor.execute("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0")
+            if 'user_sequence' not in columns:
+                cursor.execute("ALTER TABLE users ADD COLUMN user_sequence INTEGER DEFAULT 0")
             conn.commit()
     except Exception as e:
         print(f"Database Init Error: {e}")
@@ -83,16 +86,21 @@ def db_get_user(user_id):
     try:
         with sqlite3.connect('bot_database.db') as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT balance, referrals, referred_by, is_banned FROM users WHERE user_id = ?', (user_id,))
+            cursor.execute('SELECT balance, referrals, referred_by, is_banned, user_sequence FROM users WHERE user_id = ?', (user_id,))
             row = cursor.fetchone()
             if not row:
-                cursor.execute('INSERT INTO users (user_id, balance, referrals, referred_by, joined_date, is_banned) VALUES (?, 0.0, 0, 0, ?, 0)', (user_id, now_str))
+                # حساب الرقم التسلسلي الجديد للمستخدم
+                cursor.execute('SELECT MAX(user_sequence) FROM users')
+                max_seq = cursor.fetchone()[0]
+                new_seq = (max_seq or 0) + 1
+
+                cursor.execute('INSERT INTO users (user_id, balance, referrals, referred_by, joined_date, is_banned, user_sequence) VALUES (?, 0.0, 0, 0, ?, 0, ?)', (user_id, now_str, new_seq))
                 conn.commit()
-                return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "is_new": True}
-            return {"balance": row[0], "referrals": row[1], "referred_by": row[2], "is_banned": row[3], "is_new": False}
+                return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": new_seq, "is_new": True}
+            return {"balance": row[0], "referrals": row[1], "referred_by": row[2], "is_banned": row[3], "user_sequence": row[4], "is_new": False}
     except Exception as e:
         print(f"db_get_user Error: {e}")
-        return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "is_new": True}
+        return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": 1, "is_new": True}
 
 def db_update_balance(user_id, amount, mode="add"):
     db_get_user(user_id)
@@ -100,9 +108,9 @@ def db_update_balance(user_id, amount, mode="add"):
         with sqlite3.connect('bot_database.db') as conn:
             cursor = conn.cursor()
             if mode == "add":
-                cursor.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (amount, user_id))
+                cursor.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (float(amount), user_id))
             elif mode == "deduct":
-                cursor.execute('UPDATE users SET balance = MAX(0.0, balance - ?) WHERE user_id = ?', (amount, user_id))
+                cursor.execute('UPDATE users SET balance = MAX(0.0, balance - ?) WHERE user_id = ?', (float(amount), user_id))
             conn.commit()
     except Exception as e:
         print(f"db_update_balance Error: {e}")
@@ -424,7 +432,7 @@ TWITTER_COUNTRIES = [
     {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(1.10)},
     {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(1.05)},
     {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(1.05)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان UZ", "price": mult_price(1.05)},
+    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(1.05)},
     {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(1.20)},
     {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.30)},
     {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.40)},
@@ -659,10 +667,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if u_data.get('is_new', False) and user.id != ADMIN_ID:
         try:
+            seq_num = u_data.get('user_sequence', 1)
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
                 text=(
-                    "👤 **مستخدم جديد انضم إلى البوت!**\n\n"
+                    f"👤 **مستخدم جديد انضم إلى البوت! (رقم {seq_num})**\n\n"
                     f"▫️ الاسم: {user.full_name}\n"
                     f"▫️ المعرف: @{user.username if user.username else 'لا يوجد'}\n"
                     f"▫️ الآيدي: `{user.id}`"
@@ -2338,7 +2347,7 @@ if __name__ == '__main__':
         app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
         
-        print("🟢 البوت يعمل بكامل طاقته والتعديلات المطلوبة مفعلة بنجاح...")
+        print("🟢 البوت يعمل بكامل طاقته وعداد المستخدمين مفعل بنجاح...")
         app.run_polling()
     except Exception as e:
         print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
