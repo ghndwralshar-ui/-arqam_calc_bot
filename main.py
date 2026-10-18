@@ -66,7 +66,7 @@ def db_get_user(user_id):
                 "user_sequence": new_seq
             }
             supabase.table("users").insert(new_data).execute()
-            return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": new_seq, "is_new": True}
+            return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": new_seq, "is_really_new": True}
         
         row = rows[0]
         return {
@@ -75,11 +75,11 @@ def db_get_user(user_id):
             "referred_by": int(row.get("referred_by", 0)),
             "is_banned": int(row.get("is_banned", 0)),
             "user_sequence": int(row.get("user_sequence", 1)),
-            "is_new": False
+            "is_really_new": False
         }
     except Exception as e:
         print(f"db_get_user Error: {e}")
-        return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": 1, "is_new": True}
+        return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": 1, "is_really_new": False}
 
 def db_update_balance(user_id, amount, mode="add"):
     u = db_get_user(user_id)
@@ -637,7 +637,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
         return
     
-    if u_data.get('is_new', False) and user.id != ADMIN_ID:
+    if u_data.get('is_really_new', False) and user.id != ADMIN_ID:
         try:
             seq_num = u_data.get('user_sequence', 1)
             await context.bot.send_message(
@@ -672,7 +672,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             "🌟 انضم مستخدم جديد إلى البوت عبر رابط الإحالة الخاص بك بنجاح تام!\n\n"
                             "🎁 **تمت إضافة:** `$0.10` إلى رصيدك كمكافأة دعوة.\n"
                             f"💰 **رصيدك الحالي:** `${u_info['balance']:.2f}`\n"
-                            f"👥 **إجمالي دعواتك:** `${u_info['referrals']} شخص`\n\n"
+                            f"👥 **إجمالي دعواتك:** `{u_info['referrals']} شخص`\n\n"
                             "🚀 *واصل مشاركة رابطك واربح المزيد من الأرباح فوراً!*"
                         ),
                         parse_mode='Markdown'
@@ -691,7 +691,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     if arg_param == 'boosting_services':
-        u_data = db_get_user(user.id)
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 payload = {'key': HMCARD_API_KEY, 'action': 'services'}
