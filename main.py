@@ -46,7 +46,7 @@ logging.basicConfig(
 
 admin_state = {}
 
-# --- قاعدة البيانات الموسعة مع حماية كاملة وعداد المستخدمين ---
+# --- قاعدة البيانات الموسعة مع جدول أكواد الهدايا (Promo Codes) ---
 def init_db():
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -72,6 +72,23 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS forced_channels (
                     channel_username TEXT PRIMARY KEY,
                     channel_title TEXT
+                )
+            ''')
+            # جدول أكواد الهدايا الجديد
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS promo_codes (
+                    code TEXT PRIMARY KEY,
+                    amount REAL,
+                    max_uses INTEGER,
+                    used_count INTEGER DEFAULT 0
+                )
+            ''')
+            # جدول لتسجيل من استخدم أي كود (لمنع استخدام الكود مرتين لنفس المستخدم)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_promo_uses (
+                    user_id INTEGER,
+                    code TEXT,
+                    PRIMARY KEY (user_id, code)
                 )
             ''')
             cursor.execute("PRAGMA table_info(users)")
@@ -525,7 +542,7 @@ def get_main_keyboard(user_id):
         [InlineKeyboardButton("✈️ عروض Telegram", callback_data='deals_telegram'), InlineKeyboardButton("💬 عروض WhatsApp", callback_data='deals_whatsapp')],
         [InlineKeyboardButton("🎲 • شحـن الرصيـد •", callback_data='deposit_menu'), InlineKeyboardButton("🎳 • الأكثر توفراً •", callback_data='most_available')],
         [InlineKeyboardButton("🔭 • الرشـق وشحـن الألعـاب والبرامـج •", callback_data='boosting_services')],
-        [InlineKeyboardButton("💎 • ربـح الأرصدة مجـانـاً •", callback_data='free_points')],
+        [InlineKeyboardButton("💎 • ربـح الأرصدة مجـانـاً (أكواد وهدايا) •", callback_data='free_points')],
         [InlineKeyboardButton("🔄 • تحويـل الرصيـد •", callback_data='transfer_balance'), InlineKeyboardButton("📞 • الدعم •", url=f"https://t.me/{SUPPORT_USERNAME}")],
         [InlineKeyboardButton("📖 • تعليمات وطريقة استخدام البوت •", callback_data='bot_instructions')],
         [InlineKeyboardButton("👤 حســابــي", callback_data='user_account')]
@@ -556,6 +573,7 @@ def get_admin_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📊 تحديث الإحصائيات الشاملة", callback_data='admin_panel')],
         [InlineKeyboardButton("🏆 قائمة أطراف الإحالات (Top 5)", callback_data='admin_top_refs')],
+        [InlineKeyboardButton("🎟️ إضافـة كود هدية (Promo Code)", callback_data='admin_create_promo')],
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
         [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
@@ -908,8 +926,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• 💙 محفظة جيب (Jaib): تحويل إلى الحساب المعتمد (1$ = 550 ريال يمني قديم).\n"
             "• 🏦 بنك الكريمي (Alkurimi): تحويل مباشر (1$ = 550 ريال يمني قديم).\n"
             "• 📞 للدعم والمساعدة: @benti\n\n"
-            "💎 **4️⃣ ربح الأرصدة مجاناً:**\n"
-            "• شارك رابط الإحالة الخاص بك مع أصدقائك واربح **$0.10** عن كل شخص ينضم عبر رابطك!\n\n"
+            "💎 **4️⃣ ربح الأرصدة مجاناً وإدخال الاكواد:**\n"
+            "• شارك رابط الإحالة الخاص بك أو **أرسل كود الهدية (Promo Code)** في المحادثة مباشرة لشحن رصيدك مجاناً!\n\n"
             "🔄 **5️⃣ تحويل الرصيد:**\n"
             "• يمكنك تحويل أي مبلغ من رصيدك لأي مستخدم آخر داخل البوت بكل سهولة عبر آيدي المستخدم.\n\n"
             "> 💡 *انقر على الزر أدناه للعودة للقائمة الرئيسية واستكشاف خدماتنا فوراً!* 👇"
@@ -1195,13 +1213,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         
         free_text = (
-            "شارك رابط الإحالة الخاص بك مع الأصدقاء أو المجموعات أو في أي مكان — واربح **$0.10** لكل مستخدم ينضم عبر رابطك!\n"
-            " ––––––—————–––––———–––•\n"
-            "✅ **رابط الإحالة الخاص بك:**\n"
-            f"`{ref_link}`\n\n"
-            f"📊 **إحصائياتك:**\n"
-            f"👥 عدد الدعوات: `{u_data['referrals']} شخص`\n"
-            f"⭐ الأرباح: `${u_data['referrals'] * 0.10:.2f}`"
+            "💎 **قسم ربح الأرصدة مجاناً وأكواد الهدية:**\n\n"
+            "1️⃣ **رابط الإحالة الخاص بك:**\n"
+            f"`{ref_link}`\n"
+            f"👥 عدد الدعوات: `{u_data['referrals']} شخص` | ⭐ الأرباح: `${u_data['referrals'] * 0.10:.2f}`\n\n"
+            "2️⃣ **شحن عبر كود هدية (Promo Code):**\n"
+            "إذا كان لديك كود هدية أو قسيمة شحن، **قم بإرسال الكود مباشرة في هذه المحادثة** وسيتولى البوت شحن رصيدك فوراً!"
         )
         await query.edit_message_text(
             free_text,
@@ -1671,6 +1688,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
         )
 
+    elif data == 'admin_create_promo':
+        if not is_admin_or_sub(user_id): return
+        admin_state[user_id] = {'action': 'waiting_for_promo_details'}
+        await query.edit_message_text(
+            "🎟️ **إنشاء كود هدية جديد (Promo Code):**\n\n"
+            "أرسل الآن **(الكود)** و **(المبلغ بالدولار)** و **(عدد مرات الاستخدام)** بمسافات بينها.\n"
+            "*(مثال: `WELCOME 0.50 100`)*\n"
+            "*(تعني: كود بقيمة 0.50$ ومتاح لـ 100 شخص)*",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
+        )
+
     elif data == 'admin_reply_user':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_reply_id'}
@@ -1900,12 +1929,86 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
+    text_content = update.message.text.strip() if update.message.text else ""
+
+    # التحقق مما إذا كان النص المرسل عبارة عن "كود هدية" (Promo Code) نشط
+    if text_content and not (is_admin_or_sub(user_id) and user_id in admin_state):
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT amount, max_uses, used_count FROM promo_codes WHERE code = ?', (text_content,))
+                promo_row = cursor.fetchone()
+                
+                if promo_row:
+                    amount, max_uses, used_count = promo_row
+                    
+                    # التحقق مما إذا استنفد الكود الحد الأقصى
+                    if used_count >= max_uses:
+                        await update.message.reply_text("❌ **عذراً، هذا الكود استنفد الحد الأقصى لعدد مرات الاستخدام وانتهت صلاحيته.**")
+                        return
+                    
+                    # التحقق مما إذا كان المستخدم قد استعمل هذا الكود مسبقاً
+                    cursor.execute('SELECT 1 FROM user_promo_uses WHERE user_id = ? AND code = ?', (user_id, text_content))
+                    if cursor.fetchone():
+                        await update.message.reply_text("⚠️ **عذراً، لقد قمت باستخدام هذا الكود مسبقاً ولا يمكنك استخدامه مرة أخرى.**")
+                        return
+                    
+                    # تفعيل الكود وإضافة الرصيد للمستخدم وتحديث العدادات
+                    db_update_balance(user_id, amount, mode="add")
+                    cursor.execute('UPDATE promo_codes SET used_count = used_count + 1 WHERE code = ?', (text_content,))
+                    cursor.execute('INSERT INTO user_promo_uses (user_id, code) VALUES (?, ?)', (user_id, text_content))
+                    conn.commit()
+                    
+                    u_data = db_get_user(user_id)
+                    await update.message.reply_text(
+                        f"🎉 **تهانينا! تم تفعيل كود الهدية بنجاح.** 🎁\n\n"
+                        f"💰 **تمت إضافة:** `${amount:.2f}` إلى رصيدك.\n"
+                        f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                    return
+        except Exception as promo_err:
+            print(f"Promo error: {promo_err}")
+
     if is_admin_or_sub(user_id) and user_id in admin_state:
         action = admin_state[user_id].get('action')
         
+        if action == 'waiting_for_promo_details':
+            try:
+                parts = text_content.split()
+                if len(parts) < 3:
+                    raise ValueError()
+                
+                code_str = parts[0]
+                amount_val = float(parts[1])
+                max_uses_val = int(parts[2])
+                
+                if amount_val <= 0 or max_uses_val <= 0:
+                    raise ValueError()
+                
+                with sqlite3.connect(DB_PATH) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('INSERT OR REPLACE INTO promo_codes (code, amount, max_uses, used_count) VALUES (?, ?, ?, 0)', (code_str, amount_val, max_uses_val))
+                    conn.commit()
+                
+                admin_state.pop(user_id, None)
+                await update.message.reply_text(
+                    f"✅ **تم إنشاء كود الهدية بنجاح تام!** 🎟️\n\n"
+                    f"▫️ الكود: `{code_str}`\n"
+                    f"▫️ القيمة: `${amount_val:.2f}`\n"
+                    f"▫️ عدد المستخدمين المسموح: `{max_uses_val} شخص`",
+                    parse_mode='Markdown',
+                    reply_markup=get_admin_keyboard()
+                )
+                return
+            except Exception:
+                await update.message.reply_text("❌ الصيغة خاطئة! أرسل (الكود والمبلغ وعدد المرات) بمسافات صحيحة.\nمثال: `WELCOME 0.50 100`")
+                return
+
         if action == 'waiting_for_custom_deposit_amount':
             try:
-                amount = float(update.message.text.strip())
+                amount = float(text_content)
                 if amount <= 0:
                     raise ValueError()
                 
@@ -1941,7 +2044,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         if action == 'waiting_for_gift_id_amount':
             try:
-                parts = update.message.text.strip().split()
+                parts = text_content.split()
                 target_id = int(parts[0])
                 gift_amount = float(parts[1])
                 if gift_amount <= 0:
@@ -1971,7 +2074,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         if action in ['add_balance', 'deduct_balance']:
             try:
-                parts = update.message.text.strip().split()
+                parts = text_content.split()
                 target_id = int(parts[0])
                 amount = float(parts[1])
                 db_update_balance(target_id, amount, mode="add" if action == 'add_balance' else "deduct")
@@ -1991,7 +2094,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_reply_id':
             try:
-                text_content = update.message.text.strip()
                 space_idx = text_content.find(' ')
                 if space_idx == -1:
                     raise ValueError()
@@ -2012,7 +2114,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_bonus_amount':
             try:
-                bonus_amount = float(update.message.text.strip())
+                bonus_amount = float(text_content)
                 all_users = db_get_all_users()
                 
                 status_msg = await update.message.reply_text(f"🎁 **جاري توزيع هدية بقيمة `${bonus_amount:.2f}` لجميع المشتركين...**", parse_mode='Markdown')
@@ -2043,7 +2145,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_sub_id':
             try:
-                sub_id = int(update.message.text.strip())
+                sub_id = int(text_content)
                 with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
                     cursor.execute('INSERT OR REPLACE INTO sub_admins (admin_id, added_date) VALUES (?, ?)', (sub_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
@@ -2062,7 +2164,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_del_sub_id':
             try:
-                sub_id = int(update.message.text.strip())
+                sub_id = int(text_content)
                 with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
                     cursor.execute('DELETE FROM sub_admins WHERE admin_id = ?', (sub_id,))
@@ -2077,7 +2179,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_forced_add':
             try:
-                parts = update.message.text.strip().split(maxsplit=1)
+                parts = text_content.split(maxsplit=1)
                 ch_uname = parts[0]
                 ch_ttl = parts[1] if len(parts) > 1 else ch_uname
                 
@@ -2095,7 +2197,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_forced_del':
             try:
-                ch_uname = update.message.text.strip()
+                ch_uname = text_content
                 with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
                     cursor.execute('DELETE FROM forced_channels WHERE channel_username = ?', (ch_uname,))
@@ -2110,7 +2212,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_ban_id':
             try:
-                target_id = int(update.message.text.strip())
+                target_id = int(text_content)
                 u_info = db_get_user(target_id)
                 new_ban_status = 1 if u_info['is_banned'] == 0 else 0
                 
@@ -2153,7 +2255,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_hm_link':
-        link_text = update.message.text.strip()
+        link_text = text_content
         admin_state[user_id]['link'] = link_text
         admin_state[user_id]['action'] = 'waiting_for_hm_quantity'
         
@@ -2165,7 +2267,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_hm_quantity':
-        qty_text = update.message.text.strip()
+        qty_text = text_content
         try:
             quantity = int(qty_text)
             st_data = admin_state.get(user_id, {})
@@ -2226,9 +2328,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_id':
-        text = update.message.text.strip()
         try:
-            target_id = int(text)
+            target_id = int(text_content)
             if target_id == user_id:
                 await update.message.reply_text("❌ لا يمكنك التحويل إلى نفس حسابك! أرسل آيدي صحيح:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
                 return
@@ -2246,9 +2347,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_amount':
-        text = update.message.text.strip()
         try:
-            amount = float(text)
+            amount = float(text_content)
             if amount <= 0:
                 raise ValueError()
             
@@ -2330,7 +2430,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 pass
         return
 
-    text = update.message.text.strip() if update.message.text else ""
+    text = text_content
     try:
         await context.bot.send_message(
             chat_id=ADMIN_ID,
