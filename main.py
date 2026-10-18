@@ -2,6 +2,7 @@ import logging
 import sqlite3
 import asyncio
 import httpx
+import os
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, LabeledPrice
 from telegram.ext import (
@@ -27,6 +28,11 @@ LOG_CHANNEL_ID = "@DigitalHubOrders"
 HMCARD_API_URL = "https://hmcard.online/api/v2"
 HMCARD_API_KEY = "6e568032e93df81068eadaae1175e589"
 
+# --- مسار قاعدة البيانات الثابت (يدعم Render Disk والتشغيل المحلي) ---
+DB_PATH = "/data/bot_database.db"
+if not os.path.exists("/data"):
+    DB_PATH = "bot_database.db"
+
 HEADERS = {
     'Authorization': f'Bearer {FIVESIM_API_KEY}',
     'Accept': 'application/json',
@@ -43,7 +49,7 @@ admin_state = {}
 # --- قاعدة البيانات الموسعة مع حماية كاملة وعداد المستخدمين ---
 def init_db():
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
@@ -84,12 +90,11 @@ def db_get_user(user_id):
     init_db()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT balance, referrals, referred_by, is_banned, user_sequence FROM users WHERE user_id = ?', (user_id,))
             row = cursor.fetchone()
             if not row:
-                # حساب الرقم التسلسلي الجديد للمستخدم
                 cursor.execute('SELECT MAX(user_sequence) FROM users')
                 max_seq = cursor.fetchone()[0]
                 new_seq = (max_seq or 0) + 1
@@ -105,7 +110,7 @@ def db_get_user(user_id):
 def db_update_balance(user_id, amount, mode="add"):
     db_get_user(user_id)
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             if mode == "add":
                 cursor.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (float(amount), user_id))
@@ -117,7 +122,7 @@ def db_update_balance(user_id, amount, mode="add"):
 
 def db_add_referral_record(new_user_id, referrer_id):
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT referred_by FROM users WHERE user_id = ?', (new_user_id,))
             row = cursor.fetchone()
@@ -133,7 +138,7 @@ def db_add_referral_record(new_user_id, referrer_id):
 def db_get_advanced_stats():
     init_db()
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT COUNT(*), COALESCE(SUM(balance), 0), COALESCE(SUM(referrals), 0) FROM users')
             u, b, r = cursor.fetchone()
@@ -153,7 +158,7 @@ def db_get_advanced_stats():
 def db_get_all_users():
     init_db()
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT user_id FROM users WHERE is_banned = 0')
             return [row[0] for row in cursor.fetchall()]
@@ -164,7 +169,7 @@ def is_admin_or_sub(user_id):
     if user_id == ADMIN_ID:
         return True
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT admin_id FROM sub_admins WHERE admin_id = ?', (user_id,))
             return cursor.fetchone() is not None
@@ -174,7 +179,7 @@ def is_admin_or_sub(user_id):
 def get_all_sub_admins():
     init_db()
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT admin_id FROM sub_admins')
             return [row[0] for row in cursor.fetchall()]
@@ -184,7 +189,7 @@ def get_all_sub_admins():
 def get_forced_channels():
     init_db()
     try:
-        with sqlite3.connect('bot_database.db') as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT channel_username, channel_title FROM forced_channels')
             return cursor.fetchall()
@@ -221,7 +226,7 @@ def mask_link(link: str) -> str:
     half = length // 2
     return link[:half] + "..."
 
-# --- عروض الأرقام ---
+# --- عروض الأرقام والخدمات ---
 WHATSAPP_DEALS = [
     {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.50)},
     {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.50)},
@@ -1807,7 +1812,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         try:
-            with sqlite3.connect('bot_database.db') as conn:
+            with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
                 cursor.execute('UPDATE users SET balance = 0.0')
                 conn.commit()
@@ -2039,7 +2044,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         elif action == 'waiting_for_sub_id':
             try:
                 sub_id = int(update.message.text.strip())
-                with sqlite3.connect('bot_database.db') as conn:
+                with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
                     cursor.execute('INSERT OR REPLACE INTO sub_admins (admin_id, added_date) VALUES (?, ?)', (sub_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
                     conn.commit()
@@ -2058,7 +2063,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         elif action == 'waiting_for_del_sub_id':
             try:
                 sub_id = int(update.message.text.strip())
-                with sqlite3.connect('bot_database.db') as conn:
+                with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
                     cursor.execute('DELETE FROM sub_admins WHERE admin_id = ?', (sub_id,))
                     conn.commit()
@@ -2076,7 +2081,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 ch_uname = parts[0]
                 ch_ttl = parts[1] if len(parts) > 1 else ch_uname
                 
-                with sqlite3.connect('bot_database.db') as conn:
+                with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
                     cursor.execute('INSERT OR REPLACE INTO forced_channels (channel_username, channel_title) VALUES (?, ?)', (ch_uname, ch_ttl))
                     conn.commit()
@@ -2091,7 +2096,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         elif action == 'waiting_for_forced_del':
             try:
                 ch_uname = update.message.text.strip()
-                with sqlite3.connect('bot_database.db') as conn:
+                with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
                     cursor.execute('DELETE FROM forced_channels WHERE channel_username = ?', (ch_uname,))
                     conn.commit()
@@ -2109,7 +2114,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 u_info = db_get_user(target_id)
                 new_ban_status = 1 if u_info['is_banned'] == 0 else 0
                 
-                with sqlite3.connect('bot_database.db') as conn:
+                with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
                     cursor.execute('UPDATE users SET is_banned = ? WHERE user_id = ?', (new_ban_status, target_id))
                     conn.commit()
@@ -2347,7 +2352,7 @@ if __name__ == '__main__':
         app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
         
-        print("🟢 البوت يعمل بكامل طاقته وعداد المستخدمين مفعل بنجاح...")
+        print("🟢 البوت يعمل بكامل طاقته ومسار قاعدة البيانات في القرص الدائم جاهز...")
         app.run_polling()
     except Exception as e:
         print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
