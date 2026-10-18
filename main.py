@@ -1,7 +1,6 @@
 import logging
 import asyncio
 import httpx
-import os
 from datetime import datetime, timedelta
 from supabase import create_client, Client
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, LabeledPrice
@@ -21,14 +20,11 @@ FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQs
 ADMIN_ID = 6472852297
 SUPPORT_USERNAME = "benti"
 
-# معرف قناتك الخاصة بسجل الطلبات
 LOG_CHANNEL_ID = "@DigitalHubOrders"
 
-# إعدادات موقع الرشق HM CARD
 HMCARD_API_URL = "https://hmcard.online/api/v2"
 HMCARD_API_KEY = "6e568032e93df81068eadaae1175e589"
 
-# --- إعدادات اتصال Supabase السحابي ---
 SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
 SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -46,7 +42,6 @@ logging.basicConfig(
 
 admin_state = {}
 
-# --- دوال التعامل مع قاعدة البيانات السحابية Supabase (مصححة ومحدثة) ---
 def init_db():
     print("🟢 قاعدة البيانات السحابية (Supabase) متصلة وجاهزة بنجاح!")
 
@@ -199,7 +194,6 @@ def mask_link(link: str) -> str:
     half = length // 2
     return link[:half] + "..."
 
-# --- عروض الأرقام والخدمات ---
 WHATSAPP_DEALS = [
     {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.50)},
     {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.50)},
@@ -570,7 +564,6 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
                         
                         try:
                             masked_ph = phone[:4] + "***" + phone[-3:]
-                            
                             service_deeplink = f"https://t.me/{bot_username}?start=buy_virtual_number"
                             s_lower = service.lower()
                             if s_lower == 'whatsapp':
@@ -873,7 +866,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة في مكان واحد وبأفضل الأسعار! 🌟\n\n"
             "📱 **1️⃣ قسم الأرقام الافتراضية:**\n"
             "• احصل فوراً على أرقام لتفعيل (واتساب، تليجرام، انستغرام، فيسبوك، وغيرها) من مختلف دول العالم.\n"
-            "• النظام يتحقق من وصول الكود ويعرضه لك مباشرة داخل البوت مع إمكانية إلغاء الرقم واسترداد رصيدك في حال لم يصل الكود.\n\n"
+            "• النظام يتحقق من وصول الكود ويعرسلك مباشرة داخل البوت مع إمكانية إلغاء الرقم واسترداد رصيدك في حال لم يصل الكود.\n\n"
             "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
             "• اطلب خدمات زيادة المتابعين والتفاعلات لجميع منصات التواصل الاجتماعي بكل سهولة.\n"
             "• الأسعار تنافسية ومضبوطة بعناية لتوفير أفضل تجربة لك.\n\n"
@@ -1887,7 +1880,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # التحقق مما إذا كان النص المرسل عبارة عن "كود هدية" (Promo Code) نشط في Supabase
     if text_content and not (is_admin_or_sub(user_id) and user_id in admin_state):
         try:
             res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
@@ -2387,3 +2379,5 @@ if __name__ == '__main__':
         
         print("🟢 البوت يعمل بكامل طاقته على قاعدة البيانات السحابية Supabase بدلاً من الملفات المحلية!")
         app.run_polling()
+    except Exception as e:
+        print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
