@@ -1,9 +1,9 @@
 import logging
-import sqlite3
 import asyncio
 import httpx
 import os
 from datetime import datetime, timedelta
+from supabase import create_client, Client
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, LabeledPrice
 from telegram.ext import (
     ApplicationBuilder,
@@ -28,10 +28,10 @@ LOG_CHANNEL_ID = "@DigitalHubOrders"
 HMCARD_API_URL = "https://hmcard.online/api/v2"
 HMCARD_API_KEY = "6e568032e93df81068eadaae1175e589"
 
-# --- مسار قاعدة البيانات الثابت (يدعم Render Disk والتشغيل المحلي) ---
-DB_PATH = "/data/bot_database.db"
-if not os.path.exists("/data"):
-    DB_PATH = "bot_database.db"
+# --- إعدادات اتصال Supabase السحابي ---
+SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
+SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 HEADERS = {
     'Authorization': f'Bearer {FIVESIM_API_KEY}',
@@ -46,139 +46,96 @@ logging.basicConfig(
 
 admin_state = {}
 
-# --- قاعدة البيانات الموسعة مع جدول أكواد الهدايا (Promo Codes) ---
+# --- دوال التعامل مع قاعدة البيانات السحابية Supabase ---
 def init_db():
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    user_id INTEGER PRIMARY KEY,
-                    balance REAL DEFAULT 0.0,
-                    referrals INTEGER DEFAULT 0,
-                    referred_by INTEGER DEFAULT 0,
-                    joined_date TEXT,
-                    is_banned INTEGER DEFAULT 0,
-                    user_sequence INTEGER DEFAULT 0
-                )
-            ''')
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS sub_admins (
-                    admin_id INTEGER PRIMARY KEY,
-                    added_date TEXT
-                )
-            ''')
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS forced_channels (
-                    channel_username TEXT PRIMARY KEY,
-                    channel_title TEXT
-                )
-            ''')
-            # جدول أكواد الهدايا الجديد
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS promo_codes (
-                    code TEXT PRIMARY KEY,
-                    amount REAL,
-                    max_uses INTEGER,
-                    used_count INTEGER DEFAULT 0
-                )
-            ''')
-            # جدول لتسجيل من استخدم أي كود (لمنع استخدام الكود مرتين لنفس المستخدم)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS user_promo_uses (
-                    user_id INTEGER,
-                    code TEXT,
-                    PRIMARY KEY (user_id, code)
-                )
-            ''')
-            cursor.execute("PRAGMA table_info(users)")
-            columns = [column[1] for column in cursor.fetchall()]
-            if 'joined_date' not in columns:
-                cursor.execute("ALTER TABLE users ADD COLUMN joined_date TEXT")
-            if 'is_banned' not in columns:
-                cursor.execute("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0")
-            if 'user_sequence' not in columns:
-                cursor.execute("ALTER TABLE users ADD COLUMN user_sequence INTEGER DEFAULT 0")
-            conn.commit()
-    except Exception as e:
-        print(f"Database Init Error: {e}")
+    print("🟢 قاعدة البيانات السحابية (Supabase) متصلة وجاهزة بنجاح!")
 
 def db_get_user(user_id):
-    init_db()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT balance, referrals, referred_by, is_banned, user_sequence FROM users WHERE user_id = ?', (user_id,))
-            row = cursor.fetchone()
-            if not row:
-                cursor.execute('SELECT MAX(user_sequence) FROM users')
-                max_seq = cursor.fetchone()[0]
-                new_seq = (max_seq or 0) + 1
+        res = supabase.table("users").select("*").eq("user_id", user_id).execute()
+        rows = res.data
+        if not rows:
+            all_u = supabase.table("users").select("user_sequence").execute().data
+            max_seq = max([r.get("user_sequence", 0) for r in all_u]) if all_u else 0
+            new_seq = max_seq + 1
 
-                cursor.execute('INSERT INTO users (user_id, balance, referrals, referred_by, joined_date, is_banned, user_sequence) VALUES (?, 0.0, 0, 0, ?, 0, ?)', (user_id, now_str, new_seq))
-                conn.commit()
-                return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": new_seq, "is_new": True}
-            return {"balance": row[0], "referrals": row[1], "referred_by": row[2], "is_banned": row[3], "user_sequence": row[4], "is_new": False}
+            new_data = {
+                "user_id": user_id,
+                "balance": 0.0,
+                "referrals": 0,
+                "referred_by": 0,
+                "joined_date": now_str,
+                "is_banned": 0,
+                "user_sequence": new_seq
+            }
+            supabase.table("users").insert(new_data).execute()
+            return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": new_seq, "is_new": True}
+        
+        row = rows[0]
+        return {
+            "balance": float(row.get("balance", 0.0)),
+            "referrals": int(row.get("referrals", 0)),
+            "referred_by": int(row.get("referred_by", 0)),
+            "is_banned": int(row.get("is_banned", 0)),
+            "user_sequence": int(row.get("user_sequence", 1)),
+            "is_new": False
+        }
     except Exception as e:
         print(f"db_get_user Error: {e}")
         return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": 1, "is_new": True}
 
 def db_update_balance(user_id, amount, mode="add"):
-    db_get_user(user_id)
+    u = db_get_user(user_id)
+    current_bal = u["balance"]
+    if mode == "add":
+        new_bal = current_bal + float(amount)
+    elif mode == "deduct":
+        new_bal = max(0.0, current_bal - float(amount))
+    else:
+        new_bal = current_bal
+
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            if mode == "add":
-                cursor.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (float(amount), user_id))
-            elif mode == "deduct":
-                cursor.execute('UPDATE users SET balance = MAX(0.0, balance - ?) WHERE user_id = ?', (float(amount), user_id))
-            conn.commit()
+        supabase.table("users").update({"balance": new_bal}).eq("user_id", user_id).execute()
     except Exception as e:
         print(f"db_update_balance Error: {e}")
 
 def db_add_referral_record(new_user_id, referrer_id):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT referred_by FROM users WHERE user_id = ?', (new_user_id,))
-            row = cursor.fetchone()
-            if row and row[0] == 0:
-                cursor.execute('UPDATE users SET referred_by = ? WHERE user_id = ?', (referrer_id, new_user_id))
-                cursor.execute('UPDATE users SET referrals = referrals + 1 WHERE user_id = ?', (referrer_id,))
-                conn.commit()
-                return True
+        res = supabase.table("users").select("referred_by").eq("user_id", new_user_id).execute()
+        if res.data and res.data[0].get("referred_by", 0) == 0:
+            supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", new_user_id).execute()
+            ref_info = supabase.table("users").select("referrals").eq("user_id", referrer_id).execute()
+            current_refs = ref_info.data[0].get("referrals", 0) if ref_info.data else 0
+            supabase.table("users").update({"referrals": current_refs + 1}).eq("user_id", referrer_id).execute()
+            return True
     except Exception as e:
         print(f"db_add_referral_record Error: {e}")
     return False
 
 def db_get_advanced_stats():
-    init_db()
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT COUNT(*), COALESCE(SUM(balance), 0), COALESCE(SUM(referrals), 0) FROM users')
-            u, b, r = cursor.fetchone()
-            
-            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute('SELECT COUNT(*) FROM users WHERE joined_date >= ?', (yesterday,))
-            new_24h = cursor.fetchone()[0]
+        res = supabase.table("users").select("*").execute()
+        users = res.data or []
+        total_users = len(users)
+        total_balances = sum(float(u.get("balance", 0.0)) for u in users)
+        total_referrals = sum(int(u.get("referrals", 0)) for u in users)
 
-            cursor.execute('SELECT user_id, referrals FROM users WHERE referrals > 0 ORDER BY referrals DESC LIMIT 5')
-            top_refs = cursor.fetchall()
-            
-            return {"total_users": u, "total_balances": b, "total_referrals": r, "new_24h": new_24h, "top_refs": top_refs}
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+        new_24h = sum(1 for u in users if u.get("joined_date", "") >= yesterday)
+
+        sorted_users = sorted(users, key=lambda x: x.get("referrals", 0), reverse=True)
+        top_refs = [(u["user_id"], u["referrals"]) for u in sorted_users[:5] if u.get("referrals", 0) > 0]
+
+        return {"total_users": total_users, "total_balances": total_balances, "total_referrals": total_referrals, "new_24h": new_24h, "top_refs": top_refs}
     except Exception as e:
         print(f"db_get_advanced_stats Error: {e}")
         return {"total_users": 0, "total_balances": 0, "total_referrals": 0, "new_24h": 0, "top_refs": []}
 
 def db_get_all_users():
-    init_db()
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT user_id FROM users WHERE is_banned = 0')
-            return [row[0] for row in cursor.fetchall()]
+        res = supabase.table("users").select("user_id").eq("is_banned", 0).execute()
+        return [row["user_id"] for row in res.data] if res.data else []
     except Exception:
         return []
 
@@ -186,30 +143,22 @@ def is_admin_or_sub(user_id):
     if user_id == ADMIN_ID:
         return True
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT admin_id FROM sub_admins WHERE admin_id = ?', (user_id,))
-            return cursor.fetchone() is not None
+        res = supabase.table("sub_admins").select("admin_id").eq("admin_id", user_id).execute()
+        return len(res.data) > 0
     except Exception:
         return False
 
 def get_all_sub_admins():
-    init_db()
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT admin_id FROM sub_admins')
-            return [row[0] for row in cursor.fetchall()]
+        res = supabase.table("sub_admins").select("admin_id").execute()
+        return [row["admin_id"] for row in res.data] if res.data else []
     except Exception:
         return []
 
 def get_forced_channels():
-    init_db()
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT channel_username, channel_title FROM forced_channels')
-            return cursor.fetchall()
+        res = supabase.table("forced_channels").select("channel_username, channel_title").execute()
+        return [(row["channel_username"], row["channel_title"]) for row in res.data] if res.data else []
     except Exception:
         return []
 
@@ -1841,10 +1790,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         try:
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute('UPDATE users SET balance = 0.0')
-                conn.commit()
+            users = supabase.table("users").select("user_id").execute().data
+            for u in users:
+                supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
         except Exception:
             pass
             
@@ -1931,43 +1879,36 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # التحقق مما إذا كان النص المرسل عبارة عن "كود هدية" (Promo Code) نشط
+    # التحقق مما إذا كان النص المرسل عبارة عن "كود هدية" (Promo Code) نشط في Supabase
     if text_content and not (is_admin_or_sub(user_id) and user_id in admin_state):
         try:
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute('SELECT amount, max_uses, used_count FROM promo_codes WHERE code = ?', (text_content,))
-                promo_row = cursor.fetchone()
+            res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
+            if res.data:
+                promo = res.data[0]
+                amount, max_uses, used_count = float(promo["amount"]), int(promo["max_uses"]), int(promo["used_count"])
                 
-                if promo_row:
-                    amount, max_uses, used_count = promo_row
-                    
-                    # التحقق مما إذا استنفد الكود الحد الأقصى
-                    if used_count >= max_uses:
-                        await update.message.reply_text("❌ **عذراً، هذا الكود استنفد الحد الأقصى لعدد مرات الاستخدام وانتهت صلاحيته.**")
-                        return
-                    
-                    # التحقق مما إذا كان المستخدم قد استعمل هذا الكود مسبقاً
-                    cursor.execute('SELECT 1 FROM user_promo_uses WHERE user_id = ? AND code = ?', (user_id, text_content))
-                    if cursor.fetchone():
-                        await update.message.reply_text("⚠️ **عذراً، لقد قمت باستخدام هذا الكود مسبقاً ولا يمكنك استخدامه مرة أخرى.**")
-                        return
-                    
-                    # تفعيل الكود وإضافة الرصيد للمستخدم وتحديث العدادات
-                    db_update_balance(user_id, amount, mode="add")
-                    cursor.execute('UPDATE promo_codes SET used_count = used_count + 1 WHERE code = ?', (text_content,))
-                    cursor.execute('INSERT INTO user_promo_uses (user_id, code) VALUES (?, ?)', (user_id, text_content))
-                    conn.commit()
-                    
-                    u_data = db_get_user(user_id)
-                    await update.message.reply_text(
-                        f"🎉 **تهانينا! تم تفعيل كود الهدية بنجاح.** 🎁\n\n"
-                        f"💰 **تمت إضافة:** `${amount:.2f}` إلى رصيدك.\n"
-                        f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                    )
+                if used_count >= max_uses:
+                    await update.message.reply_text("❌ **عذراً، هذا الكود استنفد الحد الأقصى لعدد مرات الاستخدام وانتهت صلاحيته.**")
                     return
+                
+                used_check = supabase.table("user_promo_uses").select("*").eq("user_id", user_id).eq("code", text_content).execute()
+                if used_check.data:
+                    await update.message.reply_text("⚠️ **عذراً، لقد قمت باستخدام هذا الكود مسبقاً ولا يمكنك استخدامه مرة أخرى.**")
+                    return
+                
+                db_update_balance(user_id, amount, mode="add")
+                supabase.table("promo_codes").update({"used_count": used_count + 1}).eq("code", text_content).execute()
+                supabase.table("user_promo_uses").insert({"user_id": user_id, "code": text_content}).execute()
+                
+                u_data = db_get_user(user_id)
+                await update.message.reply_text(
+                    f"🎉 **تهانينا! تم تفعيل كود الهدية بنجاح.** 🎁\n\n"
+                    f"💰 **تمت إضافة:** `${amount:.2f}` إلى رصيدك.\n"
+                    f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
         except Exception as promo_err:
             print(f"Promo error: {promo_err}")
 
@@ -1987,10 +1928,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 if amount_val <= 0 or max_uses_val <= 0:
                     raise ValueError()
                 
-                with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('INSERT OR REPLACE INTO promo_codes (code, amount, max_uses, used_count) VALUES (?, ?, ?, 0)', (code_str, amount_val, max_uses_val))
-                    conn.commit()
+                supabase.table("promo_codes").upsert({"code": code_str, "amount": amount_val, "max_uses": max_uses_val, "used_count": 0}).execute()
                 
                 admin_state.pop(user_id, None)
                 await update.message.reply_text(
@@ -2146,10 +2084,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         elif action == 'waiting_for_sub_id':
             try:
                 sub_id = int(text_content)
-                with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('INSERT OR REPLACE INTO sub_admins (admin_id, added_date) VALUES (?, ?)', (sub_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-                    conn.commit()
+                supabase.table("sub_admins").upsert({"admin_id": sub_id, "added_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).execute()
                 
                 await update.message.reply_text(f"✅ تم تعيين المستخدم `{sub_id}` كـ **مشرف مساعد** بنجاح!", parse_mode='Markdown', reply_markup=get_admin_keyboard())
                 try:
@@ -2165,10 +2100,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         elif action == 'waiting_for_del_sub_id':
             try:
                 sub_id = int(text_content)
-                with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('DELETE FROM sub_admins WHERE admin_id = ?', (sub_id,))
-                    conn.commit()
+                supabase.table("sub_admins").delete().eq("admin_id", sub_id).execute()
                 
                 await update.message.reply_text(f"✅ تم إزالة المشرف `{sub_id}` من قائمة الإدارة بنجاح.", parse_mode='Markdown', reply_markup=get_admin_keyboard())
                 admin_state.pop(user_id, None)
@@ -2183,10 +2115,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 ch_uname = parts[0]
                 ch_ttl = parts[1] if len(parts) > 1 else ch_uname
                 
-                with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('INSERT OR REPLACE INTO forced_channels (channel_username, channel_title) VALUES (?, ?)', (ch_uname, ch_ttl))
-                    conn.commit()
+                supabase.table("forced_channels").upsert({"channel_username": ch_uname, "channel_title": ch_ttl}).execute()
                 
                 await update.message.reply_text(f"✅ تم إضافة القناة `{ch_uname}` للاشتراك الإجباري بنجاح!", parse_mode='Markdown', reply_markup=get_admin_keyboard())
                 admin_state.pop(user_id, None)
@@ -2198,10 +2127,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         elif action == 'waiting_for_forced_del':
             try:
                 ch_uname = text_content
-                with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('DELETE FROM forced_channels WHERE channel_username = ?', (ch_uname,))
-                    conn.commit()
+                supabase.table("forced_channels").delete().eq("channel_username", ch_uname).execute()
                 
                 await update.message.reply_text(f"✅ تم حذف القناة `{ch_uname}` من الاشتراك الإجباري بنجاح.", parse_mode='Markdown', reply_markup=get_admin_keyboard())
                 admin_state.pop(user_id, None)
@@ -2216,10 +2142,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 u_info = db_get_user(target_id)
                 new_ban_status = 1 if u_info['is_banned'] == 0 else 0
                 
-                with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('UPDATE users SET is_banned = ? WHERE user_id = ?', (new_ban_status, target_id))
-                    conn.commit()
+                supabase.table("users").update({"is_banned": new_ban_status}).eq("user_id", target_id).execute()
                 
                 status_text = "حظر المستخدم بنجاح 🚫" if new_ban_status == 1 else "فك حظر المستخدم بنجاح ✅"
                 await update.message.reply_text(f"✅ **{status_text}**\n🆔 الآيدي: `{target_id}`", parse_mode='Markdown', reply_markup=get_admin_keyboard())
@@ -2442,7 +2365,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
 if __name__ == '__main__':
     try:
-        print("🟡 جاري تهيئة قاعدة البيانات وبدء تشغيل البوت...")
+        print("🟡 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت...")
         init_db()
         app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
         
@@ -2452,7 +2375,7 @@ if __name__ == '__main__':
         app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
         
-        print("🟢 البوت يعمل بكامل طاقته ومسار قاعدة البيانات في القرص الدائم جاهز...")
+        print("🟢 البوت يعمل بكامل طاقته على قاعدة البيانات السحابية Supabase بدلاً من الملفات المحلية!")
         app.run_polling()
     except Exception as e:
         print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
