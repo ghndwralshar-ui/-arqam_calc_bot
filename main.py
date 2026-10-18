@@ -83,7 +83,7 @@ def db_get_user(user_id):
 
 def db_update_balance(user_id, amount, mode="add"):
     u = db_get_user(user_id)
-    current_bal = u["balance"]
+    current_bal = float(u.get("balance", 0.0))
     if mode == "add":
         new_bal = current_bal + float(amount)
     elif mode == "deduct":
