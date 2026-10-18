@@ -46,7 +46,7 @@ logging.basicConfig(
 
 admin_state = {}
 
-# --- دوال التعامل مع قاعدة البيانات السحابية Supabase ---
+# --- دوال التعامل مع قاعدة البيانات السحابية Supabase (مصححة ومحدثة) ---
 def init_db():
     print("🟢 قاعدة البيانات السحابية (Supabase) متصلة وجاهزة بنجاح!")
 
@@ -54,9 +54,10 @@ def db_get_user(user_id):
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         res = supabase.table("users").select("*").eq("user_id", user_id).execute()
-        rows = res.data
+        rows = res.data if hasattr(res, 'data') else []
         if not rows:
-            all_u = supabase.table("users").select("user_sequence").execute().data
+            all_res = supabase.table("users").select("user_sequence").execute()
+            all_u = all_res.data if hasattr(all_res, 'data') else []
             max_seq = max([r.get("user_sequence", 0) for r in all_u]) if all_u else 0
             new_seq = max_seq + 1
 
@@ -103,10 +104,12 @@ def db_update_balance(user_id, amount, mode="add"):
 def db_add_referral_record(new_user_id, referrer_id):
     try:
         res = supabase.table("users").select("referred_by").eq("user_id", new_user_id).execute()
-        if res.data and res.data[0].get("referred_by", 0) == 0:
+        rows = res.data if hasattr(res, 'data') else []
+        if rows and rows[0].get("referred_by", 0) == 0:
             supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", new_user_id).execute()
             ref_info = supabase.table("users").select("referrals").eq("user_id", referrer_id).execute()
-            current_refs = ref_info.data[0].get("referrals", 0) if ref_info.data else 0
+            ref_rows = ref_info.data if hasattr(ref_info, 'data') else []
+            current_refs = ref_rows[0].get("referrals", 0) if ref_rows else 0
             supabase.table("users").update({"referrals": current_refs + 1}).eq("user_id", referrer_id).execute()
             return True
     except Exception as e:
@@ -116,7 +119,7 @@ def db_add_referral_record(new_user_id, referrer_id):
 def db_get_advanced_stats():
     try:
         res = supabase.table("users").select("*").execute()
-        users = res.data or []
+        users = res.data if hasattr(res, 'data') else []
         total_users = len(users)
         total_balances = sum(float(u.get("balance", 0.0)) for u in users)
         total_referrals = sum(int(u.get("referrals", 0)) for u in users)
@@ -135,7 +138,8 @@ def db_get_advanced_stats():
 def db_get_all_users():
     try:
         res = supabase.table("users").select("user_id").eq("is_banned", 0).execute()
-        return [row["user_id"] for row in res.data] if res.data else []
+        rows = res.data if hasattr(res, 'data') else []
+        return [row["user_id"] for row in rows] if rows else []
     except Exception:
         return []
 
@@ -144,21 +148,24 @@ def is_admin_or_sub(user_id):
         return True
     try:
         res = supabase.table("sub_admins").select("admin_id").eq("admin_id", user_id).execute()
-        return len(res.data) > 0
+        rows = res.data if hasattr(res, 'data') else []
+        return len(rows) > 0
     except Exception:
         return False
 
 def get_all_sub_admins():
     try:
         res = supabase.table("sub_admins").select("admin_id").execute()
-        return [row["admin_id"] for row in res.data] if res.data else []
+        rows = res.data if hasattr(res, 'data') else []
+        return [row["admin_id"] for row in rows] if rows else []
     except Exception:
         return []
 
 def get_forced_channels():
     try:
         res = supabase.table("forced_channels").select("channel_username, channel_title").execute()
-        return [(row["channel_username"], row["channel_title"]) for row in res.data] if res.data else []
+        rows = res.data if hasattr(res, 'data') else []
+        return [(row["channel_username"], row["channel_title"]) for row in rows] if rows else []
     except Exception:
         return []
 
@@ -1790,7 +1797,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         try:
-            users = supabase.table("users").select("user_id").execute().data
+            res = supabase.table("users").select("user_id").execute()
+            users = res.data if hasattr(res, 'data') else []
             for u in users:
                 supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
         except Exception:
@@ -1883,8 +1891,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     if text_content and not (is_admin_or_sub(user_id) and user_id in admin_state):
         try:
             res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
-            if res.data:
-                promo = res.data[0]
+            rows = res.data if hasattr(res, 'data') else []
+            if rows:
+                promo = rows[0]
                 amount, max_uses, used_count = float(promo["amount"]), int(promo["max_uses"]), int(promo["used_count"])
                 
                 if used_count >= max_uses:
@@ -1892,7 +1901,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     return
                 
                 used_check = supabase.table("user_promo_uses").select("*").eq("user_id", user_id).eq("code", text_content).execute()
-                if used_check.data:
+                used_rows = used_check.data if hasattr(used_check, 'data') else []
+                if used_rows:
                     await update.message.reply_text("⚠️ **عذراً، لقد قمت باستخدام هذا الكود مسبقاً ولا يمكنك استخدامه مرة أخرى.**")
                     return
                 
@@ -2377,5 +2387,3 @@ if __name__ == '__main__':
         
         print("🟢 البوت يعمل بكامل طاقته على قاعدة البيانات السحابية Supabase بدلاً من الملفات المحلية!")
         app.run_polling()
-    except Exception as e:
-        print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
