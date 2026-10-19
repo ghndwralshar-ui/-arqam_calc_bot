@@ -1661,35 +1661,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'admin_send_gift_user':
         if not is_admin_or_sub(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_gift_id_amount'}
+        admin_state[user_id] = {'action': 'waiting_for_gift_id'}
         await query.edit_message_text(
             "🎁 **إرسال هدية مالية لشخص عبر الآيدي:**\n\n"
-            "أرسل الآن (آيدي المستخدم) و(مبلغ الهدية بالدولار) بمسافة بينهما.\n"
-            "*(مثال: `6472852297 1.50`)*",
+            "أرسل الآن **(آيدي المستخدم)** في رسالة وحدها:",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
         )
 
     elif data == 'admin_add_balance':
         if not is_admin_or_sub(user_id): return
-        admin_state[user_id] = {'action': 'add_balance'}
+        admin_state[user_id] = {'action': 'waiting_for_add_bal_id'}
         await query.edit_message_text(
             "➕ **إضافة رصيد بالدولار ($):**\n\n"
-            "أرسل الآن (آيدي المستخدم) و(المبلغ) بمسافة بينهما.\n"
-            "*(يدعم الأرقام العشرية مثل 0.1 أو 0.05)*\n\n"
-            "مثال: `6472852297 0.10`",
+            "أرسل الآن **(آيدي المستخدم)** في رسالة وحدها:",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
         )
 
     elif data == 'admin_deduct_balance':
         if not is_admin_or_sub(user_id): return
-        admin_state[user_id] = {'action': 'deduct_balance'}
+        admin_state[user_id] = {'action': 'waiting_for_deduct_bal_id'}
         await query.edit_message_text(
             "➖ **خصم رصيد بالدولار ($):**\n\n"
-            "أرسل الآن (آيدي المستخدم) و(المبلغ) بمسافة بينهما.\n"
-            "*(يدعم الأرقام العشرية مثل 0.1 أو 1.5)*\n\n"
-            "مثال: `6472852297 0.50`",
+            "أرسل الآن **(آيدي المستخدم)** في رسالة وحدها:",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
         )
@@ -1945,49 +1940,28 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text("❌ الصيغة خاطئة! أرسل (الكود والمبلغ وعدد المرات) بمسافات صحيحة.\nمثال: `WELCOME 0.50 100`")
                 return
 
-        if action == 'waiting_for_custom_deposit_amount':
+        # --- معالجة إرسال الهدية (منفصلة: الآيدي ثم المبلغ) ---
+        elif action == 'waiting_for_gift_id':
             try:
-                amount = float(text_content)
-                if amount <= 0:
+                target_id = int(text_content)
+                admin_state[user_id] = {'action': 'waiting_for_gift_amount', 'target_user_id': target_id}
+                await update.message.reply_text(
+                    f"👤 **تم استقبال الآيدي:** `{target_id}`\n\n💰 **الخطوة الثانية:** أرسل الآن **المبلغ بالدولار ($)** المراد إرساله هدية:",
+                    parse_mode='Markdown'
+                )
+                return
+            except ValueError:
+                await update.message.reply_text("❌ الآيدي يجب أن يكون أرقام صحيحة فقط. أعد إرسال الآيدي:")
+                return
+
+        elif action == 'waiting_for_gift_amount':
+            try:
+                gift_amount = float(text_content)
+                if gift_amount <= 0:
                     raise ValueError()
                 
                 st_data = admin_state.pop(user_id)
                 target_id = st_data['target_user_id']
-                orig_msg = st_data['message_to_edit']
-                
-                db_update_balance(target_id, amount, mode="add")
-                
-                try:
-                    await context.bot.send_message(
-                        chat_id=target_id,
-                        text=f"🎉 **مبروك! تم قبول طلب الشحن وإضافة الرصيد بنجاح.**\n⭐ تم إضافة: `${amount:.2f}` لحسابك.",
-                        parse_mode='Markdown'
-                    )
-                except Exception:
-                    pass
-                
-                try:
-                    await orig_msg.edit_reply_markup(reply_markup=None)
-                except Exception:
-                    pass
-                
-                await update.message.reply_text(
-                    f"✅ **تم اعتماد شحن المبلغ المخصص بنجاح!**\n👤 للمستخدم: `{target_id}`\n⭐ المبلغ المضاف: `${amount:.2f}`",
-                    parse_mode='Markdown',
-                    reply_markup=get_admin_keyboard()
-                )
-                return
-            except Exception:
-                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 0.75 أو 2).")
-                return
-
-        if action == 'waiting_for_gift_id_amount':
-            try:
-                parts = text_content.split()
-                target_id = int(parts[0])
-                gift_amount = float(parts[1])
-                if gift_amount <= 0:
-                    raise ValueError()
                 
                 db_update_balance(target_id, gift_amount, mode="add")
                 
@@ -2005,30 +1979,97 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     parse_mode='Markdown',
                     reply_markup=get_admin_keyboard()
                 )
-                admin_state.pop(user_id, None)
                 return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي والمبلغ بمسافة بينهم (مثال: `6472852297 1.50`).")
+            except ValueError:
+                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 1.50).")
                 return
 
-        if action in ['add_balance', 'deduct_balance']:
+        # --- معالجة إضافة رصيد (منفصلة: الآيدي ثم المبلغ) ---
+        elif action == 'waiting_for_add_bal_id':
             try:
-                parts = text_content.split()
-                target_id = int(parts[0])
-                amount = float(parts[1])
-                db_update_balance(target_id, amount, mode="add" if action == 'add_balance' else "deduct")
+                target_id = int(text_content)
+                admin_state[user_id] = {'action': 'waiting_for_add_bal_amount', 'target_user_id': target_id}
+                await update.message.reply_text(
+                    f"👤 **تم استقبال الآيدي:** `{target_id}`\n\n💰 **الخطوة الثانية:** أرسل الآن **المبلغ بالدولار ($)** المراد إضافته:",
+                    parse_mode='Markdown'
+                )
+                return
+            except ValueError:
+                await update.message.reply_text("❌ الآيدي يجب أن يكون أرقام صحيحة فقط. أعد إرسال الآيدي:")
+                return
+
+        elif action == 'waiting_for_add_bal_amount':
+            try:
+                amount = float(text_content)
+                if amount <= 0:
+                    raise ValueError()
+                
+                st_data = admin_state.pop(user_id)
+                target_id = st_data['target_user_id']
+                
+                db_update_balance(target_id, amount, mode="add")
                 
                 try:
-                    msg_txt = f"🎉 **تمت إضافة مبلغ `${amount:.2f}` إلى رصيدك من قبل الإدارة!**" if action == 'add_balance' else f"⚠️ **تم خصم مبلغ `${amount:.2f}` من رصيدك بواسطة الإدارة.**"
-                    await context.bot.send_message(chat_id=target_id, text=msg_txt, parse_mode='Markdown')
+                    await context.bot.send_message(
+                        chat_id=target_id,
+                        text=f"🎉 **تمت إضافة مبلغ `${amount:.2f}` إلى رصيدك من قبل الإدارة!**",
+                        parse_mode='Markdown'
+                    )
                 except Exception:
                     pass
 
-                await update.message.reply_text("✅ تمت عملية تعديل الرصيد بدقة وتحديث الحساب بنجاح.", reply_markup=get_admin_keyboard())
-                admin_state.pop(user_id, None)
+                await update.message.reply_text(
+                    f"✅ **تمت إضافة الرصيد بنجاح!**\n\n👤 للمستخدم: `{target_id}`\n⭐ المبلغ المضاف: `${amount:.2f}`",
+                    parse_mode='Markdown',
+                    reply_markup=get_admin_keyboard()
+                )
                 return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي والمبلغ بمسافة بينهم (مثال: `6472852297 0.10`).")
+            except ValueError:
+                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 0.10).")
+                return
+
+        # --- معالجة خصم رصيد (منفصلة: الآيدي ثم المبلغ) ---
+        elif action == 'waiting_for_deduct_bal_id':
+            try:
+                target_id = int(text_content)
+                admin_state[user_id] = {'action': 'waiting_for_deduct_bal_amount', 'target_user_id': target_id}
+                await update.message.reply_text(
+                    f"👤 **تم استقبال الآيدي:** `{target_id}`\n\n💰 **الخطوة الثانية:** أرسل الآن **المبلغ بالدولار ($)** المراد خصمه:",
+                    parse_mode='Markdown'
+                )
+                return
+            except ValueError:
+                await update.message.reply_text("❌ الآيدي يجب أن يكون أرقام صحيحة فقط. أعد إرسال الآيدي:")
+                return
+
+        elif action == 'waiting_for_deduct_bal_amount':
+            try:
+                amount = float(text_content)
+                if amount <= 0:
+                    raise ValueError()
+                
+                st_data = admin_state.pop(user_id)
+                target_id = st_data['target_user_id']
+                
+                db_update_balance(target_id, amount, mode="deduct")
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=target_id,
+                        text=f"⚠️ **تم خصم مبلغ `${amount:.2f}` من رصيدك بواسطة الإدارة.**",
+                        parse_mode='Markdown'
+                    )
+                except Exception:
+                    pass
+
+                await update.message.reply_text(
+                    f"✅ **تم خصم الرصيد بنجاح!**\n\n👤 للمستخدم: `{target_id}`\n⭐ المبلغ المخصوم: `${amount:.2f}`",
+                    parse_mode='Markdown',
+                    reply_markup=get_admin_keyboard()
+                )
+                return
+            except ValueError:
+                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 0.50).")
                 return
 
         elif action == 'waiting_for_reply_id':
