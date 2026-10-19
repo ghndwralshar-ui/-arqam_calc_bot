@@ -624,8 +624,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sub_buttons.append([InlineKeyboardButton("🔄 • تحققت من الاشتراكات •", callback_data='main_menu')])
         
         await update.message.reply_text(
-            "⚠️ **عذراً، يجب عليك الاشتـراك في قنوات البوت لتتمكن من استخدامه!**\n\n"
-            "يرجى الاشتراك في القنوات أدناه ثم اضغط على زر التحقق:",
+            "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(sub_buttons)
         )
@@ -837,8 +836,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sub_buttons.append([InlineKeyboardButton("🔄 • تحققت من الاشتراكات •", callback_data='main_menu')])
         
         await query.edit_message_text(
-            "⚠️ **عذراً، يجب عليك الاشتـراك في قنوات البوت لتتمكن من استخدام الأزرار!**\n\n"
-            "يرجى الاشتراك في القنوات أدناه ثم اضغط على زر التحقق:",
+            "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(sub_buttons)
         )
@@ -1868,7 +1866,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         sub_buttons.append([InlineKeyboardButton("🔄 • تحققت من الاشتراكات •", callback_data='main_menu')])
         
         await update.message.reply_text(
-            "⚠️ **عذراً، يجب عليك الاشتـراك في قنوات البوت لتتمكن من استخدام البوت وإرسال الرسائل!**",
+            "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
             reply_markup=InlineKeyboardMarkup(sub_buttons)
         )
         return
@@ -2151,7 +2149,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_forced_add':
             try:
-                # الكود الجديد المرن جداً: يقبل المعرف حتى لوحده أو مع أي اسم وبأي طريقة
                 clean_text = text_content.strip()
                 if not clean_text.startswith('@'):
                     await update.message.reply_text("❌ يجب أن تبدأ القناة بـ @ (مثال: `@DigitalHubOrders`)")
