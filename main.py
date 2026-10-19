@@ -1750,8 +1750,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin_state[user_id] = {'action': 'waiting_for_forced_add'}
         await query.edit_message_text(
             "➕ **إضافة قناة اشتراك إجباري جديدة:**\n\n"
-            "أرسل (معرف القناة مع @) و(عنوان القناة أو وصفها).\n"
-            "مثال: `@DigitalHubOrders اكتمال الطلبات`",
+            "أرسل (معرف القناة مع @).\n"
+            "مثال: `@DigitalHubOrders`\n"
+            "*(سيتم قبولها فوراً وبدون تعقيد!)*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_manage_forced')]])
         )
@@ -2150,26 +2151,28 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_forced_add':
             try:
-                if not text_content.startswith('@'):
-                    await update.message.reply_text("❌ يجب أن تبدأ القناة بـ @ (مثال: `@DigitalHubOrders اكتمال الطلبات`)")
+                # الكود الجديد المرن جداً: يقبل المعرف حتى لوحده أو مع أي اسم وبأي طريقة
+                clean_text = text_content.strip()
+                if not clean_text.startswith('@'):
+                    await update.message.reply_text("❌ يجب أن تبدأ القناة بـ @ (مثال: `@DigitalHubOrders`)")
                     return
                 
-                parts = text_content.split(maxsplit=1)
+                parts = clean_text.split(maxsplit=1)
                 ch_uname = parts[0]
-                ch_ttl = parts[1] if len(parts) > 1 else ch_uname
+                ch_ttl = parts[1] if len(parts) > 1 else "قناة الإشراك الإجباري"
                 
                 supabase.table("forced_channels").upsert({"channel_username": ch_uname, "channel_title": ch_ttl}).execute()
                 
                 await update.message.reply_text(f"✅ تم إضافة القناة `{ch_uname}` للاشتراك الإجباري بنجاح!", parse_mode='Markdown', reply_markup=get_admin_keyboard())
                 admin_state.pop(user_id, None)
                 return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل المعرف والاسم (مثال: `@DigitalHubOrders اكتمال الطلبات`).")
+            except Exception as e:
+                await update.message.reply_text(f"❌ حدث خطأ أثناء الحفظ: {e}")
                 return
 
         elif action == 'waiting_for_forced_del':
             try:
-                ch_uname = text_content
+                ch_uname = text_content.strip()
                 supabase.table("forced_channels").delete().eq("channel_username", ch_uname).execute()
                 
                 await update.message.reply_text(f"✅ تم حذف القناة `{ch_uname}` من الاشتراك الإجباري بنجاح.", parse_mode='Markdown', reply_markup=get_admin_keyboard())
