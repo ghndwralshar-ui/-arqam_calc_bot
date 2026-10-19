@@ -620,11 +620,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sub_buttons = []
         for ch_username, ch_title in not_subbed_list:
             clean_ch = ch_username.replace("@", "")
-            sub_buttons.append([InlineKeyboardButton(f"📢 انضم إلى قناة {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 • اضغط هنا بعد الانضمام للتحقق •", callback_data='main_menu')])
+            sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
+        sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
         
         await update.message.reply_text(
-            "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
+            "🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(sub_buttons)
         )
@@ -832,11 +832,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sub_buttons = []
         for ch_username, ch_title in not_subbed_list:
             clean_ch = ch_username.replace("@", "")
-            sub_buttons.append([InlineKeyboardButton(f"📢 انضم إلى قناة {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 • اضغط هنا بعد الانضمام للتحقق •", callback_data='main_menu')])
+            sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
+        sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
         
         await query.edit_message_text(
-            "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
+            "🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(sub_buttons)
         )
@@ -1862,11 +1862,11 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         sub_buttons = []
         for ch_username, ch_title in not_subbed_list:
             clean_ch = ch_username.replace("@", "")
-            sub_buttons.append([InlineKeyboardButton(f"📢 انضم إلى قناة {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 • اضغط هنا بعد الانضمام للتحقق •", callback_data='main_menu')])
+            sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
+        sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
         
         await update.message.reply_text(
-            "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
+            "🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅",
             reply_markup=InlineKeyboardMarkup(sub_buttons)
         )
         return
