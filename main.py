@@ -1663,7 +1663,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_gift_id'}
         await query.edit_message_text(
-            "🎁 **إرسال هدية مالية لشخص عبر الآيدي:**\n\n"
+            "🎁 **إرسال هدية لشخص عبر الآيدي:**\n\n"
             "أرسل الآن **(آيدي المستخدم)** في رسالة وحدها:",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
@@ -1750,8 +1750,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin_state[user_id] = {'action': 'waiting_for_forced_add'}
         await query.edit_message_text(
             "➕ **إضافة قناة اشتراك إجباري جديدة:**\n\n"
-            "أرسل (معرف القناة مع @) و(عنوان القناة أو وصفها) بمسافة بينهما.\n"
-            "مثال: `@DigitalHubOrders قناة_الطلبات`",
+            "أرسل (معرف القناة مع @) و(عنوان القناة أو وصفها).\n"
+            "مثال: `@DigitalHubOrders اكتمال الطلبات`",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_manage_forced')]])
         )
@@ -1940,7 +1940,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text("❌ الصيغة خاطئة! أرسل (الكود والمبلغ وعدد المرات) بمسافات صحيحة.\nمثال: `WELCOME 0.50 100`")
                 return
 
-        # --- معالجة إرسال الهدية (منفصلة: الآيدي ثم المبلغ) ---
         elif action == 'waiting_for_gift_id':
             try:
                 target_id = int(text_content)
@@ -1984,7 +1983,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 1.50).")
                 return
 
-        # --- معالجة إضافة رصيد (منفصلة: الآيدي ثم المبلغ) ---
         elif action == 'waiting_for_add_bal_id':
             try:
                 target_id = int(text_content)
@@ -2028,7 +2026,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 0.10).")
                 return
 
-        # --- معالجة خصم رصيد (منفصلة: الآيدي ثم المبلغ) ---
         elif action == 'waiting_for_deduct_bal_id':
             try:
                 target_id = int(text_content)
@@ -2153,6 +2150,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif action == 'waiting_for_forced_add':
             try:
+                if not text_content.startswith('@'):
+                    await update.message.reply_text("❌ يجب أن تبدأ القناة بـ @ (مثال: `@DigitalHubOrders اكتمال الطلبات`)")
+                    return
+                
                 parts = text_content.split(maxsplit=1)
                 ch_uname = parts[0]
                 ch_ttl = parts[1] if len(parts) > 1 else ch_uname
@@ -2163,7 +2164,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 admin_state.pop(user_id, None)
                 return
             except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل المعرف والاسم (مثال: `@ChannelName اسم_القناة`).")
+                await update.message.reply_text("❌ صيغة خاطئة! أرسل المعرف والاسم (مثال: `@DigitalHubOrders اكتمال الطلبات`).")
                 return
 
         elif action == 'waiting_for_forced_del':
