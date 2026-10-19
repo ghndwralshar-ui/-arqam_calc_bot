@@ -621,7 +621,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for ch_username, ch_title in not_subbed_list:
             clean_ch = ch_username.replace("@", "")
             sub_buttons.append([InlineKeyboardButton(f"📢 انضم إلى قناة {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 • تحققت من الاشتراكات •", callback_data='main_menu')])
+        sub_buttons.append([InlineKeyboardButton("🔄 • اضغط هنا بعد الانضمام للتحقق •", callback_data='main_menu')])
         
         await update.message.reply_text(
             "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
@@ -833,7 +833,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for ch_username, ch_title in not_subbed_list:
             clean_ch = ch_username.replace("@", "")
             sub_buttons.append([InlineKeyboardButton(f"📢 انضم إلى قناة {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 • تحققت من الاشتراكات •", callback_data='main_menu')])
+        sub_buttons.append([InlineKeyboardButton("🔄 • اضغط هنا بعد الانضمام للتحقق •", callback_data='main_menu')])
         
         await query.edit_message_text(
             "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
@@ -1863,7 +1863,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         for ch_username, ch_title in not_subbed_list:
             clean_ch = ch_username.replace("@", "")
             sub_buttons.append([InlineKeyboardButton(f"📢 انضم إلى قناة {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 • تحققت من الاشتراكات •", callback_data='main_menu')])
+        sub_buttons.append([InlineKeyboardButton("🔄 • اضغط هنا بعد الانضمام للتحقق •", callback_data='main_menu')])
         
         await update.message.reply_text(
             "📬| لطفاً عليك الاشتراك في قنوات البوت أولاً اشترك ثم اضغط على  /start للتحقق ✅:",
@@ -2408,7 +2408,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
 if __name__ == '__main__':
     try:
-        print("🟡 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت...")
+        print("🟢 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت...")
         init_db()
         app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
         
