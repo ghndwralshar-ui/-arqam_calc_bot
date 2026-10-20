@@ -15,7 +15,7 @@ from telegram.ext import (
 )
 
 # --- الإعدادات والبيانات الأساسية ---
-BOT_TOKEN = "8850483932:AAGlQmf6SfauVpyGY4i7d14IhjPi29tu_fg"
+BOT_TOKEN = "8850483932:AAFeSD-HtyMtQIWVJCdt2RDaErPIS_JHFi0"
 FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
 ADMIN_ID = 6472852297
 SUPPORT_USERNAME = "benti"
@@ -107,13 +107,17 @@ def db_add_referral_record(new_user_id, referrer_id):
     try:
         res = supabase.table("users").select("referred_by").eq("user_id", new_user_id).execute()
         rows = res.data if hasattr(res, 'data') else []
-        if rows and rows[0].get("referred_by", 0) == 0:
-            supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", new_user_id).execute()
-            ref_info = supabase.table("users").select("referrals").eq("user_id", referrer_id).execute()
-            ref_rows = ref_info.data if hasattr(ref_info, 'data') else []
-            current_refs = ref_rows[0].get("referrals", 0) if ref_rows else 0
-            supabase.table("users").update({"referrals": current_refs + 1}).eq("user_id", referrer_id).execute()
-            return True
+        if rows:
+            current_referred_by = rows[0].get("referred_by", 0)
+            if current_referred_by == 0:
+                supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", new_user_id).execute()
+                
+                ref_info = supabase.table("users").select("referrals").eq("user_id", referrer_id).execute()
+                ref_rows = ref_info.data if hasattr(ref_info, 'data') else []
+                current_refs = ref_rows[0].get("referrals", 0) if ref_rows else 0
+                
+                supabase.table("users").update({"referrals": current_refs + 1}).eq("user_id", referrer_id).execute()
+                return True
     except Exception as e:
         print(f"db_add_referral_record Error: {e}")
     return False
@@ -126,7 +130,6 @@ def db_get_advanced_stats():
         total_balances = sum(float(u.get("balance", 0.0)) for u in users)
         total_referrals = sum(int(u.get("referrals", 0)) for u in users)
 
-        # حساب آخر 24 ساعة بدقة باستخدام كائن datetime للمقارنة السليمة
         now = datetime.now()
         yesterday = now - timedelta(days=1)
         
@@ -135,13 +138,11 @@ def db_get_advanced_stats():
             joined_str = u.get("joined_date", "")
             if joined_str:
                 try:
-                    # محاولة مطابقة التنسيق القياسي
                     j_date = datetime.strptime(joined_str.strip(), "%Y-%m-%d %H:%M:%S")
                     if j_date >= yesterday:
                         new_24h += 1
                 except Exception:
                     try:
-                        # تنسيق احتياطي تاريخ فقط
                         j_date = datetime.strptime(joined_str.strip()[:10], "%Y-%m-%d")
                         if j_date >= yesterday.replace(hour=0, minute=0, second=0, microsecond=0):
                             new_24h += 1
@@ -641,29 +642,12 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
-    is_subbed, not_subbed_list = await check_forced_subscription(user.id, context.bot)
-    if not is_subbed:
-        sub_buttons = []
-        for ch_username, ch_title in not_subbed_list:
-            clean_ch = ch_username.replace("@", "")
-            sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
-        
-        await update.message.reply_text(
-            "🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup(sub_buttons)
-        )
-        return
-
-    # استدعاء دالة جلب المستخدم والتي تسجله في قاعدة البيانات إذا كان جديداً
     u_data = db_get_user(user.id)
     
     if u_data.get('is_banned', 0) == 1:
         await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
         return
-    
-    # إرسال إشعار فوري للأدمن عند انضمام مستخدم جديد لأول مرة
+
     if u_data.get('is_really_new', False) and user.id != ADMIN_ID:
         try:
             seq_num = u_data.get('user_sequence', 1)
@@ -704,8 +688,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         ),
                         parse_mode='Markdown'
                     )
-                except Exception:
-                    pass
+                except Exception as ref_err:
+                    print(f"Error sending referral reward message: {ref_err}")
+
+    is_subbed, not_subbed_list = await check_forced_subscription(user.id, context.bot)
+    if not is_subbed:
+        sub_buttons = []
+        for ch_username, ch_title in not_subbed_list:
+            clean_ch = ch_username.replace("@", "")
+            sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
+        sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
+        
+        await update.message.reply_text(
+            "🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(sub_buttons)
+        )
+        return
 
     welcome_text = (
         f"💎 **مرحباً بك عزيزي {user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -2447,6 +2446,7 @@ if __name__ == '__main__':
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
         
         print("🟢 البوت يعمل بكامل طاقته على قاعدة البيانات السحابية Supabase بدلاً من الملفات المحلية!")
-        app.run_polling()
+        # تم إضافة drop_pending_updates=True لتصفير أي تعارض قديم نهائياً
+        app.run_polling(drop_pending_updates=True)
     except Exception as e:
         print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
