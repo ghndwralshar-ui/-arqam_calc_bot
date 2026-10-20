@@ -66,7 +66,14 @@ def db_get_user(user_id):
                 "user_sequence": new_seq
             }
             supabase.table("users").insert(new_data).execute()
-            return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": new_seq, "is_really_new": True}
+            return {
+                "balance": 0.0,
+                "referrals": 0,
+                "referred_by": 0,
+                "is_banned": 0,
+                "user_sequence": new_seq,
+                "is_really_new": True
+            }
         
         row = rows[0]
         return {
@@ -119,11 +126,30 @@ def db_get_advanced_stats():
         total_balances = sum(float(u.get("balance", 0.0)) for u in users)
         total_referrals = sum(int(u.get("referrals", 0)) for u in users)
 
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
-        new_24h = sum(1 for u in users if u.get("joined_date", "") >= yesterday)
+        # حساب آخر 24 ساعة بدقة باستخدام كائن datetime للمقارنة السليمة
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        
+        new_24h = 0
+        for u in users:
+            joined_str = u.get("joined_date", "")
+            if joined_str:
+                try:
+                    # محاولة مطابقة التنسيق القياسي
+                    j_date = datetime.strptime(joined_str.strip(), "%Y-%m-%d %H:%M:%S")
+                    if j_date >= yesterday:
+                        new_24h += 1
+                except Exception:
+                    try:
+                        # تنسيق احتياطي تاريخ فقط
+                        j_date = datetime.strptime(joined_str.strip()[:10], "%Y-%m-%d")
+                        if j_date >= yesterday.replace(hour=0, minute=0, second=0, microsecond=0):
+                            new_24h += 1
+                    except Exception:
+                        pass
 
-        sorted_users = sorted(users, key=lambda x: x.get("referrals", 0), reverse=True)
-        top_refs = [(u["user_id"], u["referrals"]) for u in sorted_users[:5] if u.get("referrals", 0) > 0]
+        sorted_users = sorted(users, key=lambda x: int(x.get("referrals", 0)), reverse=True)
+        top_refs = [(u["user_id"], int(u.get("referrals", 0))) for u in sorted_users[:5] if int(u.get("referrals", 0)) > 0]
 
         return {"total_users": total_users, "total_balances": total_balances, "total_referrals": total_referrals, "new_24h": new_24h, "top_refs": top_refs}
     except Exception as e:
@@ -630,12 +656,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # استدعاء دالة جلب المستخدم والتي تسجله في قاعدة البيانات إذا كان جديداً
     u_data = db_get_user(user.id)
     
     if u_data.get('is_banned', 0) == 1:
         await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
         return
     
+    # إرسال إشعار فوري للأدمن عند انضمام مستخدم جديد لأول مرة
     if u_data.get('is_really_new', False) and user.id != ADMIN_ID:
         try:
             seq_num = u_data.get('user_sequence', 1)
@@ -649,8 +677,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ),
                 parse_mode='Markdown'
             )
-        except Exception:
-            pass
+        except Exception as admin_notify_err:
+            print(f"Error notifying admin about new user: {admin_notify_err}")
 
     args = context.args
     arg_param = args[0] if args else None
