@@ -2448,5 +2448,3 @@ if __name__ == '__main__':
         print("🟢 البوت يعمل بكامل طاقته على قاعدة البيانات السحابية Supabase بدلاً من الملفات المحلية!")
         # تم إضافة drop_pending_updates=True لتصفير أي تعارض قديم نهائياً
         app.run_polling(drop_pending_updates=True)
-    except Exception as e:
-        print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
