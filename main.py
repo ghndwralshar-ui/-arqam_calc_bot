@@ -1,4 +1,72 @@
-t_user(user_id):
+import logging
+import asyncio
+import os
+import sys
+import httpx
+from datetime import datetime, timedelta
+from supabase import create_client, Client
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, LabeledPrice
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    PreCheckoutQueryHandler,
+    ContextTypes,
+    filters,
+)
+
+# --- دالة الحماية المانعة لتشغيل أي نسخة أخرى (Exclusive Lock) ---
+LOCK_FILE = "bot.lock"
+
+def ensure_single_instance():
+    if os.path.exists(LOCK_FILE):
+        print("❌ [حماية الحصرية]: تم اكتشاف نسخة أخرى من البوت تعمل بالفعل على السيرفر! تم إيقاف هذه النسخة منعاً للتعارض.")
+        sys.exit(1)
+    
+    # إنشاء ملف القفل
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+def cleanup_lock():
+    if os.path.exists(LOCK_FILE):
+        try:
+            os.remove(LOCK_FILE)
+        except Exception:
+            pass
+
+# --- الإعدادات والبيانات الأساسية ---
+BOT_TOKEN = "8850483932:AAFeSD-HtyMtQIWVJCdt2RDaErPIS_JHFi0"
+FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
+ADMIN_ID = 6472852297
+SUPPORT_USERNAME = "benti"
+
+LOG_CHANNEL_ID = "@DigitalHubOrders"
+
+HMCARD_API_URL = "https://hmcard.online/api/v2"
+HMCARD_API_KEY = "6e568032e93df81068eadaae1175e589"
+
+SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
+SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+HEADERS = {
+    'Authorization': f'Bearer {FIVESIM_API_KEY}',
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+}
+
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
+admin_state = {}
+
+def init_db():
+    print("🟢 قاعدة البيانات السحابية (Supabase) متصلة وجاهزة بنجاح!")
+
+def db_get_user(user_id):
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         res = supabase.table("users").select("*").eq("user_id", user_id).execute()
@@ -843,7 +911,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة في مكان واحد وبأفضل الأسعار! 🌟\n\n"
             "📱 **1️⃣ قسم الأرقام الافتراضية:**\n"
             "• احصل فوراً على أرقام لتفعيل (واتساب، تليجرام، انستغرام، فيسبوك، وغيرها) من مختلف دول العالم.\n"
-            "• النظام يتحقق من وصول الكود ويعرسلك مباشرة داخل البوت مع إمكانية إلغاء الرقم واسترداد رصيدك في حال لم يصل الكود.\n\n"
+            "• النظام يتحقق من وصول الكود ويرسله لك مباشرة داخل البوت مع إمكانية إلغاء الرقم واسترداد رصيدك في حال لم يصل الكود.\n\n"
             "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
             "• اطلب خدمات زيادة المتابعين والتفاعلات لجميع منصات التواصل الاجتماعي بكل سهولة.\n"
             "• الأسعار تنافسية ومضبوطة بعناية لتوفير أفضل تجربة لك.\n\n"
@@ -2388,6 +2456,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
 if __name__ == '__main__':
     try:
+        # تفعيل الحماية الحصرية لمنع أي تداخل أو تكرار
+        ensure_single_instance()
+        
         print("🟢 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت...")
         init_db()
         app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
@@ -2399,5 +2470,11 @@ if __name__ == '__main__':
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
         
         print("🟢 البوت يعمل بكامل طاقته على قاعدة البيانات السحابية Supabase بدلاً من الملفات المحلية!")
-        # تم إضافة drop_pending_updates=True لتصفير أي تعارض قديم نهائياً
-        app.run_polling(drop_pending_updates=True)
+        app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+        
+    except SystemExit:
+        pass
+    except Exception as e:
+        print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
+    finally:
+        cleanup_lock()
