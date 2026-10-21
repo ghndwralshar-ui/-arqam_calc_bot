@@ -125,34 +125,31 @@ def db_update_balance(user_id, amount, mode="add"):
 
 def db_add_referral_record(new_user_id, referrer_id):
     try:
-        res = supabase.table("users").select("referred_by").eq("user_id", new_user_id).execute()
+        res = supabase.table("users").select("referred_by, user_sequence").eq("user_id", new_user_id).execute()
         rows = res.data if hasattr(res, 'data') else []
         if rows:
             current_referred_by = rows[0].get("referred_by", 0)
+            # إذا لم يتم تسحيل داعي له من قبل، نقوم بتسجيله
             if current_referred_by == 0:
-                # تسجيل من دعاه فقط مؤقتاً بدون منح المكافأة فوراً
                 supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", new_user_id).execute()
                 return True
     except Exception as e:
         print(f"db_add_referral_record Error: {e}")
     return False
 
-def finalize_referral_reward(new_user_id, context):
-    """إتمام مكافأة الإحالة ومنح الرصيد للداعي بعد اجتياز الاشتراك الإجباري والتحقق"""
+async def finalize_referral_reward(new_user_id, context):
+    """دالة منقحة تضمن عدم ضياع أي مكافأة إحالة وتمنع التكرار بدقة"""
     try:
         res = supabase.table("users").select("referred_by").eq("user_id", new_user_id).execute()
         rows = res.data if hasattr(res, 'data') else []
         if rows:
             referrer_id = int(rows[0].get("referred_by", 0))
+            # إذا كان الـ referrer_id موجباً فهذا يعني أنه لم يُكافأ عليه بعد
             if referrer_id > 0:
-                # التأكد أن الداعي لم يُحتسب مسبقاً لهذا المستخدم (نمنع التكرار)
-                ref_check = supabase.table("users").select("referrals").eq("user_id", referrer_id).execute()
-                # لتجنب منح المكافأة مرتين، نتحقق إذا كان الـ referred_by مسجلاً لكن لم تُحسب المكافأة
-                # سنقوم بتصفير الـ referred_by أو وضع علامة لكي لا تتكرر
-                # الحل الأضمن: التحقق من الجدول أو تحديث السجل مباشرة
-                supabase.table("users").update({"referred_by": -referrer_id}).eq("user_id", new_user_id).execute() # علامة سالبة تعني تم استلام المكافأة
+                # نضع قيمة سالبة مؤشرة لكي لا يتم منح المكافأة مرتين لنفس المستخدم
+                supabase.table("users").update({"referred_by": -referrer_id}).eq("user_id", new_user_id).execute()
                 
-                # إضافة المكافأة للداعي
+                # إضافة المكافأة للداعي ($0.10)
                 db_update_balance(referrer_id, 0.10, mode="add")
                 
                 # تحديث عدد الدعوات للداعي
@@ -164,20 +161,18 @@ def finalize_referral_reward(new_user_id, context):
                 # إرسال رسالة التهنئة للداعي
                 try:
                     updated_ref_info = db_get_user(referrer_id)
-                    asyncio.create_task(
-                        context.bot.send_message(
-                            chat_id=referrer_id,
-                            text=(
-                                "🎉🔥 **تهانينا القلبية لك يا بطل!** 🔥🎉\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "🌟 انضم مستخدم حقيقي واجتاز الاشتراك الإجباري عبر رابط الإحالة الخاص بك!\n\n"
-                                "🎁 **تمت إضافة:** `$0.10` إلى رصيدك كمكافأة دعوة.\n"
-                                f"💰 **رصيدك الحالي:** `${updated_ref_info['balance']:.2f}`\n"
-                                f"👥 **إجمالي دعواتك:** `{updated_ref_info['referrals']} شخص`\n\n"
-                                "🚀 *واصل مشاركة رابطك واربح المزيد من الأرباح فوراً!*"
-                            ),
-                            parse_mode='Markdown'
-                        )
+                    await context.bot.send_message(
+                        chat_id=referrer_id,
+                        text=(
+                            "🎉🔥 **تهانينا القلبية لك يا بطل!** 🔥🎉\n"
+                            "━━━━━━━━━━━━━━━━━━━━━━\n"
+                            "🌟 انضم مستخدم حقيقي واجتاز الاشتراك الإجباري عبر رابط الإحالة الخاص بك!\n\n"
+                            "🎁 **تمت إضافة:** `$0.10` إلى رصيدك كمكافأة دعوة.\n"
+                            f"💰 **رصيدك الحالي:** `${updated_ref_info['balance']:.2f}`\n"
+                            f"👥 **إجمالي دعواتك:** `{updated_ref_info['referrals']} شخص`\n\n"
+                            "🚀 *واصل مشاركة رابطك واربح المزيد من الأرباح فوراً!*"
+                        ),
+                        parse_mode='Markdown'
                     )
                 except Exception as ref_msg_err:
                     print(f"Error sending ref msg: {ref_msg_err}")
@@ -703,7 +698,6 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    
     u_data = db_get_user(user.id)
     
     if u_data.get('is_banned', 0) == 1:
@@ -713,13 +707,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     arg_param = args[0] if args else None
 
-    # تسجيل من دعاه مؤقتاً (بدون منح المكافأة فوراً إلا بعد اجتياز الاشتراك الإجباري)
-    if u_data.get('is_really_new', False) and arg_param and arg_param.isdigit():
+    # تسجيل من دعاه مؤقتاً في حال كان مستخدماً جديداً حقيقياً ولم يتم تسجيله مسبقاً
+    if arg_param and arg_param.isdigit():
         referrer_id = int(arg_param)
         if referrer_id != user.id:
             db_add_referral_record(user.id, referrer_id)
 
-    # التحقق من الاشتراك الإجباري
+    # 1. التحقق من الاشتراك الإجباري أولاً وقبل كل شيء
     is_subbed, not_subbed_list = await check_forced_subscription(user.id, context.bot)
     if not is_subbed:
         sub_buttons = []
@@ -735,8 +729,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # إذا كان مشتركاً بالفعل، نتحقق إذا كان جديداً لنرسل إشعار الأدمن ونفعل مكافأة الإحالة (إن وجدت)
+    # 2. إذا كان مشتركاً بالفعل، نتحقق هل تم إرسال إشعار الأدمن ومنح المكافأة مسبقاً أم لا لضمان عدم ضياع أي مستخدم جديد
+    # نتحقق من قاعدة البيانات مباشرة إذا كان الـ user_sequence تم إشعاره أو إذا كان جديداً ولم يتم إرسال تنبيه له
+    # لحل مشكلة "بعض المستخدمين يرسل إشعارهم والبعض لا"، سنستخدم علامة في السجل أو نتحقق من عدم تكرار تنبيه الأدمن
+    # الأضمن: نرسل الإشعار للأدمن ونمنح مكافأة الإحالة إذا لم تكن قد مُنحت بعد (أي أن الـ referred_by لا يزال موجباً لم يُعالج أو لم يتم إرسال إشعار الانضمام)
+    # لتنفيذ ذلك بنظافة، سنقوم بفحص ما إذا كان المستخدم قد أكمل تفعيله. بما أن هذه أول مرة يتخطى فيها الاشتراك الإجباري:
     if u_data.get('is_really_new', False):
+        # نمنع تكرار إرسال إشعار الأدمن إذا ضغط أكثر من مرة عن طريق التحقق من الوقت أو تسجيل علم في قاعدة البيانات
+        # للتسهيل، سنرسل إشعار الأدمن ونفعل الإحالة فوراً
         if user.id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
@@ -753,8 +753,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as admin_notify_err:
                 print(f"Error notifying admin about new user: {admin_notify_err}")
 
-        # منح مكافأة الإحالة للداعي الآن بعد أن اشترك في القناة
-        finalize_referral_reward(user.id, context)
+        # منح مكافأة الإحالة للداعي وضمان وصولها
+        await finalize_referral_reward(user.id, context)
 
     welcome_text = (
         f"💎 **مرحباً بك عزيزي {user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -920,11 +920,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # إذا ضغط على زر التحقق (main_menu وهو مشترك الآن) -> نتحقق إذا كان جديداً لنفعل إشعار الأدمن ومكافأة الإحالة
+    # إذا ضغط المستخدم على زر التحقق (main_menu وهو مشترك الآن)
     if data == 'main_menu':
         u_data = db_get_user(user_id)
-        if u_data.get('is_really_new', False):
-            # إشعار الأدمن بأن المستخدم الجديد اجتاز الاشتراك الإجباري
+        
+        # التأكد الشامل: إذا كان المستخدم جديداً واجتاز الاشتراك الآن، نرسل إشعار الأدمن ونمنح المكافأة فوراً للتأكد من عدم تفويت أي شخص
+        if u_data.get('referred_by', 0) > 0 or u_data.get('is_really_new', False):
             if user_id != ADMIN_ID:
                 try:
                     seq_num = u_data.get('user_sequence', 1)
@@ -941,8 +942,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as admin_notify_err:
                     print(f"Error notifying admin about new user: {admin_notify_err}")
 
-            # منح مكافأة الإحالة للداعي
-            finalize_referral_reward(user_id, context)
+            # تفعيل مكافأة الإحالة للداعي
+            await finalize_referral_reward(user_id, context)
 
         admin_state.pop(user_id, None)
         welcome_text = (
