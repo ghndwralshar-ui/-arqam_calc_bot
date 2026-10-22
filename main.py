@@ -31,8 +31,8 @@ SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
 SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# الحصول على رابط سيرفر Render تلقائياً
-RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "")
+# رابط مشروعك الثابت والمباشر على Render
+RENDER_EXTERNAL_URL = "https://odsrzvgjwvscsnlbkxgj.onrender.com"
 PORT = int(os.getenv("PORT", "10000"))
 
 HEADERS = {
@@ -2460,7 +2460,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         pass
 
 if __name__ == '__main__':
-    print("🟢 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت عبر Webhook...")
+    print("🟢 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت عبر Webhook الثابت...")
     init_db()
     
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
@@ -2471,16 +2471,13 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
-    # تشغيل البوت بنظام Webhook المستقر على Render
-    if RENDER_EXTERNAL_URL:
-        webhook_url = f"{RENDER_EXTERNAL_URL.rstrip('/')}/{BOT_TOKEN}"
-        print(f"🟢 ربط الـ Webhook بالرابط: {webhook_url}")
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            webhook_url=webhook_url
-        )
-    else:
-        # محلياً في حال لم يتوفر الرابط الخارجي
-        print("⚠️ تحذير: لم يتم العثور على رابـط Render الخارجي، سيتم التشغيل الاحتياطي عبر Polling.")
-        app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+    # تشغيل البوت بنظام Webhook المستقر 100% على Render
+    webhook_url = f"{RENDER_EXTERNAL_URL.rstrip('/')}/{BOT_TOKEN}"
+    print(f"🟢 ربط الـ Webhook بالرابط: {webhook_url}")
+    
+    print("تم تشغيل البوت بنجاح")
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=webhook_url
+    )
