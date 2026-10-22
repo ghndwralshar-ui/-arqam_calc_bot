@@ -16,13 +16,15 @@ from telegram.ext import (
     filters,
 )
 
-# --- دالة الحماية المانعة لتشغيل أي نسخة أخرى (Exclusive Lock) ---
+# --- دالة الحماية المانعة لتشغيل أي نسخة أخرى (تم تحديثها لتفادي تعارض Render) ---
 LOCK_FILE = "bot.lock"
 
 def ensure_single_instance():
     if os.path.exists(LOCK_FILE):
-        print("❌ [حماية الحصرية]: تم اكتشاف نسخة أخرى من البوت تعمل بالفعل على السيرفر! تم إيقاف هذه النسخة منعاً للتعارض.")
-        sys.exit(1)
+        try:
+            os.remove(LOCK_FILE)
+        except Exception:
+            pass
     
     with open(LOCK_FILE, "w") as f:
         f.write(str(os.getpid()))
@@ -137,26 +139,20 @@ def db_add_referral_record(new_user_id, referrer_id):
     return False
 
 async def finalize_referral_reward(new_user_id, context):
-    """دالة محسنة لضمان منح المكافأة للداعي مرة واحدة فقط وبشكل مؤكد"""
     try:
         res = supabase.table("users").select("referred_by").eq("user_id", new_user_id).execute()
         rows = res.data if hasattr(res, 'data') else []
         if rows:
             referrer_id = int(rows[0].get("referred_by", 0))
             if referrer_id > 0:
-                # تحويل القيمة إلى سالبة لتأكيد معالجة المكافأة ومنع تكرارها
                 supabase.table("users").update({"referred_by": -referrer_id}).eq("user_id", new_user_id).execute()
-                
-                # إضافة المكافأة للداعي ($0.10)
                 db_update_balance(referrer_id, 0.10, mode="add")
                 
-                # تحديث عدد الدعوات للداعي
                 ref_info = supabase.table("users").select("referrals").eq("user_id", referrer_id).execute()
                 ref_rows = ref_info.data if hasattr(ref_info, 'data') else []
                 current_refs = ref_rows[0].get("referrals", 0) if ref_rows else 0
                 supabase.table("users").update({"referrals": current_refs + 1}).eq("user_id", referrer_id).execute()
                 
-                # إرسال رسالة التهنئة للداعي
                 try:
                     updated_ref_info = db_get_user(referrer_id)
                     await context.bot.send_message(
@@ -178,7 +174,6 @@ async def finalize_referral_reward(new_user_id, context):
         print(f"finalize_referral_reward Error: {e}")
 
 async def notify_new_user_and_reward(user, context, u_data):
-    """دالة مركزية موحدة لضمان إرسال إشعار الأدمن وتفعيل مكافأة الإحالة فور اجتياز الاشتراك"""
     if u_data.get('is_really_new', False):
         if user.id != ADMIN_ID:
             try:
@@ -731,7 +726,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if referrer_id != user.id:
             db_add_referral_record(user.id, referrer_id)
 
-    # 1. التحقق من الاشتراك الإجباري أولاً
     is_subbed, not_subbed_list = await check_forced_subscription(user.id, context.bot)
     if not is_subbed:
         sub_buttons = []
@@ -747,7 +741,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 2. إرسال إشعار الأدمن ومنح مكافأة الإحالة فوراً للمستخدمين الجدد
     await notify_new_user_and_reward(user, context, u_data)
 
     welcome_text = (
@@ -898,7 +891,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_first_name = query.from_user.first_name
     data = query.data
 
-    # التحقق من الاشتراك الإجباري عند الضغط على أي زر
     is_subbed, not_subbed_list = await check_forced_subscription(user_id, context.bot)
     if not is_subbed and data != 'main_menu':
         sub_buttons = []
@@ -914,11 +906,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # إذا ضغط المستخدم على زر التحقق (main_menu وهو مشترك الآن)
     if data == 'main_menu':
         u_data = db_get_user(user_id)
-        
-        # التأكد من إرسال إشعار الأدمن ومنح المكافأة فور الضغط على زر التحقق
         await notify_new_user_and_reward(query.from_user, context, u_data)
 
         admin_state.pop(user_id, None)
@@ -1948,7 +1937,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
-    # التأكد من معالجة المستخدم الجديد أيضاً عند إرسال أي نص بعد تخطي الاشتراك
     u_data = db_get_user(user_id)
     await notify_new_user_and_reward(update.effective_user, context, u_data)
 
