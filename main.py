@@ -16,7 +16,7 @@ from telegram.ext import (
 )
 
 # --- الإعدادات والبيانات الأساسية ---
-BOT_TOKEN = "8850483932:AAFNHcUERQf3yi1d6ko9O2o5dzeBtigJ4gU"
+BOT_TOKEN = "8850483932:AAHFUrkFvCLBJUF0zM1WHHUDg_omjbJQkcI"
 FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
 ADMIN_ID = 6472852297
 SUPPORT_USERNAME = "benti"
@@ -691,12 +691,8 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    u_data = db_get_user(user.id)
     
-    if u_data.get('is_banned', 0) == 1:
-        await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
-        return
-
+    # 1. التقاط وإدارة رابط الإحالة فوراً قبل فحص الاشتراك الإجباري
     args = context.args
     arg_param = args[0] if args else None
 
@@ -705,6 +701,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if referrer_id != user.id:
             db_add_referral_record(user.id, referrer_id)
 
+    # 2. جلب أو إنشاء بيانات المستخدم في قاعدة البيانات
+    u_data = db_get_user(user.id)
+    
+    if u_data.get('is_banned', 0) == 1:
+        await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
+        return
+
+    # 3. التحقق من الاشتراك الإجباري
     is_subbed, not_subbed_list = await check_forced_subscription(user.id, context.bot)
     if not is_subbed:
         sub_buttons = []
@@ -720,6 +724,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # 4. إذا كان مشتركاً، يتم إرسال إشعار الأدمن وصرف المكافأة للمُحيل إن وجد
     await notify_new_user_and_reward(user, context, u_data)
 
     welcome_text = (
@@ -2467,5 +2472,4 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
     print("🚀 البوت يعمل الآن بنجاح واستقرار تام!")
-    # التشغيل بالطريقة العادية المستقرة (Polling) مع تصفير التحديثات العالقة لمنع التعارض نهائياً
     app.run_polling(drop_pending_updates=True)
