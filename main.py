@@ -16,26 +16,6 @@ from telegram.ext import (
     filters,
 )
 
-# --- دالة الحماية المانعة لتشغيل أي نسخة أخرى (تم تحديثها لتفادي تعارض Render) ---
-LOCK_FILE = "bot.lock"
-
-def ensure_single_instance():
-    if os.path.exists(LOCK_FILE):
-        try:
-            os.remove(LOCK_FILE)
-        except Exception:
-            pass
-    
-    with open(LOCK_FILE, "w") as f:
-        f.write(str(os.getpid()))
-
-def cleanup_lock():
-    if os.path.exists(LOCK_FILE):
-        try:
-            os.remove(LOCK_FILE)
-        except Exception:
-            pass
-
 # --- الإعدادات والبيانات الأساسية ---
 BOT_TOKEN = "8850483932:AAFeSD-HtyMtQIWVJCdt2RDaErPIS_JHFi0"
 FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
@@ -50,6 +30,10 @@ HMCARD_API_KEY = "6e568032e93df81068eadaae1175e589"
 SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
 SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# الحصول على رابط سيرفر Render تلقائياً
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "")
+PORT = int(os.getenv("PORT", "10000"))
 
 HEADERS = {
     'Authorization': f'Bearer {FIVESIM_API_KEY}',
@@ -2476,25 +2460,27 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         pass
 
 if __name__ == '__main__':
-    try:
-        ensure_single_instance()
-        
-        print("🟢 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت...")
-        init_db()
-        app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
-        
-        app.add_handler(CommandHandler('start', start))
-        app.add_handler(CallbackQueryHandler(button_handler))
-        app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
-        app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
-        
-        print("🟢 البوت يعمل بكامل طاقته على قاعدة البيانات السحابية Supabase بدلاً من الملفات المحلية!")
+    print("🟢 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت عبر Webhook...")
+    init_db()
+    
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
+    
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
+    
+    # تشغيل البوت بنظام Webhook المستقر على Render
+    if RENDER_EXTERNAL_URL:
+        webhook_url = f"{RENDER_EXTERNAL_URL.rstrip('/')}/{BOT_TOKEN}"
+        print(f"🟢 ربط الـ Webhook بالرابط: {webhook_url}")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            webhook_url=webhook_url
+        )
+    else:
+        # محلياً في حال لم يتوفر الرابط الخارجي
+        print("⚠️ تحذير: لم يتم العثور على رابـط Render الخارجي، سيتم التشغيل الاحتياطي عبر Polling.")
         app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
-        
-    except SystemExit:
-        pass
-    except Exception as e:
-        print(f"❌ حدث خطأ أدى لتوقف البوت: {e}")
-    finally:
-        cleanup_lock()
