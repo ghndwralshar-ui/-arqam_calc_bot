@@ -1,7 +1,6 @@
 import logging
 import asyncio
 import os
-import sys
 import httpx
 from datetime import datetime, timedelta
 from supabase import create_client, Client
@@ -30,10 +29,6 @@ HMCARD_API_KEY = "6e568032e93df81068eadaae1175e589"
 SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
 SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# رابط مشروعك الثابت والمباشر على Render
-RENDER_EXTERNAL_URL = "https://odsrzvgjwvscsnlbkxgj.onrender.com"
-PORT = int(os.getenv("PORT", "10000"))
 
 HEADERS = {
     'Authorization': f'Bearer {FIVESIM_API_KEY}',
@@ -2460,7 +2455,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         pass
 
 if __name__ == '__main__':
-    print("🟢 جاري تهيئة الاتصال السحابي وبدء تشغيل البوت عبر Webhook الثابت...")
+    print("🟢 جاري تشغيل البوت بنظام الاستطلاع (Polling) المستقر 24/7...")
     init_db()
     
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
@@ -2471,14 +2466,6 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
-    webhook_url = f"{RENDER_EXTERNAL_URL.rstrip('/')}/{BOT_TOKEN}"
-    print(f"🟢 ربط الـ Webhook بالرابط: {webhook_url}")
-    print("تم تشغيل البوت بنجاح")
-    
-    # التشغيل بالطريقة الرسمية المستقرة التي تمنع الـ Restart المزعج
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=webhook_url,
-        secret_token=None
-    )
+    print("🚀 البوت يعمل الآن بنجاح واستقرار تام!")
+    # التشغيل بالطريقة العادية المستقرة (Polling) لتجنب إعادة تشغيل رندر
+    app.run_polling(drop_pending_updates=True)
