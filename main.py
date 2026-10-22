@@ -104,19 +104,6 @@ def db_update_balance(user_id, amount, mode="add"):
     except Exception as e:
         print(f"db_update_balance Error: {e}")
 
-def db_add_referral_record(new_user_id, referrer_id):
-    try:
-        res = supabase.table("users").select("referred_by, user_sequence").eq("user_id", new_user_id).execute()
-        rows = res.data if hasattr(res, 'data') else []
-        if rows:
-            current_referred_by = rows[0].get("referred_by", 0)
-            if current_referred_by == 0:
-                supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", new_user_id).execute()
-                return True
-    except Exception as e:
-        print(f"db_add_referral_record Error: {e}")
-    return False
-
 async def finalize_referral_reward(new_user_id, context):
     try:
         res = supabase.table("users").select("referred_by").eq("user_id", new_user_id).execute()
@@ -692,21 +679,23 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
-    # 1. التقاط وإدارة رابط الإحالة فوراً قبل فحص الاشتراك الإجباري
+    # 1. جلب أو إنشاء بيانات المستخدم في قاعدة البيانات أولاً
+    u_data = db_get_user(user.id)
+    
+    if u_data.get('is_banned', 0) == 1:
+        await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
+        return
+
+    # 2. التقاط وإدارة رابط الإحالة بعد أن أصبح المستخدم موجوداً في قاعدة البيانات
     args = context.args
     arg_param = args[0] if args else None
 
     if arg_param and arg_param.isdigit():
         referrer_id = int(arg_param)
         if referrer_id != user.id:
-            db_add_referral_record(user.id, referrer_id)
-
-    # 2. جلب أو إنشاء بيانات المستخدم في قاعدة البيانات
-    u_data = db_get_user(user.id)
-    
-    if u_data.get('is_banned', 0) == 1:
-        await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
-        return
+            if u_data.get('referred_by', 0) == 0:
+                supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", user.id).execute()
+                u_data['referred_by'] = referrer_id
 
     # 3. التحقق من الاشتراك الإجباري
     is_subbed, not_subbed_list = await check_forced_subscription(user.id, context.bot)
