@@ -2467,5 +2467,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
     print("🚀 البوت يعمل الآن بنجاح واستقرار تام!")
-    # التشغيل بالطريقة العادية المستقرة (Polling) لتجنب إعادة تشغيل رندر
+    # التشغيل بالطريقة العادية المستقرة (Polling) مع تصفير التحديثات العالقة لمنع التعارض نهائياً
     app.run_polling(drop_pending_updates=True)
