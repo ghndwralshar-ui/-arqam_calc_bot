@@ -2471,13 +2471,14 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
-    # تشغيل البوت بنظام Webhook المستقر 100% على Render
     webhook_url = f"{RENDER_EXTERNAL_URL.rstrip('/')}/{BOT_TOKEN}"
     print(f"🟢 ربط الـ Webhook بالرابط: {webhook_url}")
-    
     print("تم تشغيل البوت بنجاح")
+    
+    # التشغيل بالطريقة الرسمية المستقرة التي تمنع الـ Restart المزعج
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url=webhook_url
+        webhook_url=webhook_url,
+        secret_token=None
     )
