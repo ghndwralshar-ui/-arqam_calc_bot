@@ -64,7 +64,8 @@ def db_get_user(user_id):
                 "referred_by": 0,
                 "joined_date": now_str,
                 "is_banned": 0,
-                "user_sequence": new_seq
+                "user_sequence": new_seq,
+                "reward_claimed": 0
             }
             supabase.table("users").insert(new_data).execute()
             return {
@@ -73,7 +74,7 @@ def db_get_user(user_id):
                 "referred_by": 0,
                 "is_banned": 0,
                 "user_sequence": new_seq,
-                "is_really_new": True
+                "reward_claimed": 0
             }
         
         row = rows[0]
@@ -83,11 +84,11 @@ def db_get_user(user_id):
             "referred_by": int(row.get("referred_by", 0)),
             "is_banned": int(row.get("is_banned", 0)),
             "user_sequence": int(row.get("user_sequence", 1)),
-            "is_really_new": False
+            "reward_claimed": int(row.get("reward_claimed", 0))
         }
     except Exception as e:
         print(f"db_get_user Error: {e}")
-        return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": 1, "is_really_new": False}
+        return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": 1, "reward_claimed": 0}
 
 def db_update_balance(user_id, amount, mode="add"):
     u = db_get_user(user_id)
@@ -104,43 +105,16 @@ def db_update_balance(user_id, amount, mode="add"):
     except Exception as e:
         print(f"db_update_balance Error: {e}")
 
-async def finalize_referral_reward(new_user_id, context):
+async def process_successful_join_reward(user, context, u_data):
+    """تتأكد من إرسال إشعار الأدمن ومنح مكافأة الإحالة مرة واحدة فقط عند اجتياز الاشتراك الإجباري بنجاح"""
     try:
-        res = supabase.table("users").select("referred_by").eq("user_id", new_user_id).execute()
-        rows = res.data if hasattr(res, 'data') else []
-        if rows:
-            referrer_id = int(rows[0].get("referred_by", 0))
-            if referrer_id > 0:
-                supabase.table("users").update({"referred_by": -referrer_id}).eq("user_id", new_user_id).execute()
-                db_update_balance(referrer_id, 0.10, mode="add")
-                
-                ref_info = supabase.table("users").select("referrals").eq("user_id", referrer_id).execute()
-                ref_rows = ref_info.data if hasattr(ref_info, 'data') else []
-                current_refs = ref_rows[0].get("referrals", 0) if ref_rows else 0
-                supabase.table("users").update({"referrals": current_refs + 1}).eq("user_id", referrer_id).execute()
-                
-                try:
-                    updated_ref_info = db_get_user(referrer_id)
-                    await context.bot.send_message(
-                        chat_id=referrer_id,
-                        text=(
-                            "🎉🔥 **تهانينا القلبية لك يا بطل!** 🔥🎉\n"
-                            "━━━━━━━━━━━━━━━━━━━━━━\n"
-                            "🌟 انضم مستخدم حقيقي واجتاز الاشتراك الإجباري عبر رابط الإحالة الخاص بك!\n\n"
-                            "🎁 **تمت إضافة:** `$0.10` إلى رصيدك كمكافأة دعوة.\n"
-                            f"💰 **رصيدك الحالي:** `${updated_ref_info['balance']:.2f}`\n"
-                            f"👥 **إجمالي دعواتك:** `{updated_ref_info['referrals']} شخص`\n\n"
-                            "🚀 *واصل مشاركة رابطك واربح المزيد من الأرباح فوراً!*"
-                        ),
-                        parse_mode='Markdown'
-                    )
-                except Exception as ref_msg_err:
-                    print(f"Error sending ref msg: {ref_msg_err}")
-    except Exception as e:
-        print(f"finalize_referral_reward Error: {e}")
+        if u_data.get("reward_claimed", 0) == 1:
+            return  # تم معالجة هذا المستخدم من قبل
 
-async def notify_new_user_and_reward(user, context, u_data):
-    if u_data.get('is_really_new', False):
+        # 1. تحديث علامة أن هذا المستخدم أكمل اشتراكه وتمت معالجته
+        supabase.table("users").update({"reward_claimed": 1}).eq("user_id", user.id).execute()
+
+        # 2. إرسال إشعار للأدمن بالمستخدم الجديد
         if user.id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
@@ -157,7 +131,34 @@ async def notify_new_user_and_reward(user, context, u_data):
             except Exception as admin_notify_err:
                 print(f"Error notifying admin about new user: {admin_notify_err}")
 
-        await finalize_referral_reward(user.id, context)
+        # 3. منح مكافأة الإحالة للمُحيل إن وجد
+        referrer_id = u_data.get("referred_by", 0)
+        if referrer_id > 0 and referrer_id != user.id:
+            db_update_balance(referrer_id, 0.10, mode="add")
+            
+            ref_info = db_get_user(referrer_id)
+            new_ref_count = ref_info["referrals"] + 1
+            supabase.table("users").update({"referrals": new_ref_count}).eq("user_id", referrer_id).execute()
+            
+            try:
+                updated_ref_info = db_get_user(referrer_id)
+                await context.bot.send_message(
+                    chat_id=referrer_id,
+                    text=(
+                        "🎉🔥 **تهانينا القلبية لك يا بطل!** 🔥🎉\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━\n"
+                        "🌟 انضم مستخدم حقيقي واجتاز الاشتراك الإجباري عبر رابط الإحالة الخاص بك!\n\n"
+                        "🎁 **تمت إضافة:** `$0.10` إلى رصيدك كمكافأة دعوة.\n"
+                        f"💰 **رصيدك الحالي:** `${updated_ref_info['balance']:.2f}`\n"
+                        f"👥 **إجمالي دعواتك:** `{updated_ref_info['referrals']} شخص`\n\n"
+                        "🚀 *واصل مشاركة رابطك واربح المزيد من الأرباح فوراً!*"
+                    ),
+                    parse_mode='Markdown'
+                )
+            except Exception as ref_msg_err:
+                print(f"Error sending ref msg: {ref_msg_err}")
+    except Exception as e:
+        print(f"process_successful_join_reward Error: {e}")
 
 def db_get_advanced_stats():
     try:
@@ -679,14 +680,14 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
-    # 1. جلب أو إنشاء بيانات المستخدم في قاعدة البيانات أولاً
+    # 1. جلب أو إنشاء بيانات المستخدم أولاً
     u_data = db_get_user(user.id)
     
     if u_data.get('is_banned', 0) == 1:
         await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
         return
 
-    # 2. التقاط وإدارة رابط الإحالة بعد أن أصبح المستخدم موجوداً في قاعدة البيانات
+    # 2. التقاط وإدارة رابط الإحالة إن وجد
     args = context.args
     arg_param = args[0] if args else None
 
@@ -713,8 +714,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 4. إذا كان مشتركاً، يتم إرسال إشعار الأدمن وصرف المكافأة للمُحيل إن وجد
-    await notify_new_user_and_reward(user, context, u_data)
+    # 4. اجتاز الاشتراك الإجباري بنجاح -> إرسال إشعار الأدمن ومكافأة الإحالة مرة واحدة فقط
+    await process_successful_join_reward(user, context, u_data)
 
     welcome_text = (
         f"💎 **مرحباً بك عزيزي {user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -881,7 +882,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == 'main_menu':
         u_data = db_get_user(user_id)
-        await notify_new_user_and_reward(query.from_user, context, u_data)
+        await process_successful_join_reward(query.from_user, context, u_data)
 
         admin_state.pop(user_id, None)
         welcome_text = (
@@ -1911,7 +1912,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     u_data = db_get_user(user_id)
-    await notify_new_user_and_reward(update.effective_user, context, u_data)
+    await process_successful_join_reward(update.effective_user, context, u_data)
 
     text_content = update.message.text.strip() if update.message.text else ""
 
