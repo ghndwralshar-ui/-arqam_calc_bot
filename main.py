@@ -17,7 +17,7 @@ from telegram.ext import (
 
 # --- الإعدادات والبيانات الأساسية ---
 BOT_TOKEN = "8850483932:AAFNHcUERQf3yi1d6ko9O2o5dzeBtigJ4gU"
-FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdUBiIjoiNDUyMj3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
+FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
 ADMIN_ID = 6472852297
 SUPPORT_USERNAME = "benti"
 
@@ -1304,7 +1304,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             calc_cost = order.get('calc_cost', 0.0)
             final_cost = fixed_cost if fixed_cost > 0 else calc_cost
 
-            # --- فحص أمني قاطع: منع الشراء إذا كان الرصيد صفراً أو أقل من التكلفة ---
             u_data = db_get_user(user_id)
             current_balance = float(u_data.get('balance', 0.0))
             if current_balance <= 0 or current_balance < final_cost:
@@ -1314,7 +1313,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            # --- محاولة الاتصال بموقع الرشق مع التقاط وعرض سبب الخطأ بالتفصيل ---
+            async with httpx.AsyncClient(timeout=20.0) as client:
                 payload = {
                     'key': HMCARD_API_KEY,
                     'action': 'add',
@@ -1322,52 +1322,77 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'link': order['link'],
                     'quantity': qty
                 }
-                res = await client.post(HMCARD_API_URL, data=payload)
-                if res.status_code == 200:
-                    resp_data = res.json()
-                    if isinstance(resp_data, dict) and "order" in resp_data:
-                        order_id = resp_data["order"]
-                        db_update_balance(user_id, final_cost, mode="deduct")
-                        
-                        await query.edit_message_text(
-                            f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
-                            f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
-                            f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
-                            f"📦 **الكمية:** `{qty:,}`\n"
-                            f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
-                            parse_mode='Markdown',
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                        )
-                        
-                        try:
-                            bot_username = context.bot.username
-                            channel_buttons = InlineKeyboardMarkup([
-                                [
-                                    InlineKeyboardButton("🛒 شراء من نفس الخدمة", url=f"https://t.me/{bot_username}?start=main_rashq"),
-                                    InlineKeyboardButton("🤖 الدخول إلى البوت", url=f"https://t.me/{bot_username}?start=main_menu")
-                                ]
-                            ])
-                            await context.bot.send_message(
-                                chat_id=LOG_CHANNEL_ID,
-                                text=(
-                                    "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
-                                    "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                    f"👤 **آيدي الشخص:** `{user_id}`\n"
-                                    f"🔭 **الخدمة:** `{service['name']}`\n"
-                                    f"🆔 **رقم الطلب:** `{order_id}`\n"
-                                    f"📦 **الكمية:** `{qty}`\n"
-                                    f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
-                                    f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
-                                    f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
-                                ),
-                                parse_mode='Markdown',
-                                reply_markup=channel_buttons
-                            )
-                        except Exception as log_err:
-                            print(f"Log error: {log_err}")
-                        return
+                try:
+                    res = await client.post(HMCARD_API_URL, data=payload)
+                    print(f"HMCARD Status Code: {res.status_code}")
+                    print(f"HMCARD Response: {res.text}")
 
-            await query.edit_message_text("❌ فشل إرسال الطلب للموقع، حاول لاحقاً.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                    if res.status_code == 200:
+                        resp_data = res.json()
+                        if isinstance(resp_data, dict) and "order" in resp_data:
+                            order_id = resp_data["order"]
+                            db_update_balance(user_id, final_cost, mode="deduct")
+                            
+                            await query.edit_message_text(
+                                f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
+                                f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
+                                f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
+                                f"📦 **الكمية:** `{qty:,}`\n"
+                                f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
+                                parse_mode='Markdown',
+                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                            )
+                            
+                            try:
+                                bot_username = context.bot.username
+                                channel_buttons = InlineKeyboardMarkup([
+                                    [
+                                        InlineKeyboardButton("🛒 شراء من نفس الخدمة", url=f"https://t.me/{bot_username}?start=main_rashq"),
+                                        InlineKeyboardButton("🤖 الدخول إلى البوت", url=f"https://t.me/{bot_username}?start=main_menu")
+                                    ]
+                                ])
+                                await context.bot.send_message(
+                                    chat_id=LOG_CHANNEL_ID,
+                                    text=(
+                                        "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                                        "━━━━━━━━━━━━━━━━━━━━━━\n"
+                                        f"👤 **آيدي الشخص:** `{user_id}`\n"
+                                        f"🔭 **الخدمة:** `{service['name']}`\n"
+                                        f"🆔 **رقم الطلب:** `{order_id}`\n"
+                                        f"📦 **الكمية:** `{qty}`\n"
+                                        f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
+                                        f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
+                                        f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
+                                    ),
+                                    parse_mode='Markdown',
+                                    reply_markup=channel_buttons
+                                )
+                            except Exception as log_err:
+                                print(f"Log error: {log_err}")
+                            return
+                        else:
+                            # التقاط خطأ الـ API من محتوى JSON
+                            api_error = resp_data.get("error", resp_data.get("message", "خطأ غير معروف من سيرفر الموقع"))
+                            await query.edit_message_text(
+                                f"❌ **عذراً، رفض موقع الرشق تنفيذ الطلب!**\n\n💬 **سبب الرفض من الموقع:**\n`{api_error}`",
+                                parse_mode='Markdown',
+                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                            )
+                            return
+                    else:
+                        await query.edit_message_text(
+                            f"❌ **خطأ في الاتصال بسيرفر الموقع (Status: {res.status_code})**",
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                        )
+                        return
+                except Exception as api_err:
+                    print(f"HMCARD Connection Exception: {api_err}")
+                    await query.edit_message_text(
+                        f"❌ **حدث استثناء أثناء الاتصال بالموقع:**\n`{str(api_err)[:100]}`",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                    )
+                    return
 
     elif data == "cancel_order":
         await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
@@ -1452,7 +1477,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(f"❌ تم رفض الطلب للمستخدم `{target_user_id}`", parse_mode='Markdown')
 
-    # --- معالجة أقسام الأرقام الافتراضية ---
+    # --- الأرقام الافتراضية ---
     elif data in ['service_whatsapp', 'deals_whatsapp']:
         await query.answer("⏳ جاري جلب أحدث أسعار واتساب...", show_alert=False)
         countries = await fetch_5sim_countries('whatsapp')
@@ -1520,7 +1545,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parts = data.split('_')
         service, country_code, country_price = parts[2], parts[3], float(parts[4])
         
-        # --- فحص أمني قاطع: منع الشراء إذا كان الرصيد صفراً أو غير كافٍ ---
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
         if current_balance <= 0 or current_balance < country_price:
@@ -1568,7 +1592,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         await query.edit_message_text(f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
 
-    # --- لوحة الأدمن الاحترافية المحدثة ---
+    # --- لوحة الأدمن الاحترافية ---
     elif data == 'admin_panel':
         if not is_admin_or_sub(user_id):
             await query.answer("⛔ ليس لديك صلاحيات لوحة التحكم.", show_alert=True)
@@ -1731,7 +1755,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # معالجة خطوات الرشق اليدوية
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
         admin_state[user_id]['link'] = text_content
         admin_state[user_id]['action'] = 'waiting_for_rashq_count'
@@ -1795,7 +1818,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
         return
 
-    # أكواد الهدايا (Promo Codes)
     if text_content and not (is_admin_or_sub(user_id) and user_id in admin_state):
         try:
             res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
@@ -1818,7 +1840,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             pass
 
-    # --- إدارة المشرفين ولوحة الأدمن الحوارية الشاملة والمصلحة ---
     if is_admin_or_sub(user_id) and user_id in admin_state:
         action = admin_state[user_id].get('action')
         
