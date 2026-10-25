@@ -17,7 +17,7 @@ from telegram.ext import (
 
 # --- الإعدادات والبيانات الأساسية ---
 BOT_TOKEN = "8850483932:AAFNHcUERQf3yi1d6ko9O2o5dzeBtigJ4gU"
-FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
+FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdUBiIjoiNDUyMj3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
 ADMIN_ID = 6472852297
 SUPPORT_USERNAME = "benti"
 
@@ -469,7 +469,6 @@ def get_virtual_services_keyboard():
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
     ])
 
-# --- لوحات الرشق الثابتة الكاملة ---
 def sections_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🟢 خدمات واتساب", callback_data="sec_whatsapp"), InlineKeyboardButton("🚀 خدمات تليجرام", callback_data="sec_telegram")],
@@ -1043,7 +1042,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
 
-    # --- قوائم الرشق الثابتة الجديدة ---
     elif data == "main_rashq":
         await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
 
@@ -1057,19 +1055,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📘 قسم خدمات فيسبوك:\nاختر القسم الفرعي المطلوب:", reply_markup=facebook_services_keyboard())
 
     elif data == "sec_instagram":
-        await query.edit_message_text("📸 قسم خدمات انستغرام:\nاختر القسم الفرعي المطلوب:", reply_markup=instagram_services_keyboard())
+        await query.edit_message_text("📸 خدمات انستغرام:", reply_markup=instagram_services_keyboard())
 
     elif data == "sec_tiktok":
-        await query.edit_message_text("🎵 قسم خدمات تيك توك:\nاختر الخدمة المطلوبة:", reply_markup=tiktok_services_keyboard())
+        await query.edit_message_text("🎵 خدمات تيك توك:", reply_markup=tiktok_services_keyboard())
 
     elif data == "sec_youtube":
         await query.edit_message_text("📺 خدمات يوتيوب:", reply_markup=youtube_services_keyboard())
 
     elif data == "sec_pubg":
-        await query.edit_message_text("🎮 قسم شحن شدات ببجي موبايل:\nاختر الحزمة المطلوبة لشحنها بالآيدي:", reply_markup=pubg_services_keyboard())
+        await query.edit_message_text("🎮 قسم شحن شدات ببجي موبايل:", reply_markup=pubg_services_keyboard())
 
     elif data == "sec_freefire":
-        await query.edit_message_text("🔥 قسم شحن فري فاير:\nاختر الحزمة المطلوبة لشحنها بالآيدي مباشرة:", reply_markup=freefire_services_keyboard())
+        await query.edit_message_text("🔥 قسم شحن فري فاير:", reply_markup=freefire_services_keyboard())
 
     elif data in ["sec_twitter", "sec_kwai", "sec_snapchat", "sec_linkedin"]:
         await query.answer("⚠️ عذراً، لا توجد خدمات متاحة في هذه الفئة حالياً.", show_alert=True)
@@ -1306,11 +1304,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             calc_cost = order.get('calc_cost', 0.0)
             final_cost = fixed_cost if fixed_cost > 0 else calc_cost
 
+            # --- فحص أمني قاطع: منع الشراء إذا كان الرصيد صفراً أو أقل من التكلفة ---
             u_data = db_get_user(user_id)
-            if u_data['balance'] < final_cost:
+            current_balance = float(u_data.get('balance', 0.0))
+            if current_balance <= 0 or current_balance < final_cost:
                 await query.edit_message_text(
-                    f"❌ **عذراً، رصيدك غير كافٍ لإتمام الطلب!**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n💰 التكلفة: `${final_cost:.2f}`",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    f"❌ **عذراً، رصيدك غير كافٍ أو صفر لإتمام الطلب!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 التكلفة المطلوبة: `${final_cost:.2f}`",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
@@ -1372,7 +1372,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "cancel_order":
         await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
-    # --- الخدمات الأخرى (أرقام، محفظة، إحالات، أدمن) ---
     elif data == 'free_points':
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
@@ -1453,10 +1452,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(f"❌ تم رفض الطلب للمستخدم `{target_user_id}`", parse_mode='Markdown')
 
-    # خدمات الأرقام الافتراضية
+    # --- معالجة أقسام الأرقام الافتراضية ---
     elif data in ['service_whatsapp', 'deals_whatsapp']:
         await query.answer("⏳ جاري جلب أحدث أسعار واتساب...", show_alert=False)
         countries = await fetch_5sim_countries('whatsapp')
+        if not countries:
+            await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لخدمة واتساب من الخادم.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+            return
         buttons = []
         row = []
         for item in countries:
@@ -1472,6 +1474,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data in ['service_telegram', 'deals_telegram']:
         await query.answer("⏳ جاري جلب أحدث أسعار تليجرام...", show_alert=False)
         countries = await fetch_5sim_countries('telegram')
+        if not countries:
+            await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لخدمة تليجرام من الخادم.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+            return
         buttons = []
         row = []
         for item in countries:
@@ -1484,89 +1489,46 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         await query.edit_message_text(f"🎲 **• أرقام تليجرام المتاحة ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
-    elif data == 'service_instagram':
-        await query.answer("⏳ جاري جلب أسعار انستغرام...", show_alert=False)
-        countries = await fetch_5sim_countries('instagram')
+    elif data in ['service_instagram', 'service_facebook', 'service_twitter', 'service_tiktok', 'service_snapchat', 'service_imo']:
+        serv_codes = {
+            'service_instagram': ('instagram', 'انستغرام 🎳'),
+            'service_facebook': ('facebook', 'فيسبوك 🎯'),
+            'service_twitter': ('twitter', 'تويتر 🐤'),
+            'service_tiktok': ('tiktok', 'تيك توك 🎬'),
+            'service_snapchat': ('snapchat', 'سناب شات ♣️'),
+            'service_imo': ('imo', 'إيمو 💎')
+        }
+        s_code, s_title = serv_codes.get(data, ('instagram', 'انستغرام'))
+        await query.answer(f"⏳ جاري جلب أسعار {s_title}...", show_alert=False)
+        countries = await fetch_5sim_countries(s_code)
+        if not countries:
+            await query.edit_message_text(f"⚠️ عذراً، لا توجد أرقام متوفرة حالياً لخدمة {s_title}.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+            return
         buttons = []
         row = []
         for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_instagram_{item['code']}_{item['price']}"))
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_{s_code}_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
         if row: buttons.append(row)
         buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🎳 **• انستغرام ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif data == 'service_facebook':
-        await query.answer("⏳ جاري جلب أسعار فيسبوك...", show_alert=False)
-        countries = await fetch_5sim_countries('facebook')
-        buttons = []
-        row = []
-        for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_facebook_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🎯 **• فيسبوك ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif data == 'service_twitter':
-        await query.answer("⏳ جاري جلب أسعار تويتر...", show_alert=False)
-        countries = await fetch_5sim_countries('twitter')
-        buttons = []
-        row = []
-        for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_twitter_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🐤 **• تويتر ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif data == 'service_tiktok':
-        await query.answer("⏳ جاري جلب أسعار تيك توك...", show_alert=False)
-        countries = await fetch_5sim_countries('tiktok')
-        buttons = []
-        row = []
-        for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_tiktok_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🎬 **• تيك توك ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif data in ['service_snapchat', 'service_imo']:
-        serv_title = "سناب شات ♣️" if data == 'service_snapchat' else "إيمو 💎"
-        serv_code = "snapchat" if data == 'service_snapchat' else "imo"
-        await query.answer(f"⏳ جاري جلب أسعار {serv_title}...", show_alert=False)
-        countries = await fetch_5sim_countries(serv_code)
-        buttons = []
-        row = []
-        for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_{serv_code}_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🔹 **• {serv_title} ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text(f"🔹 **• {s_title} ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data.startswith('buy_num_'):
         parts = data.split('_')
         service, country_code, country_price = parts[2], parts[3], float(parts[4])
+        
+        # --- فحص أمني قاطع: منع الشراء إذا كان الرصيد صفراً أو غير كافٍ ---
         u_data = db_get_user(user_id)
-        if u_data['balance'] < country_price:
-            await query.edit_message_text(f"❌ **عذراً، رصيدك غير كافٍ!**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+        current_balance = float(u_data.get('balance', 0.0))
+        if current_balance <= 0 or current_balance < country_price:
+            await query.edit_message_text(
+                f"❌ **عذراً، رصيدك غير كافٍ أو صفر لشراء الرقم!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 سعر الرقم: `${country_price:.2f}`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+            )
             return
 
         await query.answer("🔄 جاري الشراء...", show_alert=False)
@@ -1593,11 +1555,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
 
     elif data.startswith('cnl_'):
-        _, cancel_type, order_id, price = data.split('_', 3)
+        parts = data.split('_')
+        cancel_type, order_id, price = parts[1], parts[2], float(parts[3])
         async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
             res = await client.get(f"https://5sim.net/v1/user/cancel/{order_id}")
             if res.status_code == 200:
-                if cancel_type == 'paid': db_update_balance(user_id, float(price), mode="add")
+                if cancel_type == 'paid': db_update_balance(user_id, price, mode="add")
                 await query.answer("✅ تم الإلغاء واسترداد الرصيد!", show_alert=True)
                 await query.edit_message_text("🚫 تم إلغاء الطلب.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
@@ -1605,8 +1568,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         await query.edit_message_text(f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
 
+    # --- لوحة الأدمن الاحترافية المحدثة ---
     elif data == 'admin_panel':
-        if not is_admin_or_sub(user_id): return
+        if not is_admin_or_sub(user_id):
+            await query.answer("⛔ ليس لديك صلاحيات لوحة التحكم.", show_alert=True)
+            return
         stats = db_get_advanced_stats()
         panel_text = (
             "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
@@ -1642,73 +1608,75 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'admin_send_gift_user':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_gift_id'}
-        await query.edit_message_text("🎁 أرسل آيدي المستخدم للإهداء:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        await query.edit_message_text("🎁 أرسل آيدي المستخدم والمبلغ للإهداء (مثال: `12345678 1.5`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_add_balance':
         if not is_admin_or_sub(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_add_bal_id'}
-        await query.edit_message_text("➕ أرسل آيدي المستخدم لإضافة رصيد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        admin_state[user_id] = {'action': 'waiting_for_add_bal'}
+        await query.edit_message_text("➕ أرسل آيدي المستخدم والمبلغ للإضافة (مثال: `12345678 5.0`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_deduct_balance':
         if not is_admin_or_sub(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_deduct_bal_id'}
-        await query.edit_message_text("➖ أرسل آيدي المستخدم لخصم رصيد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        admin_state[user_id] = {'action': 'waiting_for_deduct_bal'}
+        await query.edit_message_text("➖ أرسل آيدي المستخدم والمبلغ للخصم (مثال: `12345678 2.0`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_manage_subadmins':
         if user_id != ADMIN_ID: return
         subs = get_all_sub_admins()
-        subs_text = "👥 المشرفون المساعدون:\n" + "\n".join([f"• `{sid}`" for sid in subs])
+        subs_text = "👥 المشرفون المساعدون:\n" + ("\n".join([f"• `{sid}`" for sid in subs]) if subs else "لا يوجد مشرفين مساعدين.")
         await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_sub'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_sub')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_add_sub':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_sub_id'}
-        await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown')
+        await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_del_sub':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
-        await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown')
+        await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_manage_forced':
         if user_id != ADMIN_ID: return
         channels = get_forced_channels()
-        ch_text = "📢 قنوات الاشتراك الإجباري:\n" + "\n".join([f"• {title} (`{ch}`)" for ch, title in channels])
+        ch_text = "📢 قنوات الاشتراك الإجباري:\n" + ("\n".join([f"• {title} (`{ch}`)" for ch, title in channels]) if channels else "لا توجد قنوات.")
         await query.edit_message_text(ch_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_forced'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_forced')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_add_forced':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_forced_add'}
-        await query.edit_message_text("أرسل معرف القناة مع العنوان (مثال: `@Channel Title`):", parse_mode='Markdown')
+        await query.edit_message_text("أرسل معرف القناة مع العنوان (مثال: `@Channel Title`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_del_forced':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_forced_del'}
-        await query.edit_message_text("أرسل معرف القناة المراد حذفها:", parse_mode='Markdown')
+        await query.edit_message_text("أرسل معرف القناة المراد حذفها (مثال: `@Channel`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_send_bonus':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_bonus_amount'}
-        await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع:", parse_mode='Markdown')
+        await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_reset_balances':
         if user_id != ADMIN_ID: return
         try:
             res = supabase.table("users").select("user_id").execute()
-            for u in (res.data if hasattr(res, 'data') else []): supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
-        except Exception: pass
+            for u in (res.data if hasattr(res, 'data') else []):
+                supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
+        except Exception:
+            pass
         await query.answer("✅ تمت التصفير بنجاح!", show_alert=True)
         await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بنجاح.", reply_markup=get_admin_keyboard())
 
     elif data == 'admin_ban_user':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_ban_id'}
-        await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر / لفك الحظر:", parse_mode='Markdown')
+        await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر أو فك الحظر:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_broadcast':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_broadcast'}
-        await query.edit_message_text("📢 أرسل رسالة الإذاعة الشاملة:", parse_mode='Markdown')
+        await query.edit_message_text("📢 أرسل الآن رسالة الإذاعة الشاملة (نص، صورة، أو وسائط):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
 async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
@@ -1723,10 +1691,10 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             _, target_user_id, amount_str = payload.split('_')
             target_user_id, amount = int(target_user_id), float(amount_str)
             db_update_balance(target_user_id, amount, mode="add")
-            await update.message.reply_text(f"🎉 **تمت عملية الدفع الشحن الفوري بنجاح!**\n⭐ تم إضافة: `${amount:.2f}` لحسابك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
-        except Exception: pass
+            await update.message.reply_text(f"🎉 **تمت عملية الشحن الفوري بنجاح!**\n⭐ تم إضافة: `${amount:.2f}` لحسابك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+        except Exception:
+            pass
 
-# --- خطوات الإدخال الذكية للرشق ---
 def prompt_user_for_link(message, service_info, context):
     user_id = message.chat.id
     stype = service_info.get("type", "channel")
@@ -1850,23 +1818,28 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             pass
 
-    # إدارة الأدمن الحوارية
+    # --- إدارة المشرفين ولوحة الأدمن الحوارية الشاملة والمصلحة ---
     if is_admin_or_sub(user_id) and user_id in admin_state:
         action = admin_state[user_id].get('action')
+        
         if action == 'waiting_for_promo_details':
             try:
                 parts = text_content.split()
-                supabase.table("promo_codes").upsert({"code": parts[0], "amount": float(parts[1]), "max_uses": int(parts[2]), "used_count": 0}).execute()
+                code_str = parts[0]
+                amt = float(parts[1])
+                uses = int(parts[2])
+                supabase.table("promo_codes").upsert({"code": code_str, "amount": amt, "max_uses": uses, "used_count": 0}).execute()
                 admin_state.pop(user_id, None)
-                await update.message.reply_text("✅ تم إنشاء الكود بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text("✅ تم إنشاء وتفعيل كود الهدية بنجاح!", reply_markup=get_admin_keyboard())
                 return
             except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة!")
+                await update.message.reply_text("❌ صيغة خاطئة! أرسل هكذا: `CODE 0.50 100`")
                 return
+
         elif action == 'waiting_for_broadcast':
             admin_state.pop(user_id, None)
             all_users = db_get_all_users()
-            status_msg = await update.message.reply_text("🚀 جاري الإذاعة الشاملة...")
+            status_msg = await update.message.reply_text("🚀 جاري إرسال الإذاعة الشاملة لجميع المشتركين...")
             c = 0
             for uid in all_users:
                 try:
@@ -1875,8 +1848,137 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     await asyncio.sleep(0.03)
                 except Exception:
                     pass
-            await status_msg.edit_text(f"✅ تمت الإذاعة إلى `{c}` مشترك بنجاح.", reply_markup=get_admin_keyboard())
+            await status_msg.edit_text(f"✅ تمت الإذاعة بنجاح إلى `{c}` مشترك.", reply_markup=get_admin_keyboard())
             return
+
+        elif action == 'waiting_for_reply_id':
+            try:
+                parts = text_content.split(" ", 1)
+                target_id = int(parts[0])
+                reply_msg = parts[1]
+                await context.bot.send_message(chat_id=target_id, text=f"💬 **رد من الإدارة:**\n\n{reply_msg}", parse_mode='Markdown')
+                admin_state.pop(user_id, None)
+                await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي ثم مسافة ثم نص الرد.")
+                return
+
+        elif action == 'waiting_for_gift_id':
+            try:
+                parts = text_content.split()
+                target_id = int(parts[0])
+                gift_amt = float(parts[1])
+                db_update_balance(target_id, gift_amt, mode="add")
+                admin_state.pop(user_id, None)
+                await update.message.reply_text(f"✅ تم إرسال الهدية بقيمة `${gift_amt:.2f}` للمستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
+                try:
+                    await context.bot.send_message(chat_id=target_id, text=f"🎁 **مبروك! وصلت لك هدية مالية من الإدارة بقيمة:** `${gift_amt:.2f}`", parse_mode='Markdown')
+                except Exception:
+                    pass
+                return
+            except Exception:
+                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي ثم مسافة ثم المبلغ (مثال: `123456 1.5`):")
+                return
+
+        elif action == 'waiting_for_add_bal':
+            try:
+                parts = text_content.split()
+                target_id = int(parts[0])
+                bal_amt = float(parts[1])
+                db_update_balance(target_id, bal_amt, mode="add")
+                admin_state.pop(user_id, None)
+                await update.message.reply_text(f"✅ تمت إضافة `${bal_amt:.2f}` لحساب المستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي ثم مسافة ثم المبلغ.")
+                return
+
+        elif action == 'waiting_for_deduct_bal':
+            try:
+                parts = text_content.split()
+                target_id = int(parts[0])
+                bal_amt = float(parts[1])
+                db_update_balance(target_id, bal_amt, mode="deduct")
+                admin_state.pop(user_id, None)
+                await update.message.reply_text(f"✅ تم خصم `${bal_amt:.2f}` من حساب المستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي ثم مسافة ثم المبلغ.")
+                return
+
+        elif action == 'waiting_for_sub_id':
+            try:
+                new_sub_id = int(text_content)
+                supabase.table("sub_admins").upsert({"admin_id": new_sub_id}).execute()
+                admin_state.pop(user_id, None)
+                await update.message.reply_text("✅ تمت إضافة المشرف المساعد بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ الآيدي غير صالح!")
+                return
+
+        elif action == 'waiting_for_del_sub_id':
+            try:
+                del_sub_id = int(text_content)
+                supabase.table("sub_admins").delete().eq("admin_id", del_sub_id).execute()
+                admin_state.pop(user_id, None)
+                await update.message.reply_text("✅ تم حذف المشرف المساعد بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ حدث خطأ!")
+                return
+
+        elif action == 'waiting_for_forced_add':
+            try:
+                parts = text_content.split(" ", 1)
+                ch_username = parts[0]
+                ch_title = parts[1] if len(parts) > 1 else ch_username
+                supabase.table("forced_channels").upsert({"channel_username": ch_username, "channel_title": ch_title}).execute()
+                admin_state.pop(user_id, None)
+                await update.message.reply_text("✅ تمت إضافة قناة الاشتراك الإجباري بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ صيغة خاطئة! أرسل هكذا: `@Channel Title`")
+                return
+
+        elif action == 'waiting_for_forced_del':
+            try:
+                ch_username = text_content
+                supabase.table("forced_channels").delete().eq("channel_username", ch_username).execute()
+                admin_state.pop(user_id, None)
+                await update.message.reply_text("✅ تم حذف القناة من الاشتراك الإجباري بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ حدث خطأ أثناء الحذف!")
+                return
+
+        elif action == 'waiting_for_bonus_amount':
+            try:
+                bonus_amt = float(text_content)
+                admin_state.pop(user_id, None)
+                all_users = db_get_all_users()
+                for uid in all_users:
+                    db_update_balance(uid, bonus_amt, mode="add")
+                await update.message.reply_text(f"✅ تم توزيع الهدية المالية بقيمة `${bonus_amt:.2f}` على جميع المشتركين بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ مبلغ غير صالح!")
+                return
+
+        elif action == 'waiting_for_ban_id':
+            try:
+                target_id = int(text_content)
+                u_info = db_get_user(target_id)
+                new_ban = 1 if u_info.get('is_banned', 0) == 0 else 0
+                supabase.table("users").update({"is_banned": new_ban}).eq("user_id", target_id).execute()
+                admin_state.pop(user_id, None)
+                status_str = "حظر" if new_ban == 1 else "فك حظر"
+                await update.message.reply_text(f"✅ تم تنفيذ عملية ({status_str}) للمستخدم `{target_id}` بنجاح.", reply_markup=get_admin_keyboard())
+                return
+            except Exception:
+                await update.message.reply_text("❌ الآيدي غير صالح!")
+                return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_id':
         try:
@@ -1892,8 +1994,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             amount = float(text_content)
             st_data = admin_state.pop(user_id)
             target_id = st_data['target_id']
-            if u_data['balance'] < amount:
-                await update.message.reply_text("❌ رصيدك غير كافٍ للتحويل!")
+            if u_data['balance'] < amount or amount <= 0:
+                await update.message.reply_text("❌ رصيدك غير كافٍ أو المبلغ غير صالح للتحويل!")
                 return
             db_update_balance(user_id, amount, mode="deduct")
             db_update_balance(target_id, amount, mode="add")
