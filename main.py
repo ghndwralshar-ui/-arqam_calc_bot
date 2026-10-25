@@ -435,9 +435,8 @@ async def fetch_5sim_countries(service_name):
                             if 'count' in op_data:
                                 total_count += int(op_data['count'])
                     
-                    # جلب الدول التي تتوفر بها أرقام فقط (لتجنب نفاد المخزون)
                     if min_p != 999999 and total_count > 0:
-                        final_p = mult_price(min_p)
+                        final_p = mult_price(min_p) # مضاعفة السعر ضعفين (x2)
                         info = COUNTRY_TRANSLATIONS.get(country, {"name_ar": country, "flag": "🏳️"})
                         countries_dict.append({
                             "code": country,
@@ -446,8 +445,8 @@ async def fetch_5sim_countries(service_name):
                             "price": final_p,
                             "count": total_count
                         })
-                # ترتيب الدول حسب توفر الأرقام (الأكثر توفراً أولاً) ثم أرخص سعر
-                countries_dict.sort(key=lambda x: (-x['count'], x['price']))
+                # ترتيب القائمة من الأرخص سعراً إلى الأعلى
+                countries_dict.sort(key=lambda x: x['price'])
                 return countries_dict
         except Exception as e:
             print(f"Error fetching 5sim prices for {service_name}: {e}")
@@ -456,7 +455,7 @@ async def fetch_5sim_countries(service_name):
 def get_main_keyboard(user_id):
     buttons = [
         [InlineKeyboardButton("🛒 شــراء رقــم افتـراضـي", callback_data='buy_virtual_number')],
-        [InlineKeyboardButton("✈️ عروض Telegram", callback_data='service_telegram'), InlineKeyboardButton("💬 عروض WhatsApp", callback_data='service_whatsapp')],
+        [InlineKeyboardButton("✈️ عروض Telegram", callback_data='deals_telegram'), InlineKeyboardButton("💬 عروض WhatsApp", callback_data='deals_whatsapp')],
         [InlineKeyboardButton("🎲 • شحـن الرصيـد •", callback_data='deposit_menu'), InlineKeyboardButton("🎳 • الأكثر توفراً •", callback_data='most_available')],
         [InlineKeyboardButton("✨ الخدمات الرقمية وشحن الألعاب ⚡", callback_data='main_rashq')],
         [InlineKeyboardButton("💎 • ربـح الأرصدة مجـانـاً (أكواد وهدايا) •", callback_data='free_points')],
@@ -1056,12 +1055,40 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not countries:
             await query.edit_message_text("⚠️ لا توجد أرقام متاحة حالياً.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
             return
-        top_available = countries[:6]
+        top_available = sorted(countries, key=lambda x: -x['count'])[:8]
         buttons = []
         for item in top_available:
-            buttons.append([InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • متوفر ({item['count']}) • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}")])
+            buttons.append([InlineKeyboardButton(f"{item['flag']} {item['name_ar']} (متوفر:{item['count']}) • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}")])
         buttons.append([InlineKeyboardButton("🔙 عودة للقائمة", callback_data='main_menu')])
         await query.edit_message_text("🎳 **• الدول الأكثر توفراً لأرقام واتساب حالياً •**\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+
+    elif data == 'deals_whatsapp':
+        await query.answer("⏳ جاري جلب أرخص أسعار واتساب...", show_alert=False)
+        countries = await fetch_5sim_countries('whatsapp')
+        if not countries:
+            await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لواتساب.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
+            return
+        cheapest_countries = countries[:10] # أعلى 10 أرخص دول متوفرة
+        buttons = []
+        for item in cheapest_countries:
+            buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} • ${item['price']:.2f} (متوفر: {item['count']})", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}")])
+        buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
+        u_data = db_get_user(user_id)
+        await query.edit_message_text(f"💬 **• أرخص عروض أرقام واتساب في البوت •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+
+    elif data == 'deals_telegram':
+        await query.answer("⏳ جاري جلب أرخص أسعار تليجرام...", show_alert=False)
+        countries = await fetch_5sim_countries('telegram')
+        if not countries:
+            await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لتليجرام.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
+            return
+        cheapest_countries = countries[:10] # أعلى 10 أرخص دول متوفرة
+        buttons = []
+        for item in cheapest_countries:
+            buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} • ${item['price']:.2f} (متوفر: {item['count']})", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}")])
+        buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
+        u_data = db_get_user(user_id)
+        await query.edit_message_text(f"✈️ **• أرخص عروض أرقام تليجرام في البوت •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == "main_rashq":
         await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
@@ -1496,7 +1523,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(f"❌ تم رفض الطلب للمستخدم `{target_user_id}`", parse_mode='Markdown')
 
-    elif data in ['service_whatsapp', 'deals_whatsapp']:
+    elif data in ['service_whatsapp']:
         await query.answer("⏳ جاري جلب أحدث أسعار واتساب...", show_alert=False)
         countries = await fetch_5sim_countries('whatsapp')
         if not countries:
@@ -1505,16 +1532,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons = []
         row = []
         for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} (متوفر:{item['count']}) • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}"))
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
         if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسيـة", callback_data='main_menu')])
+        buttons.append([InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسية", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🔥 **• عروض أرقام واتساب المتاحة ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text(f"🔥 **• قائمة دول أرقام واتساب ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
-    elif data in ['service_telegram', 'deals_telegram']:
+    elif data in ['service_telegram']:
         await query.answer("⏳ جاري جلب أحدث أسعار تليجرام...", show_alert=False)
         countries = await fetch_5sim_countries('telegram')
         if not countries:
@@ -1523,14 +1550,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons = []
         row = []
         for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} (متوفر:{item['count']}) • ${item['price']:.2f}", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}"))
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
         if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسيـة", callback_data='main_menu')])
+        buttons.append([InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسية", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🎲 **• أرقام تليجرام المتاحة ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text(f"🎲 **• قائمة دول أرقام تليجرام ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data in ['service_instagram', 'service_facebook', 'service_twitter', 'service_tiktok', 'service_snapchat', 'service_imo']:
         serv_codes = {
@@ -1550,7 +1577,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons = []
         row = []
         for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} (متوفر:{item['count']}) • ${item['price']:.2f}", callback_data=f"buy_num_{s_code}_{item['code']}_{item['price']}"))
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_{s_code}_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
@@ -2085,7 +2112,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 u_info = db_get_user(target_id)
                 new_ban = 1 if u_info.get('is_banned', 0) == 0 else 0
                 supabase.table("users").update({"is_banned": new_ban}).eq("user_id", target_id).execute()
-                admin_state.post(user_id, None)
+                admin_state.pop(user_id, None)
                 status_str = "حظر" if new_ban == 1 else "فك حظر"
                 await update.message.reply_text(f"✅ تم تنفيذ عملية ({status_str}) للمستخدم `{target_id}` بنجاح.", reply_markup=get_admin_keyboard())
                 return
