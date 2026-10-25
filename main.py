@@ -604,7 +604,7 @@ def tg_auto_menu_keyboard():
 
 def tg_react_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔀 تفاعلات تليجرام إيجابية مختلطة", callback_data="tg_r_620")],
+        [InlineKeyboardButton("🥷 تفاعلات تليجرام إيجابية مختلطة", callback_data="tg_r_620")],
         [InlineKeyboardButton("👍 تفاعلات إعجاب (Thumbs Up)", callback_data="tg_r_621")],
         [InlineKeyboardButton("👎 تفاعلات عدم إعجاب (Thumbs Down)", callback_data="tg_r_622")],
         [InlineKeyboardButton("❤️ تفاعلات قلب (Heart)", callback_data="tg_r_623")],
@@ -1068,7 +1068,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not countries:
             await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لواتساب.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
             return
-        cheapest_countries = countries[:10] # أعلى 10 أرخص دول متوفرة
+        cheapest_countries = countries[:10]
         buttons = []
         for item in cheapest_countries:
             buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} • ${item['price']:.2f} (متوفر: {item['count']})", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}")])
@@ -1082,7 +1082,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not countries:
             await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لتليجرام.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
             return
-        cheapest_countries = countries[:10] # أعلى 10 أرخص دول متوفرة
+        cheapest_countries = countries[:10]
         buttons = []
         for item in cheapest_countries:
             buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} • ${item['price']:.2f} (متوفر: {item['count']})", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}")])
@@ -1371,9 +1371,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
                 try:
                     res = await client.post(HMCARD_API_URL, data=payload)
-                    print(f"HMCARD Status Code: {res.status_code}")
-                    print(f"HMCARD Response: {res.text}")
-
                     if res.status_code == 200:
                         resp_data = res.json()
                         if isinstance(resp_data, dict) and "order" in resp_data:
@@ -1799,7 +1796,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # --- معالجة طلبات الرشق (الرابط والعدد بشكل منفصل) ---
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
         admin_state[user_id]['link'] = text_content
         admin_state[user_id]['action'] = 'waiting_for_rashq_count'
@@ -1863,7 +1859,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
         return
 
-    # --- تحويل الرصيد (خطوة الآيدي ثم خطوة المبلغ بشكل منفصل تماماً) ---
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_id':
         try:
             target_id = int(text_content)
@@ -1892,7 +1887,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("❌ مبلغ غير صالح! أرسل أرقام صحيحة:")
         return
 
-    # --- فحص أكواد الهدايا ---
     if text_content and not (is_admin_or_sub(user_id) and user_id in admin_state):
         try:
             res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
@@ -1915,7 +1909,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             pass
 
-    # --- عمليات لوحة الأدمن (المنفصلة تماماً للآيدي ثم القيمة أو النص) ---
     if is_admin_or_sub(user_id) and user_id in admin_state:
         action = admin_state[user_id].get('action')
         
@@ -1948,7 +1941,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             await status_msg.edit_text(f"✅ تمت الإذاعة بنجاح إلى `{c}` مشترك.", reply_markup=get_admin_keyboard())
             return
 
-        # الرد على مستخدم (خطوة الآيدي أولاً، ثم نص الرد)
         elif action == 'waiting_for_reply_id':
             try:
                 target_id = int(text_content)
@@ -1970,7 +1962,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text(f"❌ تعذر إرسال الرد للمستخدم: {e}", reply_markup=get_admin_keyboard())
                 return
 
-        # إرسال هدية مالية لشخص (خطوة الآيدي أولاً، ثم المبلغ)
         elif action == 'waiting_for_gift_id':
             try:
                 target_id = int(text_content)
@@ -1997,7 +1988,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
                 return
 
-        # إضافة رصيد (خطوة الآيدي أولاً، ثم المبلغ)
         elif action == 'waiting_for_add_bal_id':
             try:
                 target_id = int(text_content)
@@ -2024,7 +2014,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
                 return
 
-        # خصم رصيد (خطوة الآيدي أولاً، ثم المبلغ)
         elif action == 'waiting_for_deduct_bal_id':
             try:
                 target_id = int(text_content)
