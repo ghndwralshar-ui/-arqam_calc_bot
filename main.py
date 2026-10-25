@@ -257,6 +257,7 @@ def mask_link(link: str) -> str:
     half = length // 2
     return link[:half] + "..."
 
+# قائمة الدول والترجمات الشاملة (مع الرايات والأسرار)
 COUNTRY_TRANSLATIONS = {
     "Afghanistan": {"name_ar": "أفغانستان", "flag": "🇦🇫"},
     "Albania": {"name_ar": "ألبانيا", "flag": "🇦🇱"},
@@ -416,6 +417,7 @@ COUNTRY_TRANSLATIONS = {
     "Zimbabwe": {"name_ar": "زيمبابوي", "flag": "🇿🇼"}
 }
 
+# دالة جلب الأرقام والأسعار من 5sim مع المضاعفة والترتيب
 async def fetch_5sim_countries(service_name):
     async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
         try:
