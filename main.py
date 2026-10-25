@@ -24,7 +24,7 @@ SUPPORT_USERNAME = "benti"
 LOG_CHANNEL_ID = "@DigitalHubOrders"
 
 HMCARD_API_URL = "https://hmcard.online/api/v2"
-HMCARD_API_KEY = "6e568032e93df81068eadaae1175e589"
+HMCARD_API_KEY = "579849274547c37577e5e5ec40a1a1d3"
 
 SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
 SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
@@ -106,15 +106,12 @@ def db_update_balance(user_id, amount, mode="add"):
         print(f"db_update_balance Error: {e}")
 
 async def process_successful_join_reward(user, context, u_data):
-    """تتأكد من إرسال إشعار الأدمن ومنح مكافأة الإحالة مرة واحدة فقط عند اجتياز الاشتراك الإجباري بنجاح"""
     try:
         if u_data.get("reward_claimed", 0) == 1:
-            return  # تم معالجة هذا المستخدم من قبل
+            return
 
-        # 1. تحديث علامة أن هذا المستخدم أكمل اشتراكه وتمت معالجته
         supabase.table("users").update({"reward_claimed": 1}).eq("user_id", user.id).execute()
 
-        # 2. إرسال إشعار للأدمن بالمستخدم الجديد
         if user.id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
@@ -131,7 +128,6 @@ async def process_successful_join_reward(user, context, u_data):
             except Exception as admin_notify_err:
                 print(f"Error notifying admin about new user: {admin_notify_err}")
 
-        # 3. منح مكافأة الإحالة للمُحيل إن وجد
         referrer_id = u_data.get("referred_by", 0)
         if referrer_id > 0 and referrer_id != user.id:
             db_update_balance(referrer_id, 0.10, mode="add")
@@ -248,7 +244,7 @@ async def check_forced_subscription(user_id, bot):
     return True, []
 
 def mult_price(price: float) -> float:
-    return round(price * 3.0, 2)
+    return round(price * 2.0, 2)
 
 def mask_link(link: str) -> str:
     if not link:
@@ -259,304 +255,200 @@ def mask_link(link: str) -> str:
     half = length // 2
     return link[:half] + "..."
 
-WHATSAPP_DEALS = [
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.50)},
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.50)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.55)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.55)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(0.60)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.60)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.60)},
-    {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": mult_price(0.70)}
-]
+COUNTRY_TRANSLATIONS = {
+    "Afghanistan": {"name_ar": "أفغانستان", "flag": "🇦🇫"},
+    "Albania": {"name_ar": "ألبانيا", "flag": "🇦🇱"},
+    "Algeria": {"name_ar": "الجزائر", "flag": "🇩🇿"},
+    "Andorra": {"name_ar": "أندورا", "flag": "🇦🇩"},
+    "Angola": {"name_ar": "أنغولا", "flag": "🇦🇴"},
+    "Argentina": {"name_ar": "الأرجنتين", "flag": "🇦🇷"},
+    "Armenia": {"name_ar": "أرمينيا", "flag": "🇦🇲"},
+    "Australia": {"name_ar": "أستراليا", "flag": "🇦🇺"},
+    "Austria": {"name_ar": "النمسا", "flag": "🇦🇹"},
+    "Azerbaijan": {"name_ar": "أذربيجان", "flag": "🇦🇿"},
+    "Bahrain": {"name_ar": "البحرين", "flag": "🇧🇭"},
+    "Bangladesh": {"name_ar": "بنغلاديش", "flag": "🇧🇩"},
+    "Belarus": {"name_ar": "بيلاروسيا", "flag": "🇧🇾"},
+    "Belgium": {"name_ar": "بلجيكا", "flag": "🇧🇪"},
+    "Belize": {"name_ar": "بيليز", "flag": "🇧🇿"},
+    "Benin": {"name_ar": "بنين", "flag": "🇧🇯"},
+    "Bolivia": {"name_ar": "بوليفيا", "flag": "🇧🇴"},
+    "Bosnia": {"name_ar": "البوسنة والهرسك", "flag": "🇧🇦"},
+    "Botswana": {"name_ar": "بوتسوانا", "flag": "🇧🇼"},
+    "Brazil": {"name_ar": "البرازيل", "flag": "🇧🇷"},
+    "Brunei": {"name_ar": "بروناي", "flag": "🇧🇳"},
+    "Bulgaria": {"name_ar": "بلغاريا", "flag": "🇧🇬"},
+    "Burkina": {"name_ar": "بوركينا فاسو", "flag": "🇧🇫"},
+    "Burundi": {"name_ar": "بوروندي", "flag": "🇧🇮"},
+    "Cambodia": {"name_ar": "كمبوديا", "flag": "🇰🇭"},
+    "Cameroon": {"name_ar": "الكاميرون", "flag": "🇨🇲"},
+    "Canada": {"name_ar": "كندا", "flag": "🇨🇦"},
+    "Chad": {"name_ar": "تشاد", "flag": "🇹🇩"},
+    "Chile": {"name_ar": "تشيلي", "flag": "🇨🇱"},
+    "China": {"name_ar": "الصين", "flag": "🇨🇳"},
+    "Colombia": {"name_ar": "كولومبيا", "flag": "🇨🇴"},
+    "Comoros": {"name_ar": "جزر القمر", "flag": "🇰🇲"},
+    "Congo": {"name_ar": "الكونغو", "flag": "🇨🇬"},
+    "CostaRica": {"name_ar": "كوستاريكا", "flag": "🇨🇷"},
+    "Croatia": {"name_ar": "كرواتيا", "flag": "🇭🇷"},
+    "Cyprus": {"name_ar": "قبرص", "flag": "🇨🇾"},
+    "Czech": {"name_ar": "التشيك", "flag": "🇨🇿"},
+    "Denmark": {"name_ar": "الدنمارك", "flag": "🇩🇰"},
+    "Djibouti": {"name_ar": "جيبوتي", "flag": "🇩🇯"},
+    "Dominican": {"name_ar": "الدومينيكان", "flag": "🇩🇴"},
+    "Ecuador": {"name_ar": "الإكوادور", "flag": "🇪🇨"},
+    "Egypt": {"name_ar": "مصر", "flag": "🇪🇬"},
+    "ElSalvador": {"name_ar": "السلفادور", "flag": "🇸🇻"},
+    "Estonia": {"name_ar": "إستونيا", "flag": "🇪🇪"},
+    "Ethiopia": {"name_ar": "إثيوبيا", "flag": "🇪🇹"},
+    "Finland": {"name_ar": "فنلندا", "flag": "🇫🇮"},
+    "France": {"name_ar": "فرنسا", "flag": "🇫🇷"},
+    "Gabon": {"name_ar": "الغابون", "flag": "🇬🇦"},
+    "Gambia": {"name_ar": "غامبيا", "flag": "🇬🇲"},
+    "Georgia": {"name_ar": "جورجيا", "flag": "🇬🇪"},
+    "Germany": {"name_ar": "ألمانيا", "flag": "🇩🇪"},
+    "Ghana": {"name_ar": "غانا", "flag": "🇬🇭"},
+    "Greece": {"name_ar": "اليونان", "flag": "🇬🇷"},
+    "Guatemala": {"name_ar": "غواتيمالا", "flag": "🇬🇹"},
+    "Guinea": {"name_ar": "غينيا", "flag": "🇬🇳"},
+    "Haiti": {"name_ar": "هايتي", "flag": "🇭🇹"},
+    "Honduras": {"name_ar": "هوندوراس", "flag": "🇭🇳"},
+    "Hongkong": {"name_ar": "هونغ كونغ", "flag": "🇭🇰"},
+    "Hungary": {"name_ar": "المجر", "flag": "🇭🇺"},
+    "India": {"name_ar": "الهند", "flag": "🇮🇳"},
+    "Indonesia": {"name_ar": "إندونيسيا", "flag": "🇮🇩"},
+    "Iran": {"name_ar": "إيران", "flag": "🇮🇷"},
+    "Iraq": {"name_ar": "العراق", "flag": "🇮🇶"},
+    "Ireland": {"name_ar": "أيرلندا", "flag": "🇮🇪"},
+    "Israel": {"name_ar": "إسرائيل", "flag": "🇮🇱"},
+    "Italy": {"name_ar": "إيطاليا", "flag": "🇮🇹"},
+    "IvoryCoast": {"name_ar": "ساحل العاج", "flag": "🇨🇮"},
+    "Jamaica": {"name_ar": "جامايكا", "flag": "🇯🇲"},
+    "Japan": {"name_ar": "اليابان", "flag": "🇯🇵"},
+    "Jordan": {"name_ar": "الأردن", "flag": "🇯🇴"},
+    "Kazakhstan": {"name_ar": "كازاخستان", "flag": "🇰🇿"},
+    "Kenya": {"name_ar": "كينيا", "flag": "🇰🇪"},
+    "Kuwait": {"name_ar": "الكويت", "flag": "🇰🇼"},
+    "Kyrgyzstan": {"name_ar": "قرغيزستان", "flag": "🇰🇬"},
+    "Laos": {"name_ar": "لاوس", "flag": "🇱🇦"},
+    "Latvia": {"name_ar": "لاتفيا", "flag": "🇱🇻"},
+    "Lebanon": {"name_ar": "لبنان", "flag": "🇱🇧"},
+    "Lesotho": {"name_ar": "ليسوتو", "flag": "🇱🇸"},
+    "Liberia": {"name_ar": "ليبيريا", "flag": "🇱🇷"},
+    "Libya": {"name_ar": "ليبيا", "flag": "🇱🇾"},
+    "Lithuania": {"name_ar": "ليتوانيا", "flag": "🇱🇹"},
+    "Luxembourg": {"name_ar": "لوكسمبورغ", "flag": "🇱🇺"},
+    "Madagascar": {"name_ar": "مدغشقر", "flag": "🇲🇬"},
+    "Malawi": {"name_ar": "مالاوي", "flag": "🇲🇼"},
+    "Malaysia": {"name_ar": "ماليزيا", "flag": "🇲🇾"},
+    "Mali": {"name_ar": "مالي", "flag": "🇲🇱"},
+    "Malta": {"name_ar": "مالطا", "flag": "🇲🇹"},
+    "Mauritania": {"name_ar": "موريتانيا", "flag": "🇲🇷"},
+    "Mauritius": {"name_ar": "موريشيوس", "flag": "🇲🇺"},
+    "Mexico": {"name_ar": "المكسيك", "flag": "🇲🇽"},
+    "Moldova": {"name_ar": "مولدوفا", "flag": "🇲🇩"},
+    "Mongolia": {"name_ar": "منغوليا", "flag": "🇲🇳"},
+    "Montenegro": {"name_ar": "الجبل الأسود", "flag": "🇲🇪"},
+    "Morocco": {"name_ar": "المغرب", "flag": "🇲🇦"},
+    "Mozambique": {"name_ar": "موزمبيق", "flag": "🇲🇿"},
+    "Myanmar": {"name_ar": "ميانمار", "flag": "🇲🇲"},
+    "Namibia": {"name_ar": "ناميبيا", "flag": "🇳🇦"},
+    "Nepal": {"name_ar": "نيبال", "flag": "🇳🇵"},
+    "Netherland": {"name_ar": "هولندا", "flag": "🇳🇱"},
+    "NewZealand": {"name_ar": "نيوزيلندا", "flag": "🇳🇿"},
+    "Nicaragua": {"name_ar": "نيكاراغوا", "flag": "🇳🇮"},
+    "Niger": {"name_ar": "النيجر", "flag": "🇳🇪"},
+    "Nigeria": {"name_ar": "نيجيريا", "flag": "🇳🇬"},
+    "NorthMacedonia": {"name_ar": "مقدونيا الشمالية", "flag": "🇲🇰"},
+    "Norway": {"name_ar": "النرويج", "flag": "🇳🇴"},
+    "Oman": {"name_ar": "عمان", "flag": "🇴🇲"},
+    "Pakistan": {"name_ar": "باكستان", "flag": "🇵🇰"},
+    "Palestine": {"name_ar": "فلسطين", "flag": "🇵🇸"},
+    "Panama": {"name_ar": "بنما", "flag": "🇵🇦"},
+    "Paraguay": {"name_ar": "باراغواي", "flag": "🇵🇾"},
+    "Peru": {"name_ar": "بيرو", "flag": "🇵🇪"},
+    "Philippines": {"name_ar": "الفلبين", "flag": "🇵🇭"},
+    "Poland": {"name_ar": "بولندا", "flag": "🇵🇱"},
+    "Portugal": {"name_ar": "البرتغال", "flag": "🇵🇹"},
+    "PuertoRico": {"name_ar": "بورتوريكو", "flag": "🇵🇷"},
+    "Qatar": {"name_ar": "قطر", "flag": "🇶🇦"},
+    "Romania": {"name_ar": "رومانيا", "flag": "🇷🇴"},
+    "Russia": {"name_ar": "روسيا", "flag": "🇷🇺"},
+    "Rwanda": {"name_ar": "رواندا", "flag": "🇷🇼"},
+    "SaudiArabia": {"name_ar": "السعودية", "flag": "🇸🇦"},
+    "Senegal": {"name_ar": "السنغال", "flag": "🇸🇳"},
+    "Serbia": {"name_ar": "صربيا", "flag": "🇷🇸"},
+    "SierraLeone": {"name_ar": "سيراليون", "flag": "🇸🇱"},
+    "Singapore": {"name_ar": "سنغافورة", "flag": "🇸🇬"},
+    "Slovakia": {"name_ar": "سلوفاكيا", "flag": "🇸🇰"},
+    "Slovenia": {"name_ar": "سلوفينيا", "flag": "🇸🇮"},
+    "Somalia": {"name_ar": "الصومال", "flag": "🇸🇴"},
+    "SouthAfrica": {"name_ar": "جنوب أفريقيا", "flag": "🇿🇦"},
+    "SouthSudan": {"name_ar": "جنوب السودان", "flag": "🇸🇸"},
+    "Spain": {"name_ar": "إسبانيا", "flag": "🇪🇸"},
+    "SriLanka": {"name_ar": "سريلانكا", "flag": "🇱🇰"},
+    "Sudan": {"name_ar": "السودان", "flag": "🇸🇩"},
+    "Suriname": {"name_ar": "سورينام", "flag": "🇸🇷"},
+    "Sweden": {"name_ar": "السويد", "flag": "🇸🇪"},
+    "Switzerland": {"name_ar": "سويسرا", "flag": "🇨🇭"},
+    "Syria": {"name_ar": "سوريا", "flag": "🇸🇾"},
+    "Taiwan": {"name_ar": "تايوان", "flag": "🇹🇼"},
+    "Tajikistan": {"name_ar": "طاجيكستان", "flag": "🇹🇯"},
+    "Tanzania": {"name_ar": "تنزانيا", "flag": "🇹🇿"},
+    "Thailand": {"name_ar": "تايلاند", "flag": "🇹🇭"},
+    "Togo": {"name_ar": "توغو", "flag": "🇹🇬"},
+    "Tunisia": {"name_ar": "تونس", "flag": "🇹🇳"},
+    "Turkey": {"name_ar": "تركيا", "flag": "🇹🇷"},
+    "Turkmenistan": {"name_ar": "تركمانستان", "flag": "🇹🇲"},
+    "Uganda": {"name_ar": "أوغندا", "flag": "🇺🇬"},
+    "Ukraine": {"name_ar": "أوكرانيا", "flag": "🇺🇦"},
+    "UAE": {"name_ar": "الإمارات", "flag": "🇦🇪"},
+    "UK": {"name_ar": "بريطانيا", "flag": "🇬🇧"},
+    "USA": {"name_ar": "أمريكا", "flag": "🇺🇸"},
+    "Uruguay": {"name_ar": "أوروغواي", "flag": "🇺🇾"},
+    "Uzbekistan": {"name_ar": "أوزبكستان", "flag": "🇺🇿"},
+    "Venezuela": {"name_ar": "فنزويلا", "flag": "🇻🇪"},
+    "Vietnam": {"name_ar": "فيتنام", "flag": "🇻🇳"},
+    "Yemen": {"name_ar": "اليمن", "flag": "🇾🇪"},
+    "Zambia": {"name_ar": "زامبيا", "flag": "🇿🇲"},
+    "Zimbabwe": {"name_ar": "زيمبابوي", "flag": "🇿🇼"}
+}
 
-TELEGRAM_DEALS = [
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.65)},
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.65)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.70)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.70)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(0.75)},
-    {"code": "russia", "name_ar": "روسيا 🇷🇺", "price": mult_price(0.80)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.75)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.75)}
-]
-
-ARAB_COUNTRIES = [
-    {"code": "yemen", "name_ar": "اليمن 🇾🇪", "price": mult_price(1.00)},
-    {"code": "saudiarabia", "name_ar": "السعودية 🇸🇦", "price": mult_price(1.80)},
-    {"code": "uae", "name_ar": "الإمارات 🇦🇪", "price": mult_price(1.80)},
-    {"code": "qatar", "name_ar": "قطر 🇶🇦", "price": mult_price(1.80)},
-    {"code": "kuwait", "name_ar": "الكويت 🇰🇼", "price": mult_price(1.80)},
-    {"code": "bahrain", "name_ar": "البحرين 🇧🇭", "price": mult_price(1.40)},
-    {"code": "oman", "name_ar": "عمان 🇴🇲", "price": mult_price(1.40)},
-    {"code": "iraq", "name_ar": "العراق 🇮🇶", "price": mult_price(1.40)},
-    {"code": "syria", "name_ar": "سوريا 🇸🇾", "price": mult_price(1.30)},
-    {"code": "lebanon", "name_ar": "لبنان 🇱🇧", "price": mult_price(1.40)},
-    {"code": "jordan", "name_ar": "الأردن 🇯🇴", "price": mult_price(1.30)},
-    {"code": "palestine", "name_ar": "فلسطين 🇵🇸", "price": mult_price(1.40)},
-    {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": mult_price(0.90)},
-    {"code": "sudan", "name_ar": "السودان 🇸🇩", "price": mult_price(1.10)},
-    {"code": "libya", "name_ar": "ليبيا 🇱🇾", "price": mult_price(1.30)},
-    {"code": "tunisia", "name_ar": "تونس 🇹🇳", "price": mult_price(1.20)},
-    {"code": "algeria", "name_ar": "الجزائر 🇩🇿", "price": mult_price(1.10)},
-    {"code": "morocco", "name_ar": "المغرب 🇲🇦", "price": mult_price(0.90)},
-    {"code": "mauritania", "name_ar": "موريتانيا 🇲🇷", "price": mult_price(1.10)},
-    {"code": "somalia", "name_ar": "الصومال 🇸🇴", "price": mult_price(1.10)},
-    {"code": "djibouti", "name_ar": "جيبوتي 🇩🇯", "price": mult_price(1.10)},
-    {"code": "comoros", "name_ar": "جزر القمر 🇰🇲", "price": mult_price(1.10)}
-]
-
-WHATSAPP_FOREIGN = [
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.70)},
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.70)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.70)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.70)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.80)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(0.80)},
-    {"code": "thailand", "name_ar": "تايلاند 🇹🇭", "price": mult_price(0.80)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.80)},
-    {"code": "brazil", "name_ar": "البرازيل 🇧🇷", "price": mult_price(0.90)},
-    {"code": "russia", "name_ar": "روسيا 🇷🇺", "price": mult_price(0.90)},
-    {"code": "nigeria", "name_ar": "نيجيريا 🇳🇬", "price": mult_price(0.90)},
-    {"code": "peru", "name_ar": "بيرو 🇵🇪", "price": mult_price(0.90)},
-    {"code": "colombia", "name_ar": "كولومبيا 🇨🇴", "price": mult_price(0.85)},
-    {"code": "argentina", "name_ar": "الأرجنتين 🇦🇷", "price": mult_price(0.85)},
-    {"code": "kenya", "name_ar": "كينيا 🇰🇪", "price": mult_price(0.95)},
-    {"code": "tanzania", "name_ar": "تنزانيا 🇹🇿", "price": mult_price(0.95)},
-    {"code": "uganda", "name_ar": "أوغندا 🇺🇬", "price": mult_price(0.95)},
-    {"code": "ghana", "name_ar": "غانا 🇬🇭", "price": mult_price(0.95)},
-    {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(1.00)},
-    {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(0.95)},
-    {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(0.95)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(0.95)},
-    {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(1.10)},
-    {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.20)},
-    {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.40)},
-    {"code": "germany", "name_ar": "ألمانيا 🇩🇪", "price": mult_price(1.60)},
-    {"code": "france", "name_ar": "فرنسا 🇫🇷", "price": mult_price(1.60)},
-    {"code": "italy", "name_ar": "إيطاليا 🇮🇹", "price": mult_price(1.50)},
-    {"code": "spain", "name_ar": "إسبانيا 🇪🇸", "price": mult_price(1.50)},
-    {"code": "uk", "name_ar": "بريطانيا 🇬🇧", "price": mult_price(1.70)},
-    {"code": "canada", "name_ar": "كندا 🇨🇦", "price": mult_price(1.60)},
-    {"code": "usa", "name_ar": "أمريكا 🇺🇸", "price": mult_price(1.80)}
-]
-
-TELEGRAM_COUNTRIES = [
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.95)},
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.95)},
-    {"code": "russia", "name_ar": "روسيا 🇷🇺", "price": mult_price(1.10)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(1.00)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.90)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.90)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.95)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.95)},
-    {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": mult_price(1.10)},
-    {"code": "brazil", "name_ar": "البرازيل 🇧🇷", "price": mult_price(1.20)},
-    {"code": "nigeria", "name_ar": "نيجيريا 🇳🇬", "price": mult_price(1.10)},
-    {"code": "peru", "name_ar": "بيرو 🇵🇪", "price": mult_price(1.10)},
-    {"code": "colombia", "name_ar": "كولومبيا 🇨🇴", "price": mult_price(1.05)},
-    {"code": "argentina", "name_ar": "الأرجنتين 🇦🇷", "price": mult_price(1.05)},
-    {"code": "kenya", "name_ar": "كينيا 🇰🇪", "price": mult_price(1.15)},
-    {"code": "tanzania", "name_ar": "تنزانيا 🇹🇿", "price": mult_price(1.15)},
-    {"code": "uganda", "name_ar": "أوغندا 🇺🇬", "price": mult_price(1.15)},
-    {"code": "ghana", "name_ar": "غانا 🇬🇭", "price": mult_price(1.15)},
-    {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(1.25)},
-    {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(1.20)},
-    {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(1.20)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(1.20)},
-    {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(1.35)},
-    {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.45)},
-    {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.60)},
-    {"code": "germany", "name_ar": "ألمانيا 🇩🇪", "price": mult_price(1.90)},
-    {"code": "france", "name_ar": "فرنسا 🇫🇷", "price": mult_price(1.90)},
-    {"code": "italy", "name_ar": "إيطاليا 🇮🇹", "price": mult_price(1.80)},
-    {"code": "spain", "name_ar": "إسبانيا 🇪🇸", "price": mult_price(1.80)},
-    {"code": "uk", "name_ar": "بريطانيا 🇬🇧", "price": mult_price(2.00)},
-    {"code": "canada", "name_ar": "كندا 🇨🇦", "price": mult_price(1.90)},
-    {"code": "usa", "name_ar": "أمريكا 🇺🇸", "price": mult_price(2.20)}
-]
-
-INSTAGRAM_COUNTRIES = [
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.60)},
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.60)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.60)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.60)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.65)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(0.70)},
-    {"code": "thailand", "name_ar": "تايلاند 🇹🇭", "price": mult_price(0.70)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.70)},
-    {"code": "russia", "name_ar": "روسيا 🇷🇺", "price": mult_price(0.75)},
-    {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": mult_price(0.75)},
-    {"code": "brazil", "name_ar": "البرازيل 🇧🇷", "price": mult_price(0.80)},
-    {"code": "nigeria", "name_ar": "نيجيريا 🇳🇬", "price": mult_price(0.75)},
-    {"code": "peru", "name_ar": "بيرو 🇵🇪", "price": mult_price(0.75)},
-    {"code": "colombia", "name_ar": "كولومبيا 🇨🇴", "price": mult_price(0.70)},
-    {"code": "argentina", "name_ar": "الأرجنتين 🇦🇷", "price": mult_price(0.70)},
-    {"code": "kenya", "name_ar": "كينيا 🇰🇪", "price": mult_price(0.80)},
-    {"code": "tanzania", "name_ar": "تنزانيا 🇹🇿", "price": mult_price(0.80)},
-    {"code": "uganda", "name_ar": "أوغندا 🇺🇬", "price": mult_price(0.80)},
-    {"code": "ghana", "name_ar": "غانا 🇬🇭", "price": mult_price(0.80)},
-    {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(0.85)},
-    {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(0.80)},
-    {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(0.80)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(0.80)},
-    {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(0.95)},
-    {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.00)},
-    {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.10)},
-    {"code": "germany", "name_ar": "ألمانيا 🇩🇪", "price": mult_price(1.30)},
-    {"code": "france", "name_ar": "فرنسا 🇫🇷", "price": mult_price(1.30)},
-    {"code": "italy", "name_ar": "إيطاليا 🇮🇹", "price": mult_price(1.20)},
-    {"code": "spain", "name_ar": "إسبانيا 🇪🇸", "price": mult_price(1.20)},
-    {"code": "uk", "name_ar": "بريطانيا 🇬🇧", "price": mult_price(1.40)},
-    {"code": "usa", "name_ar": "أمريكا 🇺🇸", "price": mult_price(1.50)}
-]
-
-FACEBOOK_COUNTRIES = [
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.65)},
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.65)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.65)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.65)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.70)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(0.75)},
-    {"code": "thailand", "name_ar": "تايلاند 🇹🇭", "price": mult_price(0.75)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.75)},
-    {"code": "russia", "name_ar": "روسيا 🇷🇺", "price": mult_price(0.80)},
-    {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": mult_price(0.75)},
-    {"code": "brazil", "name_ar": "البرازيل 🇧🇷", "price": mult_price(0.85)},
-    {"code": "nigeria", "name_ar": "نيجيريا 🇳🇬", "price": mult_price(0.80)},
-    {"code": "peru", "name_ar": "بيرو 🇵🇪", "price": mult_price(0.80)},
-    {"code": "colombia", "name_ar": "كولومبيا 🇨🇴", "price": mult_price(0.75)},
-    {"code": "argentina", "name_ar": "الأرجنتين 🇦🇷", "price": mult_price(0.75)},
-    {"code": "kenya", "name_ar": "كينيا 🇰🇪", "price": mult_price(0.85)},
-    {"code": "tanzania", "name_ar": "تنزانيا 🇹🇿", "price": mult_price(0.85)},
-    {"code": "uganda", "name_ar": "أوغندا 🇺🇬", "price": mult_price(0.85)},
-    {"code": "ghana", "name_ar": "غانا 🇬🇭", "price": mult_price(0.85)},
-    {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(0.90)},
-    {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(0.85)},
-    {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(0.85)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(0.85)},
-    {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(1.00)},
-    {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.10)},
-    {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.20)},
-    {"code": "germany", "name_ar": "ألمانيا 🇩🇪", "price": mult_price(1.40)},
-    {"code": "france", "name_ar": "فرنسا 🇫🇷", "price": mult_price(1.40)},
-    {"code": "italy", "name_ar": "إيطاليا 🇮🇹", "price": mult_price(1.30)},
-    {"code": "spain", "name_ar": "إسبانيا 🇪🇸", "price": mult_price(1.30)},
-    {"code": "uk", "name_ar": "بريطانيا 🇬🇧", "price": mult_price(1.50)},
-    {"code": "usa", "name_ar": "أمريكا 🇺🇸", "price": mult_price(1.60)}
-]
-
-TWITTER_COUNTRIES = [
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.80)},
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.80)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.80)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.80)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.85)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(0.90)},
-    {"code": "thailand", "name_ar": "تايلاند 🇹🇭", "price": mult_price(0.90)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.90)},
-    {"code": "russia", "name_ar": "روسيا 🇷🇺", "price": mult_price(0.95)},
-    {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": mult_price(0.95)},
-    {"code": "brazil", "name_ar": "البرازيل 🇧🇷", "price": mult_price(1.00)},
-    {"code": "nigeria", "name_ar": "نيجيريا 🇳🇬", "price": mult_price(0.95)},
-    {"code": "peru", "name_ar": "بيرو 🇵🇪", "price": mult_price(0.95)},
-    {"code": "colombia", "name_ar": "كولومبيا 🇨🇴", "price": mult_price(0.90)},
-    {"code": "argentina", "name_ar": "الأرجنتين 🇦🇷", "price": mult_price(0.90)},
-    {"code": "kenya", "name_ar": "كينيا 🇰🇪", "price": mult_price(1.00)},
-    {"code": "tanzania", "name_ar": "تنزانيا 🇹🇿", "price": mult_price(1.00)},
-    {"code": "uganda", "name_ar": "أوغندا 🇺🇬", "price": mult_price(1.00)},
-    {"code": "ghana", "name_ar": "غانا 🇬🇭", "price": mult_price(1.00)},
-    {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(1.10)},
-    {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(1.05)},
-    {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(1.05)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(1.05)},
-    {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(1.20)},
-    {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.30)},
-    {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.40)},
-    {"code": "germany", "name_ar": "ألمانيا 🇩🇪", "price": mult_price(1.60)},
-    {"code": "france", "name_ar": "فرنسا 🇫🇷", "price": mult_price(1.60)},
-    {"code": "italy", "name_ar": "إيطاليا 🇮🇹", "price": mult_price(1.50)},
-    {"code": "spain", "name_ar": "إسبانيا 🇪🇸", "price": mult_price(1.50)},
-    {"code": "uk", "name_ar": "بريطانيا 🇬🇧", "price": mult_price(1.70)},
-    {"code": "usa", "name_ar": "أمريكا 🇺🇸", "price": mult_price(1.90)}
-]
-
-TIKTOK_COUNTRIES = [
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.70)},
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.70)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.70)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.70)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.75)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(0.80)},
-    {"code": "thailand", "name_ar": "تايلاند 🇹🇭", "price": mult_price(0.80)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.80)},
-    {"code": "russia", "name_ar": "روسيا 🇷🇺", "price": mult_price(0.85)},
-    {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": mult_price(0.85)},
-    {"code": "brazil", "name_ar": "البرازيل 🇧🇷", "price": mult_price(0.90)},
-    {"code": "nigeria", "name_ar": "نيجيريا 🇳🇬", "price": mult_price(0.85)},
-    {"code": "peru", "name_ar": "بيرو 🇵🇪", "price": mult_price(0.85)},
-    {"code": "colombia", "name_ar": "كولومبيا 🇨🇴", "price": mult_price(0.80)},
-    {"code": "argentina", "name_ar": "الأرجنتين 🇦🇷", "price": mult_price(0.80)},
-    {"code": "kenya", "name_ar": "كينيا 🇰🇪", "price": mult_price(0.90)},
-    {"code": "tanzania", "name_ar": "تنزانيا 🇹🇿", "price": mult_price(0.90)},
-    {"code": "uganda", "name_ar": "أوغندا 🇺🇬", "price": mult_price(0.90)},
-    {"code": "ghana", "name_ar": "غانا 🇬🇭", "price": mult_price(0.90)},
-    {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(0.95)},
-    {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(0.90)},
-    {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(0.90)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(0.90)},
-    {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(1.05)},
-    {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.15)},
-    {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.25)},
-    {"code": "germany", "name_ar": "ألمانيا 🇩🇪", "price": mult_price(1.45)},
-    {"code": "france", "name_ar": "فرنسا 🇫🇷", "price": mult_price(1.45)},
-    {"code": "italy", "name_ar": "إيطاليا 🇮🇹", "price": mult_price(1.35)},
-    {"code": "spain", "name_ar": "إسبانيا 🇪🇸", "price": mult_price(1.35)},
-    {"code": "uk", "name_ar": "بريطانيا 🇬🇧", "price": mult_price(1.55)},
-    {"code": "usa", "name_ar": "أمريكا 🇺🇸", "price": mult_price(1.60)}
-]
-
-SNAP_IMO_COUNTRIES = [
-    {"code": "indonesia", "name_ar": "إندونيسيا 🇮🇩", "price": mult_price(0.85)},
-    {"code": "philippines", "name_ar": "الفلبين 🇵🇭", "price": mult_price(0.85)},
-    {"code": "pakistan", "name_ar": "باكستان 🇵🇰", "price": mult_price(0.85)},
-    {"code": "bangladesh", "name_ar": "بنغلاديش 🇧🇩", "price": mult_price(0.85)},
-    {"code": "ethiopia", "name_ar": "إثيوبيا 🇪🇹", "price": mult_price(0.90)},
-    {"code": "india", "name_ar": "الهند 🇮🇳", "price": mult_price(0.95)},
-    {"code": "thailand", "name_ar": "تايلاند 🇹🇭", "price": mult_price(0.95)},
-    {"code": "vietnam", "name_ar": "فيتنام 🇻🇳", "price": mult_price(0.95)},
-    {"code": "russia", "name_ar": "روسيا 🇷🇺", "price": mult_price(1.00)},
-    {"code": "egypt", "name_ar": "مصر 🇪🇬", "price": mult_price(1.00)},
-    {"code": "brazil", "name_ar": "البرازيل 🇧🇷", "price": mult_price(1.10)},
-    {"code": "nigeria", "name_ar": "نيجيريا 🇳🇬", "price": mult_price(1.05)},
-    {"code": "peru", "name_ar": "بيرو 🇵🇪", "price": mult_price(1.05)},
-    {"code": "colombia", "name_ar": "كولومبيا 🇨🇴", "price": mult_price(1.00)},
-    {"code": "argentina", "name_ar": "الأرجنتين 🇦🇷", "price": mult_price(1.00)},
-    {"code": "kenya", "name_ar": "كينيا 🇰🇪", "price": mult_price(1.10)},
-    {"code": "tanzania", "name_ar": "تنزانيا 🇹🇿", "price": mult_price(1.10)},
-    {"code": "uganda", "name_ar": "أوغندا 🇺🇬", "price": mult_price(1.10)},
-    {"code": "ghana", "name_ar": "غانا 🇬🇭", "price": mult_price(1.10)},
-    {"code": "ukraine", "name_ar": "أوكرانيا 🇺🇦", "price": mult_price(1.20)},
-    {"code": "kazakhstan", "name_ar": "كازاخستان 🇰🇿", "price": mult_price(1.15)},
-    {"code": "kyrgyzstan", "name_ar": "قرغيزستان 🇰🇬", "price": mult_price(1.15)},
-    {"code": "uzbekistan", "name_ar": "أوزبكستان 🇺🇿", "price": mult_price(1.15)},
-    {"code": "malaysia", "name_ar": "ماليزيا 🇲🇾", "price": mult_price(1.30)},
-    {"code": "china", "name_ar": "الصين 🇨🇳", "price": mult_price(1.40)},
-    {"code": "turkey", "name_ar": "تركيا 🇹🇷", "price": mult_price(1.50)},
-    {"code": "germany", "name_ar": "ألمانيا 🇩🇪", "price": mult_price(1.70)},
-    {"code": "france", "name_ar": "فرنسا 🇫🇷", "price": mult_price(1.70)},
-    {"code": "italy", "name_ar": "إيطاليا 🇮🇹", "price": mult_price(1.60)},
-    {"code": "spain", "name_ar": "إسبانيا 🇪🇸", "price": mult_price(1.60)},
-    {"code": "uk", "name_ar": "بريطانيا 🇬🇧", "price": mult_price(1.80)},
-    {"code": "usa", "name_ar": "أمريكا 🇺🇸", "price": mult_price(2.00)}
-]
+async def fetch_5sim_countries(service_name):
+    async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
+        try:
+            res = await client.get(f"https://5sim.net/v1/guest/prices?product={service_name}")
+            if res.status_code == 200:
+                data = res.json()
+                countries_dict = []
+                for country, operators in data.items():
+                    min_p = 999999
+                    for op_name, op_data in operators.items():
+                        if isinstance(op_data, dict) and 'cost' in op_data:
+                            c = float(op_data['cost'])
+                            if c < min_p:
+                                min_p = c
+                    if min_p != 999999:
+                        final_p = mult_price(min_p)
+                        info = COUNTRY_TRANSLATIONS.get(country, {"name_ar": country, "flag": "🏳️"})
+                        countries_dict.append({
+                            "code": country,
+                            "name_ar": info["name_ar"],
+                            "flag": info["flag"],
+                            "price": final_p
+                        })
+                countries_dict.sort(key=lambda x: x['price'])
+                return countries_dict
+        except Exception as e:
+            print(f"Error fetching 5sim prices for {service_name}: {e}")
+        return []
 
 def get_main_keyboard(user_id):
     buttons = [
         [InlineKeyboardButton("🛒 شــراء رقــم افتـراضـي", callback_data='buy_virtual_number')],
-        [InlineKeyboardButton("✈️ عروض Telegram", callback_data='deals_telegram'), InlineKeyboardButton("💬 عروض WhatsApp", callback_data='deals_whatsapp')],
+        [InlineKeyboardButton("✈️ عروض Telegram", callback_data='service_telegram'), InlineKeyboardButton("💬 عروض WhatsApp", callback_data='service_whatsapp')],
         [InlineKeyboardButton("🎲 • شحـن الرصيـد •", callback_data='deposit_menu'), InlineKeyboardButton("🎳 • الأكثر توفراً •", callback_data='most_available')],
-        [InlineKeyboardButton("🔭 • الرشـق وشحـن الألعـاب والبرامـج •", callback_data='boosting_services')],
+        [InlineKeyboardButton("✨ الخدمات الرقمية وشحن الألعاب ⚡", callback_data='main_rashq')],
         [InlineKeyboardButton("💎 • ربـح الأرصدة مجـانـاً (أكواد وهدايا) •", callback_data='free_points')],
         [InlineKeyboardButton("🔄 • تحويـل الرصيـد •", callback_data='transfer_balance'), InlineKeyboardButton("📞 • الدعم •", url=f"https://t.me/{SUPPORT_USERNAME}")],
         [InlineKeyboardButton("📖 • تعليمات وطريقة استخدام البوت •", callback_data='bot_instructions')],
@@ -568,7 +460,7 @@ def get_main_keyboard(user_id):
 
 def get_virtual_services_keyboard():
     buttons = [
-        [InlineKeyboardButton("🛍️ WHATSAPP - واتساب", callback_data='service_whatsapp'), InlineKeyboardButton("🎲 TELEGRAM - تليجرام", callback_data='cat_telegram')],
+        [InlineKeyboardButton("🛍️ WHATSAPP - واتساب", callback_data='service_whatsapp'), InlineKeyboardButton("🎲 TELEGRAM - تليجرام", callback_data='service_telegram')],
         [InlineKeyboardButton("🎳 INSTAGRAM - انستغرام", callback_data='service_instagram'), InlineKeyboardButton("🎯 FACEBOOK - فيسبوك", callback_data='service_facebook')],
         [InlineKeyboardButton("🐤 TWITTER - تويتر", callback_data='service_twitter'), InlineKeyboardButton("🎬 TIKTOK - تيك توك", callback_data='service_tiktok')],
         [InlineKeyboardButton("♣️ SNAPCHAT - سناب شات", callback_data='service_snapchat'), InlineKeyboardButton("💎 IMO - ايمو", callback_data='service_imo')],
@@ -576,13 +468,374 @@ def get_virtual_services_keyboard():
     ]
     return InlineKeyboardMarkup(buttons)
 
-def get_whatsapp_sections_keyboard():
-    buttons = [
-        [InlineKeyboardButton("🌐 • الـدول العـربيـة •", callback_data='wa_arab_countries')],
-        [InlineKeyboardButton("🌍 • الـدول الأجنبيـة والعـالميـة •", callback_data='wa_foreign_countries')],
-        [InlineKeyboardButton("🔙 • عـودة لقـائمـة الخـدمـات •", callback_data='buy_virtual_number')]
-    ]
-    return InlineKeyboardMarkup(buttons)
+# --- لوحات الرشق الثابتة الجديدة ---
+def sections_menu_keyboard():
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 خدمات واتساب", callback_data="sec_whatsapp"), InlineKeyboardButton("🚀 خدمات تليجرام", callback_data="sec_telegram")],
+        [InlineKeyboardButton("📘 خدمات فيسبوك", callback_data="sec_facebook"), InlineKeyboardButton("📸 خدمات انستغرام", callback_data="sec_instagram")],
+        [InlineKeyboardButton("🎵 خدمات تيك توك", callback_data="sec_tiktok"), InlineKeyboardButton("📺 خدمات يوتيوب", callback_data="sec_youtube")],
+        [InlineKeyboardButton("🎮 شحن شدات ببجي موبايل", callback_data="sec_pubg"), InlineKeyboardButton("🔥 شحن فري فاير (Freefire)", callback_data="sec_freefire")],
+        [InlineKeyboardButton("🐦 خدمات تويتر (X)", callback_data="sec_twitter"), InlineKeyboardButton("🎬 خدمات كواي", callback_data="sec_kwai")],
+        [InlineKeyboardButton("👻 خدمات سناب شات", callback_data="sec_snapchat"), InlineKeyboardButton("💼 خدمات لينكدإن", callback_data="sec_linkedin")],
+        [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")]
+    ])
+    return markup
+
+def whatsapp_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 بروفايل وأعضاء قناة واتساب", callback_data="wa_subscribers")],
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل ومنشورات واتساب", callback_data="wa_reactions")],
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل تلقائية للمنشورات الجديدة", callback_data="wa_auto_reactions")],
+        [InlineKeyboardButton("🟢 تصويتات استطلاع رأي واتساب", callback_data="wa_polls")],
+        [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
+    ])
+
+def channel_subscribers_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 بروفايل واتساب - أعضاء بدون ضمان", callback_data="sub_no_guarantee")],
+        [InlineKeyboardButton("🟢 بروفايل واتساب - ضمان 30 يوم", callback_data="sub_30d")],
+        [InlineKeyboardButton("🟢 بروفايل واتساب - ضمان 60 يوم", callback_data="sub_60d")],
+        [InlineKeyboardButton("🟢 بروفايل واتساب - ضمان 90 يوم", callback_data="sub_90d")],
+        [InlineKeyboardButton("🟢 بروفايل واتساب - عالمي", callback_data="sub_global")],
+        [InlineKeyboardButton("🟢 بروفايل واتساب - عربي", callback_data="sub_arabic")],
+        [InlineKeyboardButton("🔙 العودة لخدمات واتساب", callback_data="sec_whatsapp")]
+    ])
+
+def emoji_reactions_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل عشوائية", callback_data="react_random")],
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل إعجاب (Like)", callback_data="react_like")],
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل حب (Heart)", callback_data="react_heart")],
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل ضحك (Haha)", callback_data="react_haha")],
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل تعجب (Wow)", callback_data="react_wow")],
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل حزن (Sad)", callback_data="react_sad")],
+        [InlineKeyboardButton("🟢 تفاعلات بروفايل دعاء (Pray)", callback_data="react_pray")],
+        [InlineKeyboardButton("🔙 العودة لخدمات واتساب", callback_data="sec_whatsapp")]
+    ])
+
+def auto_reactions_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 ردود فعل بروفايل تلقائية (10 منشورات)", callback_data="auto_10")],
+        [InlineKeyboardButton("🟢 ردود فعل بروفايل تلقائية (25 منشوراً)", callback_data="auto_25")],
+        [InlineKeyboardButton("🟢 ردود فعل بروفايل تلقائية (50 منشوراً)", callback_data="auto_50")],
+        [InlineKeyboardButton("🟢 ردود فعل بروفايل تلقائية (100 منشور)", callback_data="auto_100")],
+        [InlineKeyboardButton("🔙 العودة لخدمات واتساب", callback_data="sec_whatsapp")]
+    ])
+
+def polls_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 تصويت بروفايل واتساب - الخيار الأول", callback_data="poll_1")],
+        [InlineKeyboardButton("🟢 تصويت بروفايل واتساب - الخيار الثاني", callback_data="poll_2")],
+        [InlineKeyboardButton("🟢 تصويت بروفايل واتساب - الخيار الثالث", callback_data="poll_3")],
+        [InlineKeyboardButton("🟢 تصويت بروفايل واتساب - الخيار الرابع", callback_data="poll_4")],
+        [InlineKeyboardButton("🔙 العودة لخدمات واتساب", callback_data="sec_whatsapp")]
+    ])
+
+def telegram_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🇸🇦 أعضاء تليجرام عرب", callback_data="tg_arab_menu")],
+        [InlineKeyboardButton("🌍 أعضاء تليجرام أجانب (Zero Drop)", callback_data="tg_foreign_menu")],
+        [InlineKeyboardButton("🥷 أعضاء تليجرام حسابات محذوفة", callback_data="tg_deleted_652")],
+        [InlineKeyboardButton("⭐ أعضاء تليجرام بريميوم (Premium)", callback_data="tg_prem_menu")],
+        [InlineKeyboardButton("🔍 معرفة رقم هاتفك تليجرام", callback_data="tg_phone_960")],
+        [InlineKeyboardButton("👁️ مشاهدات منشورات تليجرام", callback_data="tg_views_menu")],
+        [InlineKeyboardButton("⚡ مشاهدات وتفاعلات تلقائية للمنشور الجديد", callback_data="tg_auto_menu")],
+        [InlineKeyboardButton("🎯 تفاعلات إيموجي وقصص تليجرام", callback_data="tg_react_menu")],
+        [InlineKeyboardButton("🗳️ تصويتات مسابقات تليجرام", callback_data="tg_polls_menu")],
+        [InlineKeyboardButton("📊 بوست تصويت استطلاع رأي تليجرام", callback_data="tg_poll_boost_667")],
+        [InlineKeyboardButton("🚀 تعزيزات قناة أو مجموعة تليجرام (Boosts)", callback_data="tg_boost_menu")],
+        [InlineKeyboardButton("💬 تعليقات مخصصة تليجرام", callback_data="tg_comment_647")],
+        [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
+    ])
+
+def tg_arab_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🇸🇦 أعضاء تليجرام عرب - ضمان 10 أيام", callback_data="tg_t_659")],
+        [InlineKeyboardButton("🇸🇦 أعضاء تليجرام عرب - ضمان 180 يوم", callback_data="tg_t_660")],
+        [InlineKeyboardButton("🇸🇦 أعضاء تليجرام عرب - ضمان 365 يوم", callback_data="tg_t_661")],
+        [InlineKeyboardButton("🇸🇦 أعضاء تليجرام عرب - ضمان مدى الحياة", callback_data="tg_t_662")],
+        [InlineKeyboardButton("🔙 العودة لقائمة تليجرام", callback_data="sec_telegram")]
+    ])
+
+def tg_foreign_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌍 أعضاء Zero Drop - ضمان 365 يوم", callback_data="tg_t_653")],
+        [InlineKeyboardButton("🌍 أعضاء Zero Drop - ضمان مدى الحياة", callback_data="tg_t_654")],
+        [InlineKeyboardButton("🔙 العودة لقائمة تليجرام", callback_data="sec_telegram")]
+    ])
+
+def tg_prem_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⭐ أعضاء تليجرام بريميوم - 15 يوم", callback_data="tg_t_613")],
+        [InlineKeyboardButton("⭐ أعضاء تليجرام بريميوم - 30 يوم", callback_data="tg_t_614")],
+        [InlineKeyboardButton("🔙 العودة لقائمة تليجرام", callback_data="sec_telegram")]
+    ])
+
+def tg_views_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👁️ مشاركات منشور تليجرام + المشاهدات", callback_data="tg_v_628")],
+        [InlineKeyboardButton("👁️ مشاهدات سريعة - آخر منشور 1", callback_data="tg_v_668")],
+        [InlineKeyboardButton("👁️ مشاهدات سريعة - آخر 10 منشورات", callback_data="tg_v_669")],
+        [InlineKeyboardButton("👁️ مشاهدات سريعة - آخر 50 منشور", callback_data="tg_v_670")],
+        [InlineKeyboardButton("👁️ مشاهدات سريعة - آخر 100 منشور", callback_data="tg_v_671")],
+        [InlineKeyboardButton("🔙 العودة لقائمة تليجرام", callback_data="sec_telegram")]
+    ])
+
+def tg_auto_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⚡ ردود فعل إيجابية تليجرام - 5 منشورات", callback_data="tg_a_702")],
+        [InlineKeyboardButton("⚡ ردود فعل إيجابية تليجرام - 20 منشور", callback_data="tg_a_703")],
+        [InlineKeyboardButton("⚡ ردود فعل إيجابية تليجرام - 50 منشور", callback_data="tg_a_704")],
+        [InlineKeyboardButton("⚡ ردود فعل إيجابية تليجرام - 100 منشور", callback_data="tg_a_705")],
+        [InlineKeyboardButton("⚙️ مشاهدات تلقائية تليجرام - 5 منشورات", callback_data="tg_a_706")],
+        [InlineKeyboardButton("⚙️ مشاهدات تلقائية تليجرام - 20 منشور", callback_data="tg_a_707")],
+        [InlineKeyboardButton("⚙️ مشاهدات تلقائية تليجرام - 50 منشور", callback_data="tg_a_708")],
+        [InlineKeyboardButton("⚙️ مشاهدات تلقائية تليجرام - 100 منشور", callback_data="tg_a_709")],
+        [InlineKeyboardButton("⚙️ مشاهدات تلقائية تليجرام - 200 منشور", callback_data="tg_a_710")],
+        [InlineKeyboardButton("⚙️ مشاهدات تلقائية تليجرام - 500 منشور", callback_data="tg_a_711")],
+        [InlineKeyboardButton("🔙 العودة لقائمة تليجرام", callback_data="sec_telegram")]
+    ])
+
+def tg_react_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔀 تفاعلات تليجرام إيجابية مختلطة", callback_data="tg_r_620")],
+        [InlineKeyboardButton("👍 تفاعلات إعجاب (Thumbs Up)", callback_data="tg_r_621")],
+        [InlineKeyboardButton("👎 تفاعلات عدم إعجاب (Thumbs Down)", callback_data="tg_r_622")],
+        [InlineKeyboardButton("❤️ تفاعلات قلب (Heart)", callback_data="tg_r_623")],
+        [InlineKeyboardButton("🔥 تفاعلات نار (Fire)", callback_data="tg_r_624")],
+        [InlineKeyboardButton("😍 تفاعلات عيون قلبية", callback_data="tg_r_625")],
+        [InlineKeyboardButton("🤩 تفاعلات مذهلة", callback_data="tg_r_626")],
+        [InlineKeyboardButton("✨ تفاعلات + مشاهدات", callback_data="tg_r_690")],
+        [InlineKeyboardButton("🔙 العودة لقائمة تليجرام", callback_data="sec_telegram")]
+    ])
+
+def tg_polls_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🗳️ تصويت تليجرام عادي", callback_data="tg_p_665")],
+        [InlineKeyboardButton("🔥 تصويت اشتراك إجباري", callback_data="tg_p_666")],
+        [InlineKeyboardButton("🔙 العودة لقائمة تليجرام", callback_data="sec_telegram")]
+    ])
+
+def tg_boost_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 تعزيزات تليجرام - 2 يوم", callback_data="tg_t_646")],
+        [InlineKeyboardButton("🚀 تعزيزات تليجرام - 7 أيام", callback_data="tg_t_893")],
+        [InlineKeyboardButton("🚀 تعزيزات تليجرام - 14 يوم", callback_data="tg_t_894")],
+        [InlineKeyboardButton("🚀 تعزيزات تليجرام - 30 يوم", callback_data="tg_t_895")],
+        [InlineKeyboardButton("🔙 العودة لقائمة تليجرام", callback_data="sec_telegram")]
+    ])
+
+def facebook_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👤 متابعو الملف الشخصي أو الصفحة", callback_data="fb_profile_menu")],
+        [InlineKeyboardButton("📘 متابعون وإعجابات صفحة فيسبوك", callback_data="fb_page_menu")],
+        [InlineKeyboardButton("👥 أعضاء مجموعة فيسبوك", callback_data="fb_group_744")],
+        [InlineKeyboardButton("👍 لايكات وتفاعلات منشورات فيسبوك", callback_data="fb_react_menu")],
+        [InlineKeyboardButton("💬 إعجابات وتفاعلات على التعليقات", callback_data="fb_comment_react_menu")],
+        [InlineKeyboardButton("📸 مشاهدات وتفاعلات قصص فيسبوك (استوري)", callback_data="fb_story_menu")],
+        [InlineKeyboardButton("🔄 مشاركات فيسبوك", callback_data="fb_share_menu")],
+        [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
+    ])
+
+def fb_profile_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👤 متابعو فيسبوك - ضمان 30 يوم", callback_data="fb_f_745")],
+        [InlineKeyboardButton("👤 متابعو فيسبوك - ضمان 90 يوم", callback_data="fb_f_746")],
+        [InlineKeyboardButton("👤 متابعو فيسبوك - ضمان 365 يوم", callback_data="fb_f_747")],
+        [InlineKeyboardButton("👤 متابعو فيسبوك - ضمان مدى الحياة", callback_data="fb_f_748")],
+        [InlineKeyboardButton("🔙 العودة لقائمة فيسبوك", callback_data="sec_facebook")]
+    ])
+
+def fb_page_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📘 إعجابات صفحة فيسبوك + 1000 متابع", callback_data="fb_f_774")],
+        [InlineKeyboardButton("📘 متابعين وإعجابات صفحة - ضمان 90 يوم", callback_data="fb_f_775")],
+        [InlineKeyboardButton("📘 متابعين وإعجابات صفحة - ضمان 365 يوم", callback_data="fb_f_776")],
+        [InlineKeyboardButton("📘 إعجابات صفحة ومتابعين - مدى الحياة", callback_data="fb_f_777")],
+        [InlineKeyboardButton("🔙 العودة لقائمة فيسبوك", callback_data="sec_facebook")]
+    ])
+
+def fb_react_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👍 إعجاب فيسبوك (Like)", callback_data="fb_f_750")],
+        [InlineKeyboardButton("❤️ حب فيسبوك (Love)", callback_data="fb_f_751")],
+        [InlineKeyboardButton("🤗 عناية فيسبوك (Care)", callback_data="fb_f_752")],
+        [InlineKeyboardButton("😮 واو فيسبوك (Wow)", callback_data="fb_f_753")],
+        [InlineKeyboardButton("😄 ضحك فيسبوك (Haha)", callback_data="fb_f_754")],
+        [InlineKeyboardButton("😢 حزن فيسبوك (Sad)", callback_data="fb_f_755")],
+        [InlineKeyboardButton("😡 غضب فيسبوك (Angry)", callback_data="fb_f_756")],
+        [InlineKeyboardButton("🔙 العودة لقائمة فيسبوك", callback_data="sec_facebook")]
+    ])
+
+def fb_comment_react_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👍 تفاعلات تعليق - ضمان 30 يوم", callback_data="fb_f_788")],
+        [InlineKeyboardButton("😂 تفاعلات ضحك على التعليق", callback_data="fb_f_789")],
+        [InlineKeyboardButton("❤️ تفاعلات حب على التعليق", callback_data="fb_f_790")],
+        [InlineKeyboardButton("🤗 تفاعلات عناية على التعليق", callback_data="fb_f_791")],
+        [InlineKeyboardButton("😮 تفاعلات واو على التعليق", callback_data="fb_f_792")],
+        [InlineKeyboardButton("😢 تفاعلات حزن على التعليق", callback_data="fb_f_793")],
+        [InlineKeyboardButton("😡 تفاعلات غضب على التعليق", callback_data="fb_f_794")],
+        [InlineKeyboardButton("🔙 العودة لقائمة فيسبوك", callback_data="sec_facebook")]
+    ])
+
+def fb_story_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📸 مشاهدات قصة فيسبوك فورية", callback_data="fb_f_778")],
+        [InlineKeyboardButton("⭐ تفاعلات قصة فيسبوك", callback_data="fb_f_779")],
+        [InlineKeyboardButton("🔙 العودة لقائمة فيسبوك", callback_data="sec_facebook")]
+    ])
+
+def fb_share_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 مشاركة منشور فيسبوك (صور/فيديو)", callback_data="fb_f_787")],
+        [InlineKeyboardButton("🚀 مشاركة فيسبوك بجودة عالية", callback_data="fb_f_795")],
+        [InlineKeyboardButton("🔙 العودة لقائمة فيسبوك", callback_data="sec_facebook")]
+    ])
+
+def instagram_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👤 متابعو انستغرام (فوري وبدون ضمان)", callback_data="ig_f_961")],
+        [InlineKeyboardButton("📺 متابعو قناة انستغرام (عربي وعالمي)", callback_data="ig_channel_menu")],
+        [InlineKeyboardButton("👁️ مشاهدات انستغرام (فيديو وفوري)", callback_data="ig_views_menu")],
+        [InlineKeyboardButton("📸 مشاهدات قصص / استوري انستغرام", callback_data="ig_story_menu")],
+        [InlineKeyboardButton("👍 إعجابات انستغرام (لايكات بضمانات)", callback_data="ig_likes_menu")],
+        [InlineKeyboardButton("💬 إعجابات على تعليقات انستغرام", callback_data="ig_comment_likes_menu")],
+        [InlineKeyboardButton("💬 تعليقات انستغرام مخصصة وحقيقية", callback_data="ig_comments_menu")],
+        [InlineKeyboardButton("🔄 مشاركات منشورات انستغرام", callback_data="ig_shares_menu")],
+        [InlineKeyboardButton("📌 حفظ منشورات انستغرام فوري", callback_data="ig_f_768")],
+        [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
+    ])
+
+def ig_channel_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🇸🇦 متابعو قناة انستغرام - عربي", callback_data="ig_f_799")],
+        [InlineKeyboardButton("🇹🇷 متابعو قناة انستغرام - تركيا", callback_data="ig_f_800")],
+        [InlineKeyboardButton("🇺🇸 متابعو قناة انستغرام - أمريكي", callback_data="ig_f_801")],
+        [InlineKeyboardButton("🇫🇷 متابعو قناة انستغرام - فرنسا", callback_data="ig_f_802")],
+        [InlineKeyboardButton("🇵🇰 متابعو قناة انستغرام - باكستان", callback_data="ig_f_803")],
+        [InlineKeyboardButton("🇷🇺 متابعو قناة انستغرام - روسيا", callback_data="ig_f_804")],
+        [InlineKeyboardButton("🔙 العودة لقائمة انستغرام", callback_data="sec_instagram")]
+    ])
+
+def ig_views_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👁️ مشاهدات فيديو انستغرام فورية", callback_data="ig_f_757")],
+        [InlineKeyboardButton("🔥 مشاهدات انستغرام اقتصادية فورية", callback_data="ig_f_762")],
+        [InlineKeyboardButton("🔙 العودة لقائمة انستغرام", callback_data="sec_instagram")]
+    ])
+
+def ig_story_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🇸🇦 مشاهدات قصة انستغرام عرب فورية", callback_data="ig_f_766")],
+        [InlineKeyboardButton("⭐ مشاهدات قصص حسابات حقيقية", callback_data="ig_f_785")],
+        [InlineKeyboardButton("🌍 مشاهدات قصة انستغرام أجنبية", callback_data="ig_f_767")],
+        [InlineKeyboardButton("🔙 العودة لقائمة انستغرام", callback_data="sec_instagram")]
+    ])
+
+def ig_likes_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👍 إعجابات انستغرام - ضمان 30 يوم", callback_data="ig_f_953")],
+        [InlineKeyboardButton("👍 إعجابات انستغرام - ضمان 60 يوم", callback_data="ig_f_954")],
+        [InlineKeyboardButton("👍 إعجابات انستغرام - ضمان 90 يوم", callback_data="ig_f_955")],
+        [InlineKeyboardButton("👍 إعجابات انستغرام - ضمان 365 يوم", callback_data="ig_f_956")],
+        [InlineKeyboardButton("⭐ إعجابات انستغرام - ضمان مدى الحياة", callback_data="ig_f_957")],
+        [InlineKeyboardButton("🔙 العودة لقائمة انستغرام", callback_data="sec_instagram")]
+    ])
+
+def ig_comment_likes_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("❤️ إعجاب تعليق انستغرام", callback_data="ig_f_724")],
+        [InlineKeyboardButton("🔥 إعجابات تعليقات انستغرام اقتصادية", callback_data="ig_f_771")],
+        [InlineKeyboardButton("🔙 العودة لقائمة انستغرام", callback_data="sec_instagram")]
+    ])
+
+def ig_comments_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 تعليقات انستغرام مخصصة وحقيقية", callback_data="ig_f_772")],
+        [InlineKeyboardButton("⭐ تعليقات انستغرام مخصصة - مدى الحياة", callback_data="ig_f_773")],
+        [InlineKeyboardButton("🔙 العودة لقائمة انستغرام", callback_data="sec_instagram")]
+    ])
+
+def ig_shares_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 مشاركة منشور انستغرام", callback_data="ig_f_769")],
+        [InlineKeyboardButton("🚀 مشاركة منشور انستغرام - مدى الحياة", callback_data="ig_f_770")],
+        [InlineKeyboardButton("🔙 العودة لقائمة انستغرام", callback_data="sec_instagram")]
+    ])
+
+def tiktok_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 متابعين تيك توك فوري - بدون ضمان", callback_data="tik_f_958")],
+        [InlineKeyboardButton("♻️ متابعين تيك توك فوري - تعويض 30 يوم", callback_data="tik_f_959")],
+        [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
+    ])
+
+def youtube_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📺 مشتركين يوتيوب فوري - بدون ضمان", callback_data="yt_f_796")],
+        [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
+    ])
+
+def pubg_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💎 PUBG Mobile - 60 UC — 1.14$", callback_data="pubg_f_903")],
+        [InlineKeyboardButton("🪙 PUBG Mobile - 60 WOW Coins — 1.16$", callback_data="pubg_f_902")],
+        [InlineKeyboardButton("📦 PUBG Mobile - Updatable Firearm Materials Pack — 3.46$", callback_data="pubg_f_904")],
+        [InlineKeyboardButton("🎁 PUBG Mobile - Weekly Mythic Emblem Value Pack — 3.46$", callback_data="pubg_f_905")],
+        [InlineKeyboardButton("⚡ PUBG Mobile - Weekly Deal Pack 2 — 3.46$", callback_data="pubg_f_906")],
+        [InlineKeyboardButton("👑 PUBG Mobile - Prime (3 Months) — 3.48$", callback_data="pubg_f_907")],
+        [InlineKeyboardButton("🏆 PUBG Mobile - Mythic Emblem Pack — 5.77$", callback_data="pubg_f_908")],
+        [InlineKeyboardButton("💎 PUBG Mobile - 325 UC — 5.94$", callback_data="pubg_f_909")],
+        [InlineKeyboardButton("🪙 PUBG Mobile - 325 WOW Coins — 6.06$", callback_data="pubg_f_910")],
+        [InlineKeyboardButton("👑 PUBG Mobile - Prime (6 Months) — 6.97$", callback_data="pubg_f_911")],
+        [InlineKeyboardButton("🎖️ PUBG Mobile - Elite Pass LV1-50 — 7.00$", callback_data="pubg_f_912")],
+        [InlineKeyboardButton("⭐ PUBG Mobile - Prime Plus (1 Month) — 11.62$", callback_data="pubg_f_913")],
+        [InlineKeyboardButton("💎 PUBG Mobile - 660 UC — 11.88$", callback_data="pubg_f_914")],
+        [InlineKeyboardButton("🪙 PUBG Mobile - 660 WOW Coins — 12.10$", callback_data="pubg_f_915")],
+        [InlineKeyboardButton("👑 PUBG Mobile - Prime (12 Months) — 13.94$", callback_data="pubg_f_916")],
+        [InlineKeyboardButton("🎖️ PUBG Mobile - Elite Pass LV1-100 — 14.11$", callback_data="pubg_f_917")],
+        [InlineKeyboardButton("💎 PUBG Mobile - 985 UC — 17.82$", callback_data="pubg_f_918")],
+        [InlineKeyboardButton("💎 PUBG Mobile - 1320 UC — 23.76$", callback_data="pubg_f_919")],
+        [InlineKeyboardButton("🔥 PUBG Mobile - 1800 UC (discounted) — 29.21$", callback_data="pubg_f_920")],
+        [InlineKeyboardButton("🪙 PUBG Mobile - 1800 WOW Coins — 30.24$", callback_data="pubg_f_922")],
+        [InlineKeyboardButton("🎖️ PUBG Mobile - Elite Pass Plus LV1-100 — 33.95$", callback_data="pubg_f_923")],
+        [InlineKeyboardButton("⭐ PUBG Mobile - Prime Plus (3 Months) — 34.85$", callback_data="pubg_f_924")],
+        [InlineKeyboardButton("💎 PUBG Mobile - 2460 UC — 41.58$", callback_data="pubg_f_925")],
+        [InlineKeyboardButton("🔥 PUBG Mobile - 3850 UC (discounted) — 56.76$", callback_data="pubg_f_926")],
+        [InlineKeyboardButton("🪙 PUBG Mobile - 3850 WOW Coins — 60.49$", callback_data="pubg_f_928")],
+        [InlineKeyboardButton("⭐ PUBG Mobile - Prime Plus (6 Months) — 68.64$", callback_data="pubg_f_929")],
+        [InlineKeyboardButton("💎 PUBG Mobile - 5650 UC — 89.10$", callback_data="pubg_f_930")],
+        [InlineKeyboardButton("🔥 PUBG Mobile - 8100 UC (discounted) — 112.20$", callback_data="pubg_f_931")],
+        [InlineKeyboardButton("🪙 PUBG Mobile - 8100 WOW Coins — 121.00$", callback_data="pubg_f_933")],
+        [InlineKeyboardButton("💎 PUBG Mobile - 11950 UC — 178.20$", callback_data="pubg_f_935")],
+        [InlineKeyboardButton("💎 PUBG Mobile - 16200 UC — 234.96$", callback_data="pubg_f_936")],
+        [InlineKeyboardButton("👑 PUBG Mobile - Prime (1 Month) — 1.16$", callback_data="pubg_f_899")],
+        [InlineKeyboardButton("🎁 PUBG Mobile - First Purchase Pack — 1.16$", callback_data="pubg_f_900")],
+        [InlineKeyboardButton("⚡ PUBG Mobile - Weekly Deal Pack 1 — 1.16$", callback_data="pubg_f_901")],
+        [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
+    ])
+
+def freefire_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎁 Freefire Global - 100 Diamonds Package - Newbie Offer 1 — 0.22$", callback_data="ff_937")],
+        [InlineKeyboardButton("🎯 Freefire Global - Level Up Package - Level 6 — 0.32$", callback_data="ff_938")],
+        [InlineKeyboardButton("⭐ Freefire Global - Weekly Lite — 0.43$", callback_data="ff_939")],
+        [InlineKeyboardButton("🎯 Freefire Global - Level Up Package - Level 20 — 0.59$", callback_data="ff_940")],
+        [InlineKeyboardButton("🎯 Freefire Global - Level Up Package - Level 25 — 0.59$", callback_data="ff_941")],
+        [InlineKeyboardButton("🎯 Freefire Global - Level Up Package - Level 10 — 0.59$", callback_data="ff_942")],
+        [InlineKeyboardButton("🎯 Freefire Global - Level Up Package - Level 15 — 0.59$", callback_data="ff_943")],
+        [InlineKeyboardButton("🎯 Freefire Global - Level Up Package - Level 30 — 0.85$", callback_data="ff_944")],
+        [InlineKeyboardButton("💎 Freefire Global - 110 — 0.89$", callback_data="ff_945")],
+        [InlineKeyboardButton("👑 Freefire Global - Weekly Membership — 1.76$", callback_data="ff_946")],
+        [InlineKeyboardButton("💎 Freefire Global - 341 — 2.70$", callback_data="ff_947")],
+        [InlineKeyboardButton("💎 Freefire Global - 572 — 4.38$", callback_data="ff_948")],
+        [InlineKeyboardButton("👑 Freefire Global - Monthly Membership — 6.33$", callback_data="ff_949")],
+        [InlineKeyboardButton("💎 Freefire Global - 1166 — 8.79$", callback_data="ff_950")],
+        [InlineKeyboardButton("💎 Freefire Global - 2398 — 17.59$", callback_data="ff_951")],
+        [InlineKeyboardButton("🔥 Freefire Global - 6160 — 44.55$", callback_data="ff_952")],
+        [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
+    ])
 
 def get_admin_keyboard():
     return InlineKeyboardMarkup([
@@ -634,7 +887,7 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
                             if s_lower == 'whatsapp':
                                 service_deeplink = f"https://t.me/{bot_username}?start=service_whatsapp"
                             elif s_lower == 'telegram':
-                                service_deeplink = f"https://t.me/{bot_username}?start=cat_telegram"
+                                service_deeplink = f"https://t.me/{bot_username}?start=service_telegram"
                             elif s_lower == 'instagram':
                                 service_deeplink = f"https://t.me/{bot_username}?start=service_instagram"
                             elif s_lower == 'facebook':
@@ -679,15 +932,12 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    
-    # 1. جلب أو إنشاء بيانات المستخدم أولاً
     u_data = db_get_user(user.id)
     
     if u_data.get('is_banned', 0) == 1:
         await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
         return
 
-    # 2. التقاط وإدارة رابط الإحالة إن وجد
     args = context.args
     arg_param = args[0] if args else None
 
@@ -698,7 +948,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", user.id).execute()
                 u_data['referred_by'] = referrer_id
 
-    # 3. التحقق من الاشتراك الإجباري
     is_subbed, not_subbed_list = await check_forced_subscription(user.id, context.bot)
     if not is_subbed:
         sub_buttons = []
@@ -714,7 +963,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 4. اجتاز الاشتراك الإجباري بنجاح -> إرسال إشعار الأدمن ومكافأة الإحالة مرة واحدة فقط
     await process_successful_join_reward(user, context, u_data)
 
     welcome_text = (
@@ -727,45 +975,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👇 **اختر ما يناسبك من القائمة أدناه:**"
     )
 
-    if arg_param == 'boosting_services':
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                payload = {'key': HMCARD_API_KEY, 'action': 'services'}
-                res = await client.post(HMCARD_API_URL, data=payload)
-                if res.status_code == 200:
-                    services = res.json()
-                    if isinstance(services, list) and len(services) > 0:
-                        categories = {}
-                        cat_mapping = {}
-                        for serv in services:
-                            if not isinstance(serv, dict): continue
-                            cat = serv.get('category', 'أخرى') or 'أخرى'
-                            if cat not in categories:
-                                categories[cat] = []
-                                cat_mapping[str(len(cat_mapping) + 1)] = cat
-                            categories[cat].append(serv)
-                        
-                        if user.id not in admin_state:
-                            admin_state[user.id] = {}
-                        admin_state[user.id]['hm_services'] = services
-                        admin_state[user.id]['hm_categories'] = cat_mapping
-                        
-                        buttons = []
-                        for cat_id, cat_name in cat_mapping.items():
-                            buttons.append([InlineKeyboardButton(f"📂 {cat_name}", callback_data=f"hm_cat_{cat_id}")])
-                        buttons.append([InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')])
-                        
-                        await update.message.reply_text(
-                            f"🔭 **• قسم الرشـق وشحـن الألعـاب والبرامـج •**\n\n⭐ **رصيدك:** `${u_data['balance']:.2f}`\nاختر القسم المطلوب:",
-                            parse_mode='Markdown',
-                            reply_markup=InlineKeyboardMarkup(buttons)
-                        )
-                        return
-        except Exception:
-            pass
-        await update.message.reply_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user.id))
-
-    elif arg_param == 'buy_virtual_number':
+    if arg_param == 'buy_virtual_number':
         services_text = (
             "❖ **هنا قائمة التطبيقات والخدمات المتوفرة في البوت** ❖\n"
             "❖ **اختر التطبيق أو الخدمة التي تريدها من الأسفل:**\n\n"
@@ -774,87 +984,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "━━━━━━━━━━━━━━━━━━"
         )
         await update.message.reply_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
-
-    elif arg_param == 'service_whatsapp':
-        services_text = (
-            f"🛍️ **قسم أرقام واتساب الرسمية**\n\n⭐ **رصيدك:** `${u_data['balance']:.2f}`\n\nاختر القسم المطلوب:"
-        )
-        await update.message.reply_text(services_text, parse_mode='Markdown', reply_markup=get_whatsapp_sections_keyboard())
-
-    elif arg_param == 'cat_telegram':
-        buttons = []
-        row = []
-        for item in TELEGRAM_DEALS:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        await update.message.reply_text(f"🎲 **• أرقام تليجرام الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif arg_param == 'service_instagram':
-        buttons = []
-        row = []
-        for item in INSTAGRAM_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_instagram_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        await update.message.reply_text(f"🎳 **• أرقام انستغرام الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif arg_param == 'service_facebook':
-        buttons = []
-        row = []
-        for item in FACEBOOK_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_facebook_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        await update.message.reply_text(f"🎯 **• أرقام فيسبوك الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif arg_param == 'service_twitter':
-        buttons = []
-        row = []
-        for item in TWITTER_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_twitter_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        await update.message.reply_text(f"🐤 **• أرقام تويتر الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif arg_param == 'service_tiktok':
-        buttons = []
-        row = []
-        for item in TIKTOK_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_tiktok_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        await update.message.reply_text(f"🎬 **• أرقام تيك توك الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif arg_param in ['service_snapchat', 'service_imo']:
-        serv_title = "سناب شات ♣️" if arg_param == 'service_snapchat' else "إيمو 💎"
-        serv_code = "snapchat" if arg_param == 'service_snapchat' else "imo"
-        buttons = []
-        row = []
-        for item in SNAP_IMO_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_{serv_code}_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        await update.message.reply_text(f"🔹 **• أرقام خدمة {serv_title} ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
     else:
         await update.message.reply_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user.id))
 
@@ -883,7 +1012,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == 'main_menu':
         u_data = db_get_user(user_id)
         await process_successful_join_reward(query.from_user, context, u_data)
-
         admin_state.pop(user_id, None)
         welcome_text = (
             f"💎 **مرحباً بك عزيزي {user_first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -902,20 +1030,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة في مكان واحد وبأفضل الأسعار! 🌟\n\n"
             "📱 **1️⃣ قسم الأرقام الافتراضية:**\n"
-            "• احصل فوراً على أرقام لتفعيل (واتساب، تليجرام، انستغرام، فيسبوك، وغيرها) من مختلف دول العالم.\n"
-            "• النظام يتحقق من وصول الكود ويرسله لك مباشرة داخل البوت مع إمكانية إلغاء الرقم واسترداد رصيدك في حال لم يصل الكود.\n\n"
+            "• احصل فوراً على أرقام لتفعيل (واتساب، تليجرام، انستغرام، فيسبوك، وغيرها) من مختلف دول العالم.\n\n"
             "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
-            "• اطلب خدمات زيادة المتابعين والتفاعلات لجميع منصات التواصل الاجتماعي بكل سهولة.\n"
-            "• الأسعار تنافسية ومضبوطة بعناية لتوفير أفضل تجربة لك.\n\n"
-            "🎲 **3️⃣ شحن الرصيد الفوري واليدوي:**\n"
-            "• ⭐️ نجوم تليجرام (Telegram Stars): شحن فوري تلقائي (كل 100 نجمة = 2$ دولار).\n"
-            "• 💙 محفظة جيب (Jaib): تحويل إلى الحساب المعتمد (1$ = 550 ريال يمني قديم).\n"
-            "• 🏦 بنك الكريمي (Alkurimi): تحويل مباشر (1$ = 550 ريال يمني قديم).\n"
-            "• 📞 للدعم والمساعدة: @benti\n\n"
-            "💎 **4️⃣ ربح الأرصدة مجاناً وإدخال الاكواد:**\n"
-            "• شارك رابط الإحالة الخاص بك أو **أرسل كود الهدية (Promo Code)** في المحادثة مباشرة لشحن رصيدك مجاناً!\n\n"
-            "🔄 **5️⃣ تحويل الرصيد:**\n"
-            "• يمكنك تحويل أي مبلغ من رصيدك لأي مستخدم آخر داخل البوت بكل سهولة عبر آيدي المستخدم.\n\n"
+            "• اطلب خدمات زيادة المتابعين والتفاعلات لجميع المنصات بكل سهولة.\n\n"
             "> 💡 *انقر على الزر أدناه للعودة للقائمة الرئيسية واستكشاف خدماتنا فوراً!* 👇"
         )
         await query.edit_message_text(
@@ -935,310 +1052,361 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
 
-    elif data == 'boosting_services':
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            "⏳ جاري جلب قائمة خدمات الرشق وشحن الألعاب من المنصة...",
-            parse_mode='Markdown'
-        )
-        try:
+    # --- منطق الرشق الجديد المدمج ---
+    elif data == "main_rashq":
+        await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
+
+    elif data == "sec_whatsapp":
+        await query.edit_message_text("🟢 قسم خدمات واتساب:\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
+
+    elif data == "sec_telegram":
+        await query.edit_message_text("🚀 قسم خدمات تليجرام:\nاختر القسم الفرعي المطلوب:", reply_markup=telegram_services_keyboard())
+
+    elif data == "sec_facebook":
+        await query.edit_message_text("📘 قسم خدمات فيسبوك:\nاختر القسم الفرعي المطلوب:", reply_markup=facebook_services_keyboard())
+
+    elif data == "sec_instagram":
+        await query.edit_message_text("📸 قسم خدمات انستغرام:\nاختر القسم الفرعي المطلوب:", reply_markup=instagram_services_keyboard())
+
+    elif data == "sec_tiktok":
+        await query.edit_message_text("🎵 قسم خدمات تيك توك:\nاختر الخدمة المطلوبة:", reply_markup=tiktok_services_keyboard())
+
+    elif data == "sec_youtube":
+        await query.edit_message_text("📺 خدمات يوتيوب:", reply_markup=youtube_services_keyboard())
+
+    elif data == "sec_pubg":
+        await query.edit_message_text("🎮 قسم شحن شدات ببجي موبايل:\nاختر الحزمة المطلوبة لشحنها بالآيدي:", reply_markup=pubg_services_keyboard())
+
+    elif data == "sec_freefire":
+        await query.edit_message_text("🔥 قسم شحن فري فاير:\nاختر الحزمة المطلوبة لشحنها بالآيدي مباشرة:", reply_markup=freefire_services_keyboard())
+
+    elif data in ["sec_twitter", "sec_kwai", "sec_snapchat", "sec_linkedin"]:
+        await query.answer("⚠️ عذراً، لا توجد خدمات متاحة في هذه الفئة حالياً.", show_alert=True)
+        return
+
+    elif data == "ig_channel_menu":
+        await query.edit_message_text("📺 متابعو قناة انستغرام:", reply_markup=ig_channel_menu_keyboard())
+
+    elif data == "ig_views_menu":
+        await query.edit_message_text("👁️ مشاهدات انستغرام:", reply_markup=ig_views_menu_keyboard())
+
+    elif data == "ig_story_menu":
+        await query.edit_message_text("📸 مشاهدات قصص انستغرام:", reply_markup=ig_story_menu_keyboard())
+
+    elif data == "ig_likes_menu":
+        await query.edit_message_text("👍 إعجابات انستغرام:", reply_markup=ig_likes_menu_keyboard())
+
+    elif data == "ig_comment_likes_menu":
+        await query.edit_message_text("💬 إعجابات تعليقات انستغرام:", reply_markup=ig_comment_likes_menu_keyboard())
+
+    elif data == "ig_comments_menu":
+        await query.edit_message_text("💬 تعليقات انستغرام مخصصة:", reply_markup=ig_comments_menu_keyboard())
+
+    elif data == "ig_shares_menu":
+        await query.edit_message_text("🔄 مشاركات انستغرام:", reply_markup=ig_shares_menu_keyboard())
+
+    elif data == "ig_f_961":
+        user_selected_service[user_id] = {"service_id": 961, "name": "متابعين انستغرام فوري بدون ضمان", "price": 0.78, "min": 10, "max": 100000000, "type": "channel"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data == "ig_f_768":
+        user_selected_service[user_id] = {"service_id": 768, "name": "حفظ منشورات انستغرام فوري", "price": 0.40, "min": 10, "max": 100000000, "type": "post"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data == "tik_f_958":
+        user_selected_service[user_id] = {"service_id": 958, "name": "متابعين تيك توك فوري بدون ضمان", "price": 2.42, "min": 10, "max": 1000000, "type": "channel"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data == "tik_f_959":
+        user_selected_service[user_id] = {"service_id": 959, "name": "متابعين تيك توك فوري - تعويض 30 يوم", "price": 3.38, "min": 10, "max": 1000000, "type": "channel"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data == "yt_f_796":
+        user_selected_service[user_id] = {"service_id": 796, "name": "مشتركين يوتيوب فوري بدون ضمان", "price": 0.20, "min": 10, "max": 1000000, "type": "channel"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data.startswith("pubg_f_"):
+        pubg_map = {
+            "pubg_f_903": (903, "PUBG Mobile - 60 UC", 1.14), "pubg_f_902": (902, "PUBG Mobile - 60 WOW Coins", 1.16),
+            "pubg_f_904": (904, "PUBG Mobile - Updatable Firearm Materials Pack", 3.46), "pubg_f_905": (905, "PUBG Mobile - Weekly Mythic Emblem Value Pack", 3.46),
+            "pubg_f_906": (906, "PUBG Mobile - Weekly Deal Pack 2", 3.46), "pubg_f_907": (907, "PUBG Mobile - Prime (3 Months)", 3.48),
+            "pubg_f_908": (908, "PUBG Mobile - Mythic Emblem Pack", 5.77), "pubg_f_909": (909, "PUBG Mobile - 325 UC", 5.94),
+            "pubg_f_910": (910, "PUBG Mobile - 325 WOW Coins", 6.06), "pubg_f_911": (911, "PUBG Mobile - Prime (6 Months)", 6.97),
+            "pubg_f_912": (912, "PUBG Mobile - Elite Pass LV1-50", 7.00), "pubg_f_913": (913, "PUBG Mobile - Prime Plus (1 Month)", 11.62),
+            "pubg_f_914": (914, "PUBG Mobile - 660 UC", 11.88), "pubg_f_915": (915, "PUBG Mobile - 660 WOW Coins", 12.10),
+            "pubg_f_916": (916, "PUBG Mobile - Prime (12 Months)", 13.94), "pubg_f_917": (917, "PUBG Mobile - Elite Pass LV1-100", 14.11),
+            "pubg_f_918": (918, "PUBG Mobile - 985 UC", 17.82), "pubg_f_919": (919, "PUBG Mobile - 1320 UC", 23.76),
+            "pubg_f_920": (920, "PUBG Mobile - 1800 UC", 29.21), "pubg_f_922": (922, "PUBG Mobile - 1800 WOW Coins", 30.24),
+            "pubg_f_923": (923, "PUBG Mobile - Elite Pass Plus LV1-100", 33.95), "pubg_f_924": (924, "PUBG Mobile - Prime Plus (3 Months)", 34.85),
+            "pubg_f_925": (925, "PUBG Mobile - 2460 UC", 41.58), "pubg_f_926": (926, "PUBG Mobile - 3850 UC", 56.76),
+            "pubg_f_928": (928, "PUBG Mobile - 3850 WOW Coins", 60.49), "pubg_f_929": (929, "PUBG Mobile - Prime Plus (6 Months)", 68.64),
+            "pubg_f_930": (930, "PUBG Mobile - 5650 UC", 89.10), "pubg_f_931": (931, "PUBG Mobile - 8100 UC", 112.20),
+            "pubg_f_933": (933, "PUBG Mobile - 8100 WOW Coins", 121.00), "pubg_f_935": (935, "PUBG Mobile - 11950 UC", 178.20),
+            "pubg_f_936": (936, "PUBG Mobile - 16200 UC", 234.96), "pubg_f_899": (899, "PUBG Mobile - Prime (1 Month)", 1.16),
+            "pubg_f_900": (900, "PUBG Mobile - First Purchase Pack", 1.16), "pubg_f_901": (901, "PUBG Mobile - Weekly Deal Pack 1", 1.16)
+        }
+        s_id, s_name, s_price = pubg_map.get(data, (903, "PUBG Mobile - 60 UC", 1.14))
+        user_selected_service[user_id] = {"service_id": s_id, "name": s_name, "fixed_price": s_price, "type": "pubg_id"}
+        prompt_user_for_pubg_id(update.effective_message, user_selected_service[user_id], context)
+
+    elif data.startswith("ff_"):
+        ff_map = {
+            "ff_937": (937, "Freefire Global - 100 Diamonds", 0.22), "ff_938": (938, "Freefire Global - Level Up Level 6", 0.32),
+            "ff_939": (939, "Freefire Global - Weekly Lite", 0.43), "ff_940": (940, "Freefire Global - Level Up Level 20", 0.59),
+            "ff_941": (941, "Freefire Global - Level Up Level 25", 0.59), "ff_942": (942, "Freefire Global - Level Up Level 10", 0.59),
+            "ff_943": (943, "Freefire Global - Level Up Level 15", 0.59), "ff_944": (944, "Freefire Global - Level Up Level 30", 0.85),
+            "ff_945": (945, "Freefire Global - 110", 0.89), "ff_946": (946, "Freefire Global - Weekly Membership", 1.76),
+            "ff_947": (947, "Freefire Global - 341", 2.70), "ff_948": (948, "Freefire Global - 572", 4.38),
+            "ff_949": (949, "Freefire Global - Monthly Membership", 6.33), "ff_950": (950, "Freefire Global - 1166", 8.79),
+            "ff_951": (951, "Freefire Global - 2398", 17.59), "ff_952": (952, "Freefire Global - 6160", 44.55)
+        }
+        s_id, s_name, s_price = ff_map.get(data, (945, "Freefire Global - 110", 0.89))
+        user_selected_service[user_id] = {"service_id": s_id, "name": s_name, "fixed_price": s_price, "type": "pubg_id"}
+        prompt_user_for_pubg_id(update.effective_message, user_selected_service[user_id], context)
+
+    elif data == "fb_profile_menu":
+        await query.edit_message_text("👤 متابعو الملف الشخصي:", reply_markup=fb_profile_menu_keyboard())
+
+    elif data == "fb_page_menu":
+        await query.edit_message_text("📘 متابعو الصفحة:", reply_markup=fb_page_menu_keyboard())
+
+    elif data == "fb_group_744":
+        user_selected_service[user_id] = {"service_id": 744, "name": "أعضاء مجموعة فيسبوك", "price": 0.72, "min": 10, "max": 100000, "type": "channel"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data == "fb_react_menu":
+        await query.edit_message_text("👍 تفاعلات منشورات فيسبوك:", reply_markup=fb_react_menu_keyboard())
+
+    elif data == "fb_comment_react_menu":
+        await query.edit_message_text("💬 تفاعلات تعليقات فيسبوك:", reply_markup=fb_comment_react_menu_keyboard())
+
+    elif data == "fb_story_menu":
+        await query.edit_message_text("📸 مشاهدات قصة فيسبوك:", reply_markup=fb_story_menu_keyboard())
+
+    elif data == "fb_share_menu":
+        await query.edit_message_text("🔄 مشاركات فيسبوك:", reply_markup=fb_share_menu_keyboard())
+
+    elif data == "wa_subscribers":
+        await query.edit_message_text("🟢 بروفايل وأعضاء واتساب:", reply_markup=channel_subscribers_keyboard())
+
+    elif data == "wa_reactions":
+        await query.edit_message_text("🟢 تفاعلات واتساب:", reply_markup=emoji_reactions_keyboard())
+
+    elif data == "wa_auto_reactions":
+        await query.edit_message_text("🟢 تفاعلات تلقائية واتساب:", reply_markup=auto_reactions_keyboard())
+
+    elif data == "wa_polls":
+        await query.edit_message_text("🟢 تصويتات واتساب:", reply_markup=polls_keyboard())
+
+    elif data.startswith("sub_"):
+        service_ids = {"sub_no_guarantee": 729, "sub_30d": 730, "sub_60d": 731, "sub_90d": 732, "sub_global": 805, "sub_arabic": 806}
+        prices = {"sub_no_guarantee": 0.39, "sub_30d": 0.70, "sub_60d": 0.80, "sub_90d": 0.80, "sub_global": 0.90, "sub_arabic": 1.0}
+        names = {"sub_no_guarantee": "بروفايل واتساب - أعضاء بدون ضمان", "sub_30d": "بروفايل واتساب - ضمان 30 يوم", "sub_60d": "بروفايل واتساب - ضمان 60 يوم", "sub_90d": "بروفايل واتساب - ضمان 90 يوم", "sub_global": "بروفايل واتساب - عالمي", "sub_arabic": "بروفايل واتساب - عربي"}
+        user_selected_service[user_id] = {"service_id": service_ids.get(data, 730), "name": names.get(data, "واتساب"), "price": prices.get(data, 1.0), "min": 10, "max": 100000000, "type": "channel"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data.startswith("tg_t_") or data.startswith("fb_f_") or data.startswith("ig_f_"):
+        service_ids = {
+            "tg_t_653": 653, "tg_t_654": 654, "tg_t_659": 659, "tg_t_660": 660, "tg_t_661": 661, "tg_t_662": 662,
+            "tg_t_613": 613, "tg_t_614": 614, "tg_t_646": 646, "tg_t_893": 893, "tg_t_894": 894, "tg_t_895": 895,
+            "fb_f_745": 745, "fb_f_746": 746, "fb_f_747": 747, "fb_f_748": 748, "fb_f_774": 774, "fb_f_775": 775,
+            "fb_f_776": 776, "fb_f_777": 777, "fb_f_750": 750, "fb_f_751": 751, "fb_f_752": 752, "fb_f_753": 753,
+            "fb_f_754": 754, "fb_f_755": 755, "fb_f_756": 756, "fb_f_788": 788, "fb_f_789": 789, "fb_f_790": 790,
+            "fb_f_791": 791, "fb_f_792": 792, "fb_f_793": 793, "fb_f_794": 794, "fb_f_778": 778, "fb_f_779": 779,
+            "fb_f_787": 787, "fb_f_795": 795, "ig_f_799": 799, "ig_f_800": 800, "ig_f_801": 801, "ig_f_802": 802,
+            "ig_f_803": 803, "ig_f_804": 804, "ig_f_757": 757, "ig_f_762": 762, "ig_f_766": 766, "ig_f_785": 785,
+            "ig_f_767": 767, "ig_f_953": 953, "ig_f_954": 954, "ig_f_955": 955, "ig_f_956": 956, "ig_f_957": 957,
+            "ig_f_724": 724, "ig_f_771": 771, "ig_f_772": 772, "ig_f_773": 773, "ig_f_769": 769, "ig_f_770": 770
+        }
+        prices = {
+            "tg_t_653": 2.46, "tg_t_654": 2.80, "tg_t_659": 2.00, "tg_t_660": 5.40, "tg_t_661": 5.60, "tg_t_662": 6.00,
+            "tg_t_613": 4.00, "tg_t_614": 8.00, "tg_t_646": 30.00, "tg_t_893": 116.00, "tg_t_894": 196.00, "tg_t_895": 316.00,
+            "fb_f_745": 0.55, "fb_f_746": 0.59, "fb_f_747": 0.61, "fb_f_748": 0.62, "fb_f_774": 1.02, "fb_f_775": 1.08,
+            "fb_f_776": 1.10, "fb_f_777": 1.12, "fb_f_750": 0.28, "fb_f_751": 0.28, "fb_f_752": 0.28, "fb_f_753": 0.28,
+            "fb_f_754": 0.28, "fb_f_755": 0.28, "fb_f_756": 0.28, "fb_f_788": 2.80, "fb_f_789": 2.80, "fb_f_790": 2.80,
+            "fb_f_791": 2.80, "fb_f_792": 2.80, "fb_f_793": 2.80, "fb_f_794": 2.80, "fb_f_778": 1.81, "fb_f_779": 1.05,
+            "fb_f_787": 0.10, "fb_f_795": 1.01, "ig_f_799": 2.06, "ig_f_800": 2.06, "ig_f_801": 2.06, "ig_f_802": 2.06,
+            "ig_f_803": 2.06, "ig_f_804": 2.06, "ig_f_757": 0.0054, "ig_f_762": 0.004, "ig_f_766": 1.50, "ig_f_785": 0.30,
+            "ig_f_767": 0.50, "ig_f_953": 0.20, "ig_f_954": 0.20, "ig_f_955": 0.20, "ig_f_956": 0.20, "ig_f_957": 0.22,
+            "ig_f_724": 3.40, "ig_f_771": 4.54, "ig_f_772": 1.874, "ig_f_773": 13.36, "ig_f_769": 0.032, "ig_f_770": 0.40
+        }
+        names = {
+            "tg_t_653": "أعضاء Zero Drop", "tg_t_654": "أعضاء مدى الحياة", "tg_t_659": "أعضاء عرب 10 أيام",
+            "tg_t_660": "أعضاء عرب 180 يوم", "tg_t_661": "أعضاء عرب 365 يوم", "tg_t_662": "أعضاء عرب مدى الحياة",
+            "tg_t_613": "بريميوم 15 يوم", "tg_t_614": "بريميوم 30 يوم", "tg_t_646": "تعزيزات 2 يوم",
+            "tg_t_893": "تعزيزات 7 أيام", "tg_t_894": "تعزيزات 14 يوم", "tg_t_895": "تعزيزات 30 يوم",
+            "fb_f_745": "متابعين فيسبوك 30 يوم", "fb_f_746": "متابعين فيسبوك 90 يوم", "fb_f_747": "متابعين فيسبوك 365 يوم",
+            "fb_f_748": "متابعين فيسبوك مدى الحياة", "fb_f_774": "إعجابات صفحة + متابعين", "fb_f_775": "صفحة 90 يوم",
+            "fb_f_776": "صفحة 365 يوم", "fb_f_777": "صفحة مدى الحياة", "fb_f_750": "إعجاب فيسبوك", "fb_f_751": "حب فيسبوك",
+            "fb_f_752": "عناية فيسبوك", "fb_f_753": "واو فيسبوك", "fb_f_754": "ضحك فيسبوك", "fb_f_755": "حزن فيسبوك",
+            "fb_f_756": "غضب فيسبوك", "fb_f_788": "تفاعلات تعليق", "fb_f_789": "ضحك على التعليق", "fb_f_790": "حب على التعليق",
+            "fb_f_791": "عناية على التعليق", "fb_f_792": "واو على التعليق", "fb_f_793": "حزن على التعليق", "fb_f_794": "غضب على التعليق",
+            "fb_f_778": "مشاهدات قصة فيسبوك", "fb_f_779": "تفاعلات قصة فيسبوك", "fb_f_787": "مشاركة فيسبوك", "fb_f_795": "مشاركة جودة عالية",
+            "ig_f_799": "قناة انستغرام - عربي", "ig_f_800": "قناة انستغرام - تركيا", "ig_f_801": "قناة انستغرام - أمريكي",
+            "ig_f_802": "قناة انستغرام - فرنسا", "ig_f_803": "قناة انستغرام - باكستان", "ig_f_804": "قناة انستغرام - روسيا",
+            "ig_f_757": "مشاهدات فيديو انستغرام", "ig_f_762": "مشاهدات اقتصادية", "ig_f_766": "مشاهدات قصة عرب",
+            "ig_f_785": "مشاهدات قصص حقيقية", "ig_f_767": "مشاهدات قصة أجنبية", "ig_f_953": "إعجابات 30 يوم",
+            "ig_f_954": "إعجابات 60 يوم", "ig_f_955": "إعجابات 90 يوم", "ig_f_956": "إعجابات 365 يوم",
+            "ig_f_957": "إعجابات مدى الحياة", "ig_f_724": "إعجاب تعليق", "ig_f_771": "إعجابات تعليقات اقتصادية",
+            "ig_f_772": "تعليقات مخصصة وحقيقية", "ig_f_773": "تعليقات مخصصة مدى الحياة", "ig_f_769": "مشاركة انستغرام", "ig_f_770": "مشاركة مدى الحياة"
+        }
+        s_id = service_ids.get(data, 730)
+        stype = "post"
+        if data in ["ig_f_799", "ig_f_800", "ig_f_801", "ig_f_802", "ig_f_803", "ig_f_804"]: stype = "channel"
+        elif data in ["ig_f_724", "ig_f_771"]: stype = "comment"
+        elif data in ["ig_f_772", "ig_f_773"]: stype = "comment_text"
+
+        user_selected_service[user_id] = {"service_id": s_id, "name": names.get(data, "خدمة"), "price": prices.get(data, 1.0), "min": 10, "max": 100000000, "type": stype}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data.startswith("react_") or data.startswith("tg_r_"):
+        service_ids = {
+            "react_random": 733, "react_like": 814, "react_heart": 815, "react_haha": 736, "react_wow": 737, "react_sad": 738, "react_pray": 739,
+            "tg_r_620": 620, "tg_r_621": 621, "tg_r_622": 622, "tg_r_623": 623, "tg_r_624": 624, "tg_r_625": 625, "tg_r_626": 626, "tg_r_690": 690
+        }
+        names = {
+            "react_random": "تفاعلات عشوائية", "react_like": "إعجاب", "react_heart": "حب", "react_haha": "ضحك", "react_wow": "واو", "react_sad": "حزن", "react_pray": "دعاء",
+            "tg_r_620": "تفاعلات تليجرام مختلطة", "tg_r_621": "إعجاب تليجرام", "tg_r_622": "عدم إعجاب", "tg_r_623": "قلب تليجرام", "tg_r_624": "نار تليجرام", "tg_r_625": "عيون قلبية", "tg_r_626": "مذهلة", "tg_r_690": "تفاعلات ومشاهدات"
+        }
+        s_id = service_ids.get(data, 733)
+        price = 0.20 if s_id in range(733, 740) else 0.06
+        user_selected_service[user_id] = {"service_id": s_id, "name": names.get(data, "تفاعلات"), "price": price, "min": 10, "max": 100000, "type": "post"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data.startswith("auto_") or data.startswith("tg_a_"):
+        service_ids = {
+            "auto_10": 712, "auto_25": 713, "auto_50": 714, "auto_100": 715,
+            "tg_a_702": 702, "tg_a_703": 703, "tg_a_704": 704, "tg_a_705": 705,
+            "tg_a_706": 706, "tg_a_707": 707, "tg_a_708": 708, "tg_a_709": 709, "tg_a_710": 710, "tg_a_711": 711
+        }
+        prices = {
+            "auto_10": 15.44, "auto_25": 30.88, "auto_50": 61.74, "auto_100": 123.50,
+            "tg_a_702": 0.76, "tg_a_703": 1.54, "tg_a_704": 3.84, "tg_a_705": 7.68,
+            "tg_a_706": 0.08, "tg_a_707": 0.28, "tg_a_708": 0.72, "tg_a_709": 1.42, "tg_a_710": 2.86, "tg_a_711": 8.30
+        }
+        names = {
+            "auto_10": "تفاعلات تلقائية (10)", "auto_25": "تفاعلات تلقائية (25)", "auto_50": "تفاعلات تلقائية (50)", "auto_100": "تفاعلات تلقائية (100)",
+            "tg_a_702": "ردود فعل تليجرام (5)", "tg_a_703": "ردود فعل تليجرام (20)", "tg_a_704": "ردود فعل تليجرام (50)", "tg_a_705": "ردود فعل تليجرام (100)",
+            "tg_a_706": "مشاهدات تلقائية (5)", "tg_a_707": "مشاهدات تلقائية (20)", "tg_a_708": "مشاهدات تلقائية (50)", "tg_a_709": "مشاهدات تلقائية (100)", "tg_a_710": "مشاهدات تلقائية (200)", "tg_a_711": "مشاهدات تلقائية (500)"
+        }
+        user_selected_service[user_id] = {"service_id": service_ids.get(data, 712), "name": names.get(data, "تلقائي"), "price": prices.get(data, 1.0), "min": 10, "max": 100000, "type": "channel"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data.startswith("poll_") or data.startswith("tg_p_"):
+        service_ids = {"poll_1": 725, "poll_2": 726, "poll_3": 727, "poll_4": 728, "tg_p_665": 665, "tg_p_666": 666}
+        prices = {"poll_1": 4.00, "poll_2": 4.00, "poll_3": 4.00, "poll_4": 4.00, "tg_p_665": 4.00, "tg_p_666": 18.00}
+        names = {"poll_1": "تصويت 1", "poll_2": "تصويت 2", "poll_3": "تصويت 3", "poll_4": "تصويت 4", "tg_p_665": "تصويت تليجرام عادي", "tg_p_666": "تصويت اشتراك إجباري"}
+        user_selected_service[user_id] = {"service_id": service_ids.get(data, 725), "name": names.get(data, "تصويت"), "price": prices.get(data, 4.00), "min": 10, "max": 100000, "type": "poll"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data.startswith("tg_v_"):
+        service_ids = {"tg_v_628": 628, "tg_v_668": 668, "tg_v_669": 669, "tg_v_670": 670, "tg_v_671": 671}
+        prices = {"tg_v_628": 0.04, "tg_v_668": 0.02, "tg_v_669": 0.10, "tg_v_670": 0.60, "tg_v_671": 1.22}
+        names = {"tg_v_628": "مشاركات ومشاهدات", "tg_v_668": "مشاهدات سريعة 1", "tg_v_669": "مشاهدات سريعة 10", "tg_v_670": "مشاهدات سريعة 50", "tg_v_671": "مشاهدات سريعة 100"}
+        user_selected_service[user_id] = {"service_id": service_ids.get(data, 628), "name": names.get(data, "مشاهدات"), "price": prices.get(data, 0.05), "min": 10, "max": 100000000, "type": "post"}
+        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
+
+    elif data == "confirm_final_order":
+        order = user_order_data.get(user_id)
+        service = user_selected_service.get(user_id)
+        if order and service:
+            qty = order.get('count', 1)
+            fixed_cost = order.get('fixed_cost', 0.0)
+            calc_cost = order.get('calc_cost', 0.0)
+            final_cost = fixed_cost if fixed_cost > 0 else calc_cost
+
+            u_data = db_get_user(user_id)
+            if u_data['balance'] < final_cost:
+                await query.edit_message_text(
+                    f"❌ **عذراً، رصيدك غير كافٍ لإتمام الطلب!**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n💰 التكلفة: `${final_cost:.2f}`",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
             async with httpx.AsyncClient(timeout=15.0) as client:
-                services = None
-                payload = {'key': HMCARD_API_KEY, 'action': 'services'}
+                payload = {
+                    'key': HMCARD_API_KEY,
+                    'action': 'add',
+                    'service': service['service_id'],
+                    'link': order['link'],
+                    'quantity': qty
+                }
                 res = await client.post(HMCARD_API_URL, data=payload)
-                
                 if res.status_code == 200:
-                    try:
-                        data_json = res.json()
-                        if isinstance(data_json, list):
-                            services = data_json
-                        elif isinstance(data_json, dict):
-                            err_text = data_json.get('error', 'استجابة غير صالحة من المنصة')
-                            await query.edit_message_text(f"⚠️ **رد المنصة:**\n`{err_text}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
-                            return
-                    except Exception:
-                        raw_text = res.text[:200] if res.text else "استجابة فارغة"
-                        await query.edit_message_text(f"⚠️ استجابة غير متوقعة من المنصة:\n`{raw_text}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
+                    resp_data = res.json()
+                    if isinstance(resp_data, dict) and "order" in resp_data:
+                        order_id = resp_data["order"]
+                        db_update_balance(user_id, final_cost, mode="deduct")
+                        
+                        await query.edit_message_text(
+                            f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
+                            f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
+                            f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
+                            f"📦 **الكمية:** `{qty:,}`\n"
+                            f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
+                            parse_mode='Markdown',
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                        )
+                        
+                        try:
+                            bot_username = context.bot.username
+                            channel_buttons = InlineKeyboardMarkup([
+                                [
+                                    InlineKeyboardButton("🛒 شراء من نفس الخدمة", url=f"https://t.me/{bot_username}?start=main_rashq"),
+                                    InlineKeyboardButton("🤖 الدخول إلى البوت", url=f"https://t.me/{bot_username}?start=main_menu")
+                                ]
+                            ])
+                            await context.bot.send_message(
+                                chat_id=LOG_CHANNEL_ID,
+                                text=(
+                                    "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                                    "━━━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"👤 **آيدي الشخص:** `{user_id}`\n"
+                                    f"🔭 **الخدمة:** `{service['name']}`\n"
+                                    f"🆔 **رقم الطلب:** `{order_id}`\n"
+                                    f"📦 **الكمية:** `{qty}`\n"
+                                    f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
+                                    f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
+                                    f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
+                                ),
+                                parse_mode='Markdown',
+                                reply_markup=channel_buttons
+                            )
+                        except Exception as log_err:
+                            print(f"Log error: {log_err}")
                         return
 
-                if services and isinstance(services, list) and len(services) > 0:
-                    categories = {}
-                    cat_mapping = {}
-                    for serv in services:
-                        if not isinstance(serv, dict):
-                            continue
-                        cat = serv.get('category', 'أخرى')
-                        if not cat:
-                            cat = 'أخرى'
-                        if cat not in categories:
-                            categories[cat] = []
-                            cat_mapping[str(len(cat_mapping) + 1)] = cat
-                        categories[cat].append(serv)
-                    
-                    if user_id not in admin_state:
-                        admin_state[user_id] = {}
-                    admin_state[user_id]['hm_services'] = services
-                    admin_state[user_id]['hm_categories'] = cat_mapping
-                    
-                    buttons = []
-                    for cat_id, cat_name in cat_mapping.items():
-                        buttons.append([InlineKeyboardButton(f"📂 {cat_name}", callback_data=f"hm_cat_{cat_id}")])
-                    buttons.append([InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')])
-                    
-                    await query.edit_message_text(
-                        f"🔭 **• قسم الرشـق وشحـن الألعـاب والبرامـج •**\n\n⭐ **رصيدك:** `${u_data['balance']:.2f}`\nاختر القسم المطلوب:",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup(buttons)
-                    )
-                else:
-                    await query.edit_message_text("⚠️ لم يتم جلب أي خدمات. تأكد من صحة مفتاح الـ API الخاص بـ HM Card أو وجود رصيد في حسابك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
-        except Exception as e:
-            await query.edit_message_text(f"⚠️ حدث خطأ أثناء الاتصال: {str(e)[:50]}", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
+            await query.edit_message_text("❌ فشل إرسال الطلب للموقع، حاول لاحقاً.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
 
-    elif data.startswith('hm_cat_'):
-        cat_id = data.replace('hm_cat_', '')
-        user_state_data = admin_state.get(user_id, {})
-        cat_mapping = user_state_data.get('hm_categories', {})
-        services = user_state_data.get('hm_services', [])
-        
-        cat_name = cat_mapping.get(cat_id)
-        if not cat_name:
-            await query.edit_message_text("⚠️ انتهت صلاحية الجلسة، يرجى إعادة فتح قسم الرشق.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='boosting_services')]]))
-            return
+    elif data == "cancel_order":
+        await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
-        buttons = []
-        for serv in services:
-            if isinstance(serv, dict) and serv.get('category') == cat_name:
-                s_id = serv.get('service')
-                s_name = str(serv.get('name', ''))
-                try:
-                    orig_rate = float(serv.get('rate', '0.00'))
-                except ValueError:
-                    orig_rate = 0.00
-                
-                multiplied_rate = round(orig_rate * 3.0, 2)
-                button_title = f"{s_name} | ${multiplied_rate:.2f}"
-                buttons.append([InlineKeyboardButton(button_title, callback_data=f"hm_serv_{s_id}")])
-        
-        buttons.append([InlineKeyboardButton("🔙 عودة للأقسام", callback_data='boosting_services')])
-        await query.edit_message_text(
-            "🔭 **اختر الخدمة المطلوبة من القائمة أدناه:**",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-
-    elif data.startswith('hm_serv_'):
-        serv_id = data.replace('hm_serv_', '')
-        if user_id not in admin_state:
-            admin_state[user_id] = {}
-        
-        selected_serv_text = "خدمة غير معروفة"
-        service_rate = 0.00
-        min_qty = 100
-        max_qty = 10000
-        
-        for serv in admin_state.get(user_id, {}).get('hm_services', []):
-            if str(serv.get('service')) == str(serv_id):
-                selected_serv_text = str(serv.get('name', ''))
-                try:
-                    orig_rate = float(serv.get('rate', '0.00'))
-                except ValueError:
-                    orig_rate = 0.00
-                service_rate = round(orig_rate * 3.0, 2)
-                try:
-                    min_qty = int(serv.get('min', 100))
-                except (ValueError, TypeError):
-                    min_qty = 100
-                try:
-                    max_qty = int(serv.get('max', 10000))
-                except (ValueError, TypeError):
-                    max_qty = 10000
-                break
-
-        admin_state[user_id].update({
-            'action': 'waiting_for_hm_link',
-            'service_id': serv_id,
-            'service_name': selected_serv_text,
-            'service_rate': service_rate,
-            'min_qty': min_qty,
-            'max_qty': max_qty
-        })
-        
-        details_text = (
-            f"🔹 **اسم الخدمة:**\n`{selected_serv_text}`\n\n"
-            f"💵 **السعر:** `${service_rate:.2f}`\n"
-            f"📉 **أقل كمية للطلب:** `{min_qty}`\n"
-            f"📈 **أكبر كمية للطلب:** `{max_qty}`\n\n"
-            "🔗 الخطوة الأولى للطلب الخدمة :\n"
-            "أرسل الآن رابط الطلب (رابط الحساب، القناة، المنشور، أو الآيدي حسب الخدمة):"
-        )
-        
-        await query.edit_message_text(
-            details_text,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛒 • طلب الخدمة •", callback_data=f"hm_order_step2_{serv_id}")],
-                [InlineKeyboardButton("• عودة •", callback_data='boosting_services')]
-            ])
-        )
-
-    elif data.startswith('hm_order_step2_'):
-        serv_id = data.replace('hm_order_step2_', '')
-        if user_id not in admin_state:
-            admin_state[user_id] = {}
-        admin_state[user_id].update({'action': 'waiting_for_hm_link', 'service_id': serv_id})
-        
-        step_text = (
-            "🔗 الخطوة الأولى للطلب الخدمة :\n"
-            "أرسل الآن رابط الطلب (رابط الحساب، القناة، المنشور، أو الآيدي حسب الخدمة):"
-        )
-        await query.edit_message_text(
-            step_text,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='boosting_services')]])
-        )
-
-    elif data == 'confirm_hm_order':
-        st_data = admin_state.get(user_id, {})
-        service_id = st_data.get('service_id')
-        link = st_data.get('link')
-        quantity = st_data.get('quantity')
-        cost = st_data.get('cost')
-        service_name = st_data.get('service_name', 'خدمة رشق')
-
-        if not service_id or not link or not quantity or not cost:
-            await query.answer("⚠️ انتهت صلاحية الطلب، يرجى إعادة البدء.", show_alert=True)
-            return
-
-        u_data = db_get_user(user_id)
-        if u_data['balance'] < cost:
-            not_enough_text = (
-                "❌ **عذراً، رصيد محفظتك غير كافٍ لإتمام عملية الشراء!**\n\n"
-                f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
-                "💡 يرجى شحن رصيدك لتتمكن من إتمام الطلب بنجاح."
-            )
-            not_enough_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 يرجى شحن رصيدك", callback_data='deposit_menu')],
-                [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
-            ])
-            await query.edit_message_text(not_enough_text, parse_mode='Markdown', reply_markup=not_enough_markup)
-            return
-
-        await query.answer("🔄 جاري إرسال الطلب للموقع...", show_alert=False)
-
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            payload = {
-                'key': HMCARD_API_KEY,
-                'action': 'add',
-                'service': service_id,
-                'link': link,
-                'quantity': quantity
-            }
-            res = await client.post(HMCARD_API_URL, data=payload)
-            if res.status_code == 200:
-                resp_data = res.json()
-                if isinstance(resp_data, dict) and 'order' in resp_data:
-                    order_id = resp_data['order']
-                    db_update_balance(user_id, cost, mode="deduct")
-                    admin_state.pop(user_id, None)
-                    
-                    await query.edit_message_text(
-                        f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!**\n\n"
-                        f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
-                        f"🔗 **الرابط:** `{link}`\n"
-                        f"📦 **الكمية:** `{quantity}`\n"
-                        f"⭐ **تم خصم:** `${cost:.2f}` من رصيدك.",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                    )
-                    
-                    try:
-                        masked_l = mask_link(link)
-                        bot_username = context.bot.username
-                        channel_buttons = InlineKeyboardMarkup([
-                            [
-                                InlineKeyboardButton("🛒 شراء من نفس الخدمة", url=f"https://t.me/{bot_username}?start=boosting_services"),
-                                InlineKeyboardButton("🤖 الدخول إلى البوت", url=f"https://t.me/{bot_username}?start=main_menu")
-                            ]
-                        ])
-                        await context.bot.send_message(
-                            chat_id=LOG_CHANNEL_ID,
-                            text=(
-                                "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                f"👤 **آيدي الشخص:** `{user_id}`\n"
-                                f"🔭 **الخدمة:** `{service_name}`\n"
-                                f"🆔 **رقم الطلب:** `{order_id}`\n"
-                                f"📦 **الكمية:** `{quantity}`\n"
-                                f"🔗 **الرابط:** `{masked_l}`\n"
-                                f"💰 **المبلغ المخصوم:** `${cost:.2f}`\n"
-                                f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
-                            ),
-                            parse_mode='Markdown',
-                            reply_markup=channel_buttons
-                        )
-                    except Exception as log_err:
-                        print(f"خطأ في إرسال سجل الرشق للقناة: {log_err}")
-                else:
-                    err_msg = resp_data.get('error', 'خطأ غير معروف من المنصة') if isinstance(resp_data, dict) else 'استجابة غير صالحة من المنصة'
-                    await query.edit_message_text(f"❌ **فشل الطلب من المنصة:**\n`{err_msg}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='boosting_services')]]))
-            else:
-                await query.edit_message_text("❌ تعذر الاتصال بموقع الخدمات حالياً.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='boosting_services')]]))
-
-    elif data == 'cancel_hm_order':
-        admin_state.pop(user_id, None)
-        await query.edit_message_text(
-            "❌ **تم إلغاء الطلب بنجاح.**",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-        )
-
+    # باقي أقسام البوت (الأرقام والمحفظة والإحالات والأدمن)
     elif data == 'free_points':
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         u_data = db_get_user(user_id)
-        
         free_text = (
             "💎 **قسم ربح الأرصدة مجاناً وأكواد الهدية:**\n\n"
             "1️⃣ **رابط الإحالة الخاص بك:**\n"
             f"`{ref_link}`\n"
             f"👥 عدد الدعوات: `{u_data['referrals']} شخص` | ⭐ الأرباح: `${u_data['referrals'] * 0.10:.2f}`\n\n"
             "2️⃣ **شحن عبر كود هدية (Promo Code):**\n"
-            "إذا كان لديك كود هدية أو قسيمة شحن، **قم بإرسال الكود مباشرة في هذه المحادثة** وسيتولى البوت شحن رصيدك فوراً!"
+            "إذا كان لديك كود هدية، **قم بإرساله مباشرة في هذه المحادثة**!"
         )
-        await query.edit_message_text(
-            free_text,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-        )
+        await query.edit_message_text(free_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
     elif data == 'transfer_balance':
         admin_state[user_id] = {'action': 'waiting_for_transfer_id'}
         u_data = db_get_user(user_id)
-        transfer_text = (
-            "🔄 **• نظام تحويل الرصيد بين المستخدمين •**\n"
-            "━━━━━━━━━━━━━━━━━━━\n\n"
-            f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
-            "👤 **الخطوة الأولى:**\n"
-            "أرسل الآن **آيدي (ID)** المستخدم المراد التحويل إليه في رسالة هنا:"
-        )
-        await query.edit_message_text(
-            transfer_text,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]])
-        )
+        await query.edit_message_text(f"🔄 **تحويل الرصيد:**\n⭐ رصيدك الحالي: `${u_data['balance']:.2f}`\n\nأرسل الآن **آيدي (ID)** المستخدم المراد التحويل إليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
 
     elif data == 'deposit_menu':
-        deposit_text = (
-            "🌐 **طرق الدفع والشحن المتوفرة ✓**\n"
-            "━━━━━━━━━━━━━━━━━━\n"
-            "✅ يمكنك شحن حسابك في البوت بشكل فوري عبر **نجوم تليجرام (Telegram Stars)** (كل 100 نجمة = 2$ دولار داخل البوت) أو عبر الطرق اليدوية أدناه:"
-        )
+        deposit_text = "🌐 **طرق الدفع والشحن المتوفرة ✓**\n✅ يمكنك شحن حسابك في البوت بشكل فوري عبر **نجوم تليجرام (Telegram Stars)** أو عبر الطرق اليدوية:"
         deposit_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("⭐ شحن الرصيد عبر نجوم تليجرام (Stars)", callback_data='dep_telegram_stars')],
             [InlineKeyboardButton("الدفع عبر محفظة جيب", callback_data='dep_jaib')],
             [InlineKeyboardButton("الدفع عبر بنك الكريمي", callback_data='dep_alkurimi')],
-            [InlineKeyboardButton("• هل لديك طريقة دفع أخرى؟ •", callback_data='dep_other_support')],
             [InlineKeyboardButton("• عودة •", callback_data='main_menu')]
         ])
         await query.edit_message_text(deposit_text, parse_mode='Markdown', reply_markup=deposit_keyboard)
@@ -1250,339 +1418,164 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⭐ شحن $20 (1000 نجمة)", callback_data='pay_stars_1000_20')],
             [InlineKeyboardButton("🔙 عودة", callback_data='deposit_menu')]
         ])
-        await query.edit_message_text(
-            "⭐ **قسم الشحن الفوري عبر نجوم تليجرام:**\n\n"
-            "💡 **ملاحظة:** كل 100 نجمة = 2$ دولار داخل البوت.\n\n"
-            "اختر الباقة المناسبة لك لشحن رصيدك فوراً في البوت:",
-            parse_mode='Markdown',
-            reply_markup=stars_keyboard
-        )
+        await query.edit_message_text("⭐ **اختر الباقة المناسبة لك لشحن رصيدك فوراً:**", parse_mode='Markdown', reply_markup=stars_keyboard)
 
     elif data.startswith('pay_stars_'):
         _, _, stars_count, usd_amount = data.split('_')
-        stars_count = int(stars_count)
-        usd_amount = float(usd_amount)
-        
-        title = f"شحن رصيد بقيمة ${usd_amount}"
-        description = f"إضافة رصيد بقيمة ${usd_amount} إلى حسابك في بوت الأرقام والخدمات."
-        payload = f"deposit_{user_id}_{usd_amount}"
-        currency = "XTR"
-        prices = [LabeledPrice("شحن رصيد بوت", stars_count)]
-        
         try:
             await context.bot.send_invoice(
-                chat_id=user_id, title=title, description=description,
-                payload=payload, provider_token="", currency=currency, prices=prices
+                chat_id=user_id, title=f"شحن رصيد بقيمة ${usd_amount}", description="شحن فوري",
+                payload=f"deposit_{user_id}_{usd_amount}", provider_token="", currency="XTR", prices=[LabeledPrice("شحن", int(stars_count))]
             )
-            await query.answer("✅ تم إرسال فاتورة النجوم في المحادثة، قم بإتمام الدفع.", show_alert=True)
-        except Exception as e:
-            await query.answer(f"⚠️ تعذر إنشاء الفاتورة: {str(e)[:40]}", show_alert=True)
-
-    elif data == 'dep_other_support':
-        support_msg = (
-            "📞 **طرق الشحن عبر الدعم الفني**\n\n"
-            f"إذا كانت لديك طريقة دفع مختلفة، يمكنك التواصل مباشرة مع الإدارة عبر معرف الدعم المعتمد:\n"
-            f"👉 @{SUPPORT_USERNAME}"
-        )
-        await query.edit_message_text(
-            support_msg,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
-        )
+            await query.answer("✅ تم إرسال فاتورة النجوم في المحادثة.", show_alert=True)
+        except Exception:
+            await query.answer("⚠️ تعذر إنشاء الفاتورة.", show_alert=True)
 
     elif data == 'dep_jaib':
         admin_state[user_id] = {'action': 'waiting_for_deposit'}
-        jaib_text = (
-            "أهلاً بك عزيزي في قسم الشحن عبر محفظة جيب 💙\n\n"
-            "💰 طريقة الشحن : كل 1 دولار = 550 ريال يمني قديم\n\n"
-            "اقل مبلغ للشحن 1$\n\n"
-            "📲 خطوات الشحن:\n\n"
-            "1- قم بتحويل المبلغ الذي تريده إلى هذا الرقم عبر تطبيق جيب:\n"
-            "`78132392`\n\n"
-            "2- بعد التحويل مباشرة، انسخ رقم العملية أو رسالة التأكيد من تطبيق جيب والصقها هنا في المحادثة\n\n"
-            "3- سيتم مراجعة الطلب وإضافة الرصيد إلى حسابك فوراً ✅"
-        )
-        await query.edit_message_text(jaib_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
+        await query.edit_message_text("📲 قم بتحويل المبلغ إلى رقم جيب: `78132392` ثم أرسل رقم العملية أو الإيصال هنا:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
 
     elif data == 'dep_alkurimi':
         admin_state[user_id] = {'action': 'waiting_for_deposit'}
-        alkurimi_text = (
-            "أهلاً بك عزيزي في قسم الشحن عبر بنك الكريمي 💙\n\n"
-            "💰 طريقة الشحن : كل 1 دولار = 550 ريال يمني قديم\n\n"
-            "اقل مبلغ للشحن 1$\n\n"
-            "📲 خطوات الشحن:\n\n"
-            "1- قم بتحويل المبلغ إلى رقم حسابنا عبر تطبيق الكريمي أو الصراف:\n"
-            "`3105004949`\n\n"
-            "2- بعد التحويل مباشرة، انسخ رقم العملية أو الحوالة والصقها هنا في المحادثة\n\n"
-            "3- سيتم مراجعة الطلب وإضافة الرصيد إلى حسابك فوراً ✅"
-        )
-        await query.edit_message_text(alkurimi_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
+        await query.edit_message_text("📲 قم بتحويل المبلغ إلى حساب الكريمي: `3105004949` ثم أرسل رقم الحوالة أو الإيصال هنا:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
 
     elif data.startswith('approve_deposit_'):
         if not is_admin_or_sub(user_id): return
         _, _, target_user_id, amount = data.split('_', 3)
-        target_user_id = int(target_user_id)
-        amount = float(amount)
-
+        target_user_id, amount = int(target_user_id), float(amount)
         db_update_balance(target_user_id, amount, mode="add")
         try:
-            await context.bot.send_message(
-                chat_id=target_user_id,
-                text=f"🎉 **مبروك! تم قبول طلب الشحن وإضافة الرصيد بنجاح.**\n⭐ تم إضافة: `${amount:.2f}` لحسابك.",
-                parse_mode='Markdown'
-            )
+            await context.bot.send_message(chat_id=target_user_id, text=f"🎉 **مبروك! تمت إضافة الرصيد بنجاح:** `${amount:.2f}`", parse_mode='Markdown')
         except Exception:
             pass
-
-        try:
-            await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(f"✅ **تم اعتماد شحن الرصيد بنجاح بواسطة المشرف!**\n👤 للمستخدم: `{target_user_id}`\n⭐ المبلغ المضاف: `${amount:.2f}`", parse_mode='Markdown')
-        except Exception:
-            pass
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(f"✅ تم الاعتماد بنجاح للمستخدم `{target_user_id}` بمبلغ `${amount:.2f}`", parse_mode='Markdown')
 
     elif data.startswith('reject_deposit_'):
         if not is_admin_or_sub(user_id): return
         _, _, target_user_id = data.split('_', 2)
         target_user_id = int(target_user_id)
-
         try:
-            await context.bot.send_message(
-                chat_id=target_user_id,
-                text="❌ **عذراً، تم رفض طلب الشحن الخاص بك بسبب عدم صحة رقم العملية أو عدم توفر رصيد مقابل له.** يرجى التأكد والمحاولة مرة أخرى أو التواصل مع الدعم.",
-                parse_mode='Markdown'
-            )
+            await context.bot.send_message(chat_id=target_user_id, text="❌ عذراً، تم رفض طلب الشحن.", parse_mode='Markdown')
         except Exception:
             pass
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(f"❌ تم رفض الطلب للمستخدم `{target_user_id}`", parse_mode='Markdown')
 
-        try:
-            await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(f"❌ **تم رفض طلب الشحن وإلغاؤه بنجاح.**\n👤 للمستخدم: `{target_user_id}`", parse_mode='Markdown')
-        except Exception:
-            pass
-
-    elif data.startswith('custom_deposit_'):
-        if not is_admin_or_sub(user_id): return
-        _, _, target_user_id = data.split('_', 2)
-        target_user_id = int(target_user_id)
-        
-        admin_state[user_id] = {
-            'action': 'waiting_for_custom_deposit_amount',
-            'target_user_id': target_user_id,
-            'message_to_edit': query.message
-        }
-        await query.message.reply_text(
-            f"✍️ **أدخل المبلغ المراد إضافته للمستخدم (`{target_user_id}`) بالدولار:**\n*(مثال: 0.75 أو 3)*",
-            parse_mode='Markdown'
-        )
-
-    elif data == 'deals_whatsapp':
+    # خدمات الأرقام الافتراضية
+    elif data in ['service_whatsapp', 'deals_whatsapp']:
+        await query.answer("⏳ جاري جلب أحدث أسعار واتساب...", show_alert=False)
+        countries = await fetch_5sim_countries('whatsapp')
         buttons = []
         row = []
-        for item in WHATSAPP_DEALS:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}"))
+        for item in countries:
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
-        if row:
-            buttons.append(row)
+        if row: buttons.append(row)
         buttons.append([InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسيـة", callback_data='main_menu')])
-        
         u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🔥 **• عروض أرقام واتساب ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        await query.edit_message_text(f"🔥 **• عروض أرقام واتساب ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
-    elif data == 'deals_telegram':
+    elif data in ['service_telegram', 'deals_telegram']:
+        await query.answer("⏳ جاري جلب أحدث أسعار تليجرام...", show_alert=False)
+        countries = await fetch_5sim_countries('telegram')
         buttons = []
         row = []
-        for item in TELEGRAM_DEALS:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}"))
+        for item in countries:
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
-        if row:
-            buttons.append(row)
+        if row: buttons.append(row)
         buttons.append([InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسيـة", callback_data='main_menu')])
-        
         u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🔥 **• عروض أرقام تليجرام ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
-
-    elif data == 'service_whatsapp':
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🛍️ **قسم أرقام واتساب الرسمية**\n\n⭐ **رصيدك:** `${u_data['balance']:.2f}`\n\nاختر القسم المطلوب:",
-            parse_mode='Markdown', reply_markup=get_whatsapp_sections_keyboard()
-        )
-
-    elif data == 'wa_arab_countries':
-        buttons = []
-        row = []
-        for item in ARAB_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row:
-            buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لأقسـام الواتساب", callback_data='service_whatsapp')])
-        
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🌐 **• الدول العربية الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
-
-    elif data == 'wa_foreign_countries':
-        buttons = []
-        row = []
-        for item in WHATSAPP_FOREIGN:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row:
-            buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لأقسـام الواتساب", callback_data='service_whatsapp')])
-        
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🌍 **• الدول الأجنبية والعالمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
-
-    elif data == 'cat_telegram':
-        buttons = []
-        row = []
-        for item in TELEGRAM_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row:
-            buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🎲 **• أرقام تليجرام الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        await query.edit_message_text(f"🎲 **• أرقام تليجرام المتاحة ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == 'service_instagram':
+        await query.answer("⏳ جاري جلب أسعار انستغرام...", show_alert=False)
+        countries = await fetch_5sim_countries('instagram')
         buttons = []
         row = []
-        for item in INSTAGRAM_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_instagram_{item['code']}_{item['price']}"))
+        for item in countries:
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_instagram_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
-        if row:
-            buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        
+        if row: buttons.append(row)
+        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🎳 **• أرقام انستغرام الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        await query.edit_message_text(f"🎳 **• انستغرام ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == 'service_facebook':
+        await query.answer("⏳ جاري جلب أسعار فيسبوك...", show_alert=False)
+        countries = await fetch_5sim_countries('facebook')
         buttons = []
         row = []
-        for item in FACEBOOK_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_facebook_{item['code']}_{item['price']}"))
+        for item in countries:
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_facebook_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
-        if row:
-            buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        
+        if row: buttons.append(row)
+        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🎯 **• أرقام فيسبوك الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        await query.edit_message_text(f"🎯 **• فيسبوك ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == 'service_twitter':
+        await query.answer("⏳ جاري جلب أسعار تويتر...", show_alert=False)
+        countries = await fetch_5sim_countries('twitter')
         buttons = []
         row = []
-        for item in TWITTER_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_twitter_{item['code']}_{item['price']}"))
+        for item in countries:
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_twitter_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
-        if row:
-            buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        
+        if row: buttons.append(row)
+        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🐤 **• أرقام تويتر الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        await query.edit_message_text(f"🐤 **• تويتر ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == 'service_tiktok':
+        await query.answer("⏳ جاري جلب أسعار تيك توك...", show_alert=False)
+        countries = await fetch_5sim_countries('tiktok')
         buttons = []
         row = []
-        for item in TIKTOK_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_tiktok_{item['code']}_{item['price']}"))
+        for item in countries:
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_tiktok_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
-        if row:
-            buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        
+        if row: buttons.append(row)
+        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🎬 **• أرقام تيك توك الرسمية ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        await query.edit_message_text(f"🎬 **• تيك توك ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data in ['service_snapchat', 'service_imo']:
         serv_title = "سناب شات ♣️" if data == 'service_snapchat' else "إيمو 💎"
         serv_code = "snapchat" if data == 'service_snapchat' else "imo"
-        
+        await query.answer(f"⏳ جاري جلب أسعار {serv_title}...", show_alert=False)
+        countries = await fetch_5sim_countries(serv_code)
         buttons = []
         row = []
-        for item in SNAP_IMO_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_{serv_code}_{item['code']}_{item['price']}"))
+        for item in countries:
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_{serv_code}_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
                 row = []
-        if row:
-            buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة لقـائمـة الخـدمـات", callback_data='buy_virtual_number')])
-        
+        if row: buttons.append(row)
+        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(
-            f"🔹 **• أرقام خدمة {serv_title} ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:",
-            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        await query.edit_message_text(f"🔹 **• {serv_title} ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data.startswith('buy_num_'):
         parts = data.split('_')
-        service = parts[2]
-        country_code = parts[3]
-        country_price = float(parts[4])
+        service, country_code, country_price = parts[2], parts[3], float(parts[4])
         u_data = db_get_user(user_id)
-        
         if u_data['balance'] < country_price:
-            not_enough_text = (
-                "❌ **عذراً، رصيد محفظتك غير كافٍ لإتمام عملية الشراء!**\n\n"
-                f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
-                "💡 يرجى شحن رصيدك لتتمكن من إتمام الطلب بنجاح."
-            )
-            not_enough_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 يرجى شحن رصيدك", callback_data='deposit_menu')],
-                [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
-            ])
-            await query.edit_message_text(not_enough_text, parse_mode='Markdown', reply_markup=not_enough_markup)
+            await query.edit_message_text(f"❌ **عذراً، رصيدك غير كافٍ!**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
             return
 
         await query.answer("🔄 جاري الشراء...", show_alert=False)
@@ -1591,57 +1584,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/any/{service}")
                 if res.status_code == 200:
                     res_data = res.json()
-                    phone = res_data.get('phone')
-                    order_id = res_data.get('id')
-                    
+                    phone, order_id = res_data.get('phone'), res_data.get('id')
                     if not phone or not order_id:
-                        await query.edit_message_text(
-                            "⚠️ **عذراً، نفدت الأرقام لهذه الدولة حالياً في الموقع.**\nيرجى تجربة دولة أخرى أو محاولة الشراء لاحقاً.",
-                            parse_mode='Markdown',
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للقائمة", callback_data='buy_virtual_number')]])
-                        )
+                        await query.edit_message_text("⚠️ **عذراً، نفدت الأرقام لهذه الدولة حالياً.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
                         return
 
                     db_update_balance(user_id, country_price, mode="deduct")
-                    
                     sent_msg = await query.edit_message_text(
                         f"✅ **تم الشراء بنجاح!**\n📱 الرقم: `{phone}`\n⭐ تم خصم: `${country_price:.2f}`\n⏳ جاري انتظار الكود...",
                         parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("❌ إلغاء واسترداد الرصيد", callback_data=f"cnl_paid_{order_id}_{country_price}")],
-                            [InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]
-                        ])
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء واسترداد الرصيد", callback_data=f"cnl_paid_{order_id}_{country_price}")], [InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
                     )
                     asyncio.create_task(watch_order_sms(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username))
                 else:
-                    await query.edit_message_text(
-                        "❌ **عذراً، الأرقام غير متوفرة حالياً لهذه الدولة أو رصيد الموقع نفد.**\nجرب دولة أخرى أو تأكد من رصيد الحساب.",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للقائمة", callback_data='buy_virtual_number')]])
-                    )
+                    await query.edit_message_text("❌ **الأرقام غير متوفرة حالياً.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
             except Exception as e:
-                await query.edit_message_text(
-                    f"⚠️ حدث خطأ أثناء الاتصال:\n`{str(e)[:60]}`",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للقائمة", callback_data='buy_virtual_number')]])
-                )
+                await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
 
     elif data.startswith('cnl_'):
         _, cancel_type, order_id, price = data.split('_', 3)
         async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
             res = await client.get(f"https://5sim.net/v1/user/cancel/{order_id}")
             if res.status_code == 200:
-                if cancel_type == 'paid':
-                    db_update_balance(user_id, float(price), mode="add")
-                await query.answer("✅ تم الإلغاء واسترداد الرصيد بنجاح!", show_alert=True)
-                await query.edit_message_text("🚫 تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
-            else:
-                await query.answer("⚠️ تعذر إلغاء الطلب.", show_alert=True)
+                if cancel_type == 'paid': db_update_balance(user_id, float(price), mode="add")
+                await query.answer("✅ تم الإلغاء واسترداد الرصيد!", show_alert=True)
+                await query.edit_message_text("🚫 تم إلغاء الطلب.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
     elif data == 'user_account':
         u_data = db_get_user(user_id)
-        text = f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`"
-        await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
+        await query.edit_message_text(f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
 
     elif data == 'admin_panel':
         if not is_admin_or_sub(user_id): return
@@ -1661,238 +1632,127 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin_or_sub(user_id): return
         stats = db_get_advanced_stats()
         top_list = stats['top_refs']
-        
         text = "🏆 **قائمة أطراف الإحالات (أعلى 5 أشخاص نشطين):**\n━━━━━━━━━━━━━━━━━━━━━━\n"
         if top_list:
-            for idx, (uid, refs) in enumerate(top_list, 1):
-                text += f"{idx}. الآيدي: `{uid}` ⟵ **{refs} دعوة** 🌟\n"
-        else:
-            text += "⚠️ لا توجد إحالات مسجلة حتى الآن."
-            
-        await query.edit_message_text(
-            text, parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
+            for idx, (uid, refs) in enumerate(top_list, 1): text += f"{idx}. الآيدي: `{uid}` ⟵ **{refs} دعوة** 🌟\n"
+        else: text += "⚠️ لا توجد إحالات مسجلة حتى الآن."
+        await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
 
     elif data == 'admin_create_promo':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_promo_details'}
-        await query.edit_message_text(
-            "🎟️ **إنشاء كود هدية جديد (Promo Code):**\n\n"
-            "أرسل الآن **(الكود)** و **(المبلغ بالدولار)** و **(عدد مرات الاستخدام)** بمسافات بينها.\n"
-            "*(مثال: `WELCOME 0.50 100`)*\n"
-            "*(تعني: كود بقيمة 0.50$ ومتاح لـ 100 شخص)*",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
+        await query.edit_message_text("🎟️ **إنشاء كود هدية جديد:**\nأرسل الكود والمبلغ وعدد المرات بمسافات:\n*(مثال: `WELCOME 0.50 100`)*", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_reply_user':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_reply_id'}
-        await query.edit_message_text(
-            "💬 **الرد على مستخدم عبر الآيدي:**\n\n"
-            "أرسل الآن رسالتك بالصيغة التالية (الآيدي مسافة نص الرسالة):\n"
-            "مثال: `6472852297 أهلاً بك عزيزي، تم حل مشكلتك بنجاح.`",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
+        await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآيدي ثم مسافة ثم نص الرد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_send_gift_user':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_gift_id'}
-        await query.edit_message_text(
-            "🎁 **إرسال هدية لشخص عبر الآيدي:**\n\n"
-            "أرسل الآن **(آيدي المستخدم)** في رسالة وحدها:",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
+        await query.edit_message_text("🎁 أرسل آيدي المستخدم للإهداء:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_add_balance':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_add_bal_id'}
-        await query.edit_message_text(
-            "➕ **إضافة رصيد بالدولار ($):**\n\n"
-            "أرسل الآن **(آيدي المستخدم)** في رسالة وحدها:",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
+        await query.edit_message_text("➕ أرسل آيدي المستخدم لإضافة رصيد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_deduct_balance':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_deduct_bal_id'}
-        await query.edit_message_text(
-            "➖ **خصم رصيد بالدولار ($):**\n\n"
-            "أرسل الآن **(آيدي المستخدم)** في رسالة وحدها:",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
+        await query.edit_message_text("➖ أرسل آيدي المستخدم لخصم رصيد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_manage_subadmins':
-        if user_id != ADMIN_ID:
-            await query.answer("❌ هذا الأمر مخصص للمسؤول الأساسي فقط!", show_alert=True)
-            return
+        if user_id != ADMIN_ID: return
         subs = get_all_sub_admins()
-        subs_text = "👥 **قائمة المشرفين المساعدين الحاليين:**\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        if subs:
-            for idx, sid in enumerate(subs, 1):
-                subs_text += f"{idx}. الآيدي: `{sid}`\n"
-        else:
-            subs_text += "⚠️ لا يوجد مشرفون مساعدون حالياً.\n"
-            
-        subs_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("➕ إضافة مشرف جديد", callback_data='admin_add_sub')],
-            [InlineKeyboardButton("➖ حذف مشرف حالي", callback_data='admin_del_sub')],
-            [InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]
-        ])
-        await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=subs_markup)
+        subs_text = "👥 المشرفون المساعدون:\n" + "\n".join([f"• `{sid}`" for sid in subs])
+        await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_sub'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_sub')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_add_sub':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_sub_id'}
-        await query.edit_message_text(
-            "➕ **إضافة مشرف مساعد جديد:**\n\nأرسل الآن **آيدي (ID)** المستخدم لتفعيله كمشرف مساعد:",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_manage_subadmins')]])
-        )
+        await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown')
 
     elif data == 'admin_del_sub':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
-        await query.edit_message_text(
-            "➖ **حذف مشرف مساعد:**\n\nأرسل الآن **آيدي (ID)** المشرف المراد إزالته من الإدارة:",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_manage_subadmins')]])
-        )
+        await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown')
 
     elif data == 'admin_manage_forced':
-        if user_id != ADMIN_ID:
-            await query.answer("❌ هذا الأمر مخصص للمسؤول الأساسي فقط!", show_alert=True)
-            return
+        if user_id != ADMIN_ID: return
         channels = get_forced_channels()
-        ch_text = "📢 **قنوات الاشتراك الإجباري الحالية:**\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        if channels:
-            for idx, (username, title) in enumerate(channels, 1):
-                ch_text += f"{idx}. العنوان: {title} ⟵ المعرف: `{username}`\n"
-        else:
-            ch_text += "⚠️ لا توجد قنوات اشتراك إجباري مفعلة حالياً.\n"
-            
-        ch_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("➕ إضافة قناة اشتراك إجباري", callback_data='admin_add_forced')],
-            [InlineKeyboardButton("➖ حذف قناة اشتراك إجباري", callback_data='admin_del_forced')],
-            [InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]
-        ])
-        await query.edit_message_text(ch_text, parse_mode='Markdown', reply_markup=ch_markup)
+        ch_text = "📢 قنوات الاشتراك الإجباري:\n" + "\n".join([f"• {title} (`{ch}`)" for ch, title in channels])
+        await query.edit_message_text(ch_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_forced'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_forced')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_add_forced':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_forced_add'}
-        await query.edit_message_text(
-            "➕ **إضافة قناة اشتراك إجباري جديدة:**\n\n"
-            "أرسل (معرف القناة مع @).\n"
-            "مثال: `@DigitalHubOrders`\n"
-            "*(سيتم قبولها فوراً وبدون تعقيد!)*",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_manage_forced')]])
-        )
+        await query.edit_message_text("أرسل معرف القناة مع العنوان (مثال: `@Channel Title`):", parse_mode='Markdown')
 
     elif data == 'admin_del_forced':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_forced_del'}
-        await query.edit_message_text(
-            "➖ **حذف قناة اشتراك إجباري:**\n\nأرسل الآن **معرف القناة (يبدأ بـ @)** المراد حذفها:",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_manage_forced')]])
-        )
+        await query.edit_message_text("أرسل معرف القناة المراد حذفها:", parse_mode='Markdown')
 
     elif data == 'admin_send_bonus':
-        if user_id != ADMIN_ID:
-            await query.answer("❌ هذا الأمر مخصص للمسؤول الأساسي فقط!", show_alert=True)
-            return
+        if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_bonus_amount'}
-        await query.edit_message_text(
-            "🎁 **إرسال هدية مالية (Bonus) لجميع المستخدمين:**\n\n"
-            "أرسل الآن **المبلغ بالدولار ($)** الذي تريد إضافته لكل مشترك في البوت دفعة واحدة:\n"
-            "*(مثال: `0.05` أو `0.10`)*",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
+        await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع:", parse_mode='Markdown')
 
     elif data == 'admin_reset_balances':
-        if user_id != ADMIN_ID:
-            await query.answer("❌ هذا الأمر مخصص للمسؤول الأساسي فقط!", show_alert=True)
-            return
-        
+        if user_id != ADMIN_ID: return
         try:
             res = supabase.table("users").select("user_id").execute()
-            users = res.data if hasattr(res, 'data') else []
-            for u in users:
-                supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
-        except Exception:
-            pass
-            
-        await query.answer("✅ تمت عملية التصفير بنجاح تام وبصمت!", show_alert=True)
-        await query.edit_message_text(
-            "🧹 **تم تصفير جميع أرصدة المستخدمين في البوت بنجاح!**\n\n"
-            "⭐ أصبحت جميع الأرصدة الآن `0.00$` وبدون إزعاج المستخدمين.",
-            parse_mode='Markdown',
-            reply_markup=get_admin_keyboard()
-        )
+            for u in (res.data if hasattr(res, 'data') else []): supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
+        except Exception: pass
+        await query.answer("✅ تمت التصفير بنجاح!", show_alert=True)
+        await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بنجاح.", reply_markup=get_admin_keyboard())
 
     elif data == 'admin_ban_user':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_ban_id'}
-        await query.edit_message_text(
-            "🚫 **حظر / إلغاء حظر مستخدم:**\n\n"
-            "أرسل الآن **آيدي (ID)** المستخدم لتبديل حالته (إذا كان محظوراً يتم فك حظره، وإذا كان نشطاً يتم حظره):",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
+        await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر / لفك الحظر:", parse_mode='Markdown')
 
     elif data == 'admin_broadcast':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_broadcast'}
-        await query.edit_message_text(
-            "📢 **قسم الإذاعة الشاملة الضخمة:**\n\n"
-            "أرسل الآن **الرسالة، الصورة، الفيديو، أو المنشور** الذي تريد إذاعته لجميع مستخدمي البوت النشطين.",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-        )
-
-    else:
-        await query.edit_message_text(
-            "🛠 **هذا القسم قيد التجهيز والتطوير البرمجي حالياً...**",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-        )
+        await query.edit_message_text("📢 أرسل رسالة الإذاعة الشاملة:", parse_mode='Markdown')
 
 async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
-    if query.invoice_payload.startswith("deposit_"):
-        await query.answer(ok=True)
-    else:
-        await query.answer(ok=False, error_message="حدث خطأ في عملية الدفع، يرجى المحاولة لاحقاً.")
+    if query.invoice_payload.startswith("deposit_"): await query.answer(ok=True)
+    else: await query.answer(ok=False, error_message="خطأ في الدفع.")
 
 async def successful_payment_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
     payload = payment.invoice_payload
-    
     if payload.startswith("deposit_"):
         try:
             _, target_user_id, amount_str = payload.split('_')
-            target_user_id = int(target_user_id)
-            amount = float(amount_str)
-            
+            target_user_id, amount = int(target_user_id), float(amount_str)
             db_update_balance(target_user_id, amount, mode="add")
-            
-            await update.message.reply_text(
-                f"🎉 **تمت عملية الدفع بنجاح الشحن الفوري بالنجوم!**\n\n"
-                f"⭐ تم إضافه رصيد بقيمة: **`${amount:.2f}`** إلى حسابك.\n"
-                f"🚀 يمكنك الآن استخدام رصيدك في شراء الأرقام والخدمات فوراً!",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-            )
-        except Exception:
-            pass
+            await update.message.reply_text(f"🎉 **تمت عملية الدفع الشحن الفوري بنجاح!**\n⭐ تم إضافة: `${amount:.2f}` لحسابك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+        except Exception: pass
+
+# --- خطوات الإدخال الذكية للرشق ---
+def prompt_user_for_link(message, service_info, context):
+    user_id = message.chat.id
+    stype = service_info.get("type", "channel")
+    prompts = {
+        "channel": "🔗 أرسل الآن رابط الحساب أو القناة المستهدفة:",
+        "post": "🔗 أرسل الآن رابط المنشور أو الفيديو المطلوب:",
+        "comment": "💬 أرسل رابط المنشور مع رابط التعليق:",
+        "comment_text": "💬 أرسل رابط المنشور وتحته التعليقات المطلوبة (كل تعليق بسطر):",
+        "poll": "📊 أرسل رابط المنشور مع مسافة ثم رقم الخيار المطلوب:"
+    }
+    admin_state[user_id] = {'action': 'waiting_for_rashq_link', 'service_info': service_info}
+    context.application.create_task(message.reply_text(prompts.get(stype, "🔗 أرسل الآن الرابط المطلوب:")))
+
+def prompt_user_for_pubg_id(message, service_info, context):
+    user_id = message.chat.id
+    admin_state[user_id] = {'action': 'waiting_for_pubg_id', 'service_info': service_info}
+    context.application.create_task(message.reply_text(f"🎮 أرسل الآن آيدي اللاعب (Player ID):\n(الخدمة: {service_info['name']})"))
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1904,11 +1764,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             clean_ch = ch_username.replace("@", "")
             sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
         sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
-        
-        await update.message.reply_text(
-            "🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅",
-            reply_markup=InlineKeyboardMarkup(sub_buttons)
-        )
+        await update.message.reply_text("🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅", reply_markup=InlineKeyboardMarkup(sub_buttons))
         return
 
     u_data = db_get_user(user_id)
@@ -1916,6 +1772,71 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
+    # معالجة خطوات الرشق اليدوية
+    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
+        admin_state[user_id]['link'] = text_content
+        admin_state[user_id]['action'] = 'waiting_for_rashq_count'
+        await update.message.reply_text("📊 أرسل الآن العدد المطلوب للتمويل (أرقام صحيحة فقط):")
+        return
+
+    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_count':
+        if not text_content.isdigit():
+            await update.message.reply_text("⚠️ يرجى إرسال أرقام صحيحة فقط للعدد:")
+            return
+        
+        count = int(text_content)
+        st_data = admin_state.get(user_id, {})
+        service_info = st_data.get('service_info', {"name": "خدمة", "price": 1.0, "min": 10, "max": 100000000})
+        
+        if count < service_info.get("min", 10) or count > service_info.get("max", 100000000):
+            await update.message.reply_text(f"⚠️ العدد يجب أن يكون بين {service_info.get('min', 10):,} و {service_info.get('max', 100000000):,}. أرسل العدد الصحيح:")
+            return
+
+        calc_cost = round((service_info["price"] * count) / 1000.0, 2)
+        if calc_cost <= 0: calc_cost = 0.01
+
+        user_order_data[user_id] = {"link": st_data['link'], "count": count, "calc_cost": calc_cost, "fixed_cost": 0.0}
+        user_selected_service[user_id] = service_info
+        admin_state.pop(user_id, None)
+
+        summary_text = (
+            f"📌 ملخص طلبك:\n\n"
+            f"🔹 الخدمة: {service_info['name']}\n"
+            f"🔗 الرابط: `{mask_link(st_data['link'])}`\n"
+            f"📊 العدد: `{count:,}`\n"
+            f"💰 التكلفة الإجمالية: `${calc_cost:.2f}$`"
+        )
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
+        ])
+        await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
+        return
+
+    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_pubg_id':
+        player_id = text_content
+        st_data = admin_state.get(user_id, {})
+        service_info = st_data.get('service_info', {"name": "شدات ببجي", "fixed_price": 1.14})
+        fixed_price = service_info.get("fixed_price", 1.14)
+        
+        user_order_data[user_id] = {"link": player_id, "count": 1, "calc_cost": 0.0, "fixed_cost": fixed_price}
+        user_selected_service[user_id] = service_info
+        admin_state.pop(user_id, None)
+
+        summary_text = (
+            f"🎮 ملخص طلب الشحن (بالآيدي):\n\n"
+            f"🔹 الحزمة: {service_info['name']}\n"
+            f"🆔 آيدي اللاعب (Player ID): `{player_id}`\n"
+            f"💰 السعر الإجمالي الصافي: `{fixed_price:.2f}$`"
+        )
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ تأكيد الشحن", callback_data="confirm_final_order")],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
+        ])
+        await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
+        return
+
+    # أكواد الهدايا (Promo Codes)
     if text_content and not (is_admin_or_sub(user_id) and user_id in admin_state):
         try:
             res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
@@ -1923,531 +1844,91 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             if rows:
                 promo = rows[0]
                 amount, max_uses, used_count = float(promo["amount"]), int(promo["max_uses"]), int(promo["used_count"])
-                
                 if used_count >= max_uses:
-                    await update.message.reply_text("❌ **عذراً، هذا الكود استنفد الحد الأقصى لعدد مرات الاستخدام وانتهت صلاحيته.**")
+                    await update.message.reply_text("❌ **عذراً، هذا الكود استنفد الحد الأقصى.**")
                     return
-                
                 used_check = supabase.table("user_promo_uses").select("*").eq("user_id", user_id).eq("code", text_content).execute()
-                used_rows = used_check.data if hasattr(used_check, 'data') else []
-                if used_rows:
-                    await update.message.reply_text("⚠️ **عذراً، لقد قمت باستخدام هذا الكود مسبقاً ولا يمكنك استخدامه مرة أخرى.**")
+                if used_check.data:
+                    await update.message.reply_text("⚠️ **لقد قمت باستخدام هذا الكود مسبقاً.**")
                     return
-                
                 db_update_balance(user_id, amount, mode="add")
                 supabase.table("promo_codes").update({"used_count": used_count + 1}).eq("code", text_content).execute()
                 supabase.table("user_promo_uses").insert({"user_id": user_id, "code": text_content}).execute()
-                
-                u_data = db_get_user(user_id)
-                await update.message.reply_text(
-                    f"🎉 **تهانينا! تم تفعيل كود الهدية بنجاح.** 🎁\n\n"
-                    f"💰 **تمت إضافة:** `${amount:.2f}` إلى رصيدك.\n"
-                    f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+                await update.message.reply_text(f"🎉 **تهانينا! تم تفعيل كود الهدية وإضافة `${amount:.2f}` إلى رصيدك.**", parse_mode='Markdown')
                 return
-        except Exception as promo_err:
-            print(f"Promo error: {promo_err}")
+        except Exception:
+            pass
 
+    # إدارة الأدمن الحوارية
     if is_admin_or_sub(user_id) and user_id in admin_state:
         action = admin_state[user_id].get('action')
-        
         if action == 'waiting_for_promo_details':
             try:
                 parts = text_content.split()
-                if len(parts) < 3:
-                    raise ValueError()
-                
-                code_str = parts[0]
-                amount_val = float(parts[1])
-                max_uses_val = int(parts[2])
-                
-                if amount_val <= 0 or max_uses_val <= 0:
-                    raise ValueError()
-                
-                supabase.table("promo_codes").upsert({"code": code_str, "amount": amount_val, "max_uses": max_uses_val, "used_count": 0}).execute()
-                
+                supabase.table("promo_codes").upsert({"code": parts[0], "amount": float(parts[1]), "max_uses": int(parts[2]), "used_count": 0}).execute()
                 admin_state.pop(user_id, None)
-                await update.message.reply_text(
-                    f"✅ **تم إنشاء كود الهدية بنجاح تام!** 🎟️\n\n"
-                    f"▫️ الكود: `{code_str}`\n"
-                    f"▫️ القيمة: `${amount_val:.2f}`\n"
-                    f"▫️ عدد المستخدمين المسموح: `{max_uses_val} شخص`",
-                    parse_mode='Markdown',
-                    reply_markup=get_admin_keyboard()
-                )
+                await update.message.reply_text("✅ تم إنشاء الكود بنجاح!", reply_markup=get_admin_keyboard())
                 return
             except Exception:
-                await update.message.reply_text("❌ الصيغة خاطئة! أرسل (الكود والمبلغ وعدد المرات) بمسافات صحيحة.\nمثال: `WELCOME 0.50 100`")
+                await update.message.reply_text("❌ صيغة خاطئة!")
                 return
-
-        elif action == 'waiting_for_gift_id':
-            try:
-                target_id = int(text_content)
-                admin_state[user_id] = {'action': 'waiting_for_gift_amount', 'target_user_id': target_id}
-                await update.message.reply_text(
-                    f"👤 **تم استقبال الآيدي:** `{target_id}`\n\n💰 **الخطوة الثانية:** أرسل الآن **المبلغ بالدولار ($)** المراد إرساله هدية:",
-                    parse_mode='Markdown'
-                )
-                return
-            except ValueError:
-                await update.message.reply_text("❌ الآيدي يجب أن يكون أرقام صحيحة فقط. أعد إرسال الآيدي:")
-                return
-
-        elif action == 'waiting_for_gift_amount':
-            try:
-                gift_amount = float(text_content)
-                if gift_amount <= 0:
-                    raise ValueError()
-                
-                st_data = admin_state.pop(user_id)
-                target_id = st_data['target_user_id']
-                
-                db_update_balance(target_id, gift_amount, mode="add")
-                
-                try:
-                    await context.bot.send_message(
-                        chat_id=target_id,
-                        text=f"🎁 **تهانينا القلبية! وصلتك هدية مالية خاصة من الإدارة بقيمة `${gift_amount:.2f}`** 🚀✨",
-                        parse_mode='Markdown'
-                    )
-                except Exception:
-                    pass
-
-                await update.message.reply_text(
-                    f"✅ **تم إرسال الهدية المالية بنجاح تام!**\n\n👤 للمستخدم: `{target_id}`\n🎁 مبلغ الهدية: `${gift_amount:.2f}`",
-                    parse_mode='Markdown',
-                    reply_markup=get_admin_keyboard()
-                )
-                return
-            except ValueError:
-                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 1.50).")
-                return
-
-        elif action == 'waiting_for_add_bal_id':
-            try:
-                target_id = int(text_content)
-                admin_state[user_id] = {'action': 'waiting_for_add_bal_amount', 'target_user_id': target_id}
-                await update.message.reply_text(
-                    f"👤 **تم استقبال الآيدي:** `{target_id}`\n\n💰 **الخطوة الثانية:** أرسل الآن **المبلغ بالدولار ($)** المراد إضافته:",
-                    parse_mode='Markdown'
-                )
-                return
-            except ValueError:
-                await update.message.reply_text("❌ الآيدي يجب أن يكون أرقام صحيحة فقط. أعد إرسال الآيدي:")
-                return
-
-        elif action == 'waiting_for_add_bal_amount':
-            try:
-                amount = float(text_content)
-                if amount <= 0:
-                    raise ValueError()
-                
-                st_data = admin_state.pop(user_id)
-                target_id = st_data['target_user_id']
-                
-                db_update_balance(target_id, amount, mode="add")
-                
-                try:
-                    await context.bot.send_message(
-                        chat_id=target_id,
-                        text=f"🎉 **تمت إضافة مبلغ `${amount:.2f}` إلى رصيدك من قبل الإدارة!**",
-                        parse_mode='Markdown'
-                    )
-                except Exception:
-                    pass
-
-                await update.message.reply_text(
-                    f"✅ **تمت إضافة الرصيد بنجاح!**\n\n👤 للمستخدم: `{target_id}`\n⭐ المبلغ المضاف: `${amount:.2f}`",
-                    parse_mode='Markdown',
-                    reply_markup=get_admin_keyboard()
-                )
-                return
-            except ValueError:
-                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 0.10).")
-                return
-
-        elif action == 'waiting_for_deduct_bal_id':
-            try:
-                target_id = int(text_content)
-                admin_state[user_id] = {'action': 'waiting_for_deduct_bal_amount', 'target_user_id': target_id}
-                await update.message.reply_text(
-                    f"👤 **تم استقبال الآيدي:** `{target_id}`\n\n💰 **الخطوة الثانية:** أرسل الآن **المبلغ بالدولار ($)** المراد خصمه:",
-                    parse_mode='Markdown'
-                )
-                return
-            except ValueError:
-                await update.message.reply_text("❌ الآيدي يجب أن يكون أرقام صحيحة فقط. أعد إرسال الآيدي:")
-                return
-
-        elif action == 'waiting_for_deduct_bal_amount':
-            try:
-                amount = float(text_content)
-                if amount <= 0:
-                    raise ValueError()
-                
-                st_data = admin_state.pop(user_id)
-                target_id = st_data['target_user_id']
-                
-                db_update_balance(target_id, amount, mode="deduct")
-                
-                try:
-                    await context.bot.send_message(
-                        chat_id=target_id,
-                        text=f"⚠️ **تم خصم مبلغ `${amount:.2f}` من رصيدك بواسطة الإدارة.**",
-                        parse_mode='Markdown'
-                    )
-                except Exception:
-                    pass
-
-                await update.message.reply_text(
-                    f"✅ **تم خصم الرصيد بنجاح!**\n\n👤 للمستخدم: `{target_id}`\n⭐ المبلغ المخصوم: `${amount:.2f}`",
-                    parse_mode='Markdown',
-                    reply_markup=get_admin_keyboard()
-                )
-                return
-            except ValueError:
-                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 0.50).")
-                return
-
-        elif action == 'waiting_for_reply_id':
-            try:
-                space_idx = text_content.find(' ')
-                if space_idx == -1:
-                    raise ValueError()
-                target_id = int(text_content[:space_idx].strip())
-                reply_msg = text_content[space_idx:].strip()
-                
-                await context.bot.send_message(
-                    chat_id=target_id,
-                    text=f"💬 **رسالة جديدة من إدارة البوت:**\n\n{reply_msg}",
-                    parse_mode='Markdown'
-                )
-                await update.message.reply_text("✅ تم إرسال الرد إلى المستخدم بنجاح!", reply_markup=get_admin_keyboard())
-                admin_state.pop(user_id, None)
-                return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي أولاً ثم مسافة ثم نص الرسالة.")
-                return
-
-        elif action == 'waiting_for_bonus_amount':
-            try:
-                bonus_amount = float(text_content)
-                all_users = db_get_all_users()
-                
-                status_msg = await update.message.reply_text(f"🎁 **جاري توزيع هدية بقيمة `${bonus_amount:.2f}` لجميع المشتركين...**", parse_mode='Markdown')
-                count = 0
-                for uid in all_users:
-                    db_update_balance(uid, bonus_amount, mode="add")
-                    count += 1
-                    try:
-                        await context.bot.send_message(
-                            chat_id=uid,
-                            text=f"🎁 **تهانينا! وصلتك هدية مالية من الإدارة بقيمة `${bonus_amount:.2f}`** 🚀",
-                            parse_mode='Markdown'
-                        )
-                        await asyncio.sleep(0.03)
-                    except Exception:
-                        pass
-                
-                await status_msg.edit_text(
-                    f"✅ **تم توزيع الهدية بنجاح تام!**\n\n💰 المبلغ المضاف لكل فرد: `${bonus_amount:.2f}`\n👥 عدد المستفيدين: `{count} مشترك`",
-                    parse_mode='Markdown',
-                    reply_markup=get_admin_keyboard()
-                )
-                admin_state.pop(user_id, None)
-                return
-            except Exception:
-                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً أو عشرياً (مثل 0.05).")
-                return
-
-        elif action == 'waiting_for_sub_id':
-            try:
-                sub_id = int(text_content)
-                supabase.table("sub_admins").upsert({"admin_id": sub_id, "added_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).execute()
-                
-                await update.message.reply_text(f"✅ تم تعيين المستخدم `{sub_id}` كـ **مشرف مساعد** بنجاح!", parse_mode='Markdown', reply_markup=get_admin_keyboard())
-                try:
-                    await context.bot.send_message(chat_id=sub_id, text="🌟 **مبروك! تم ترقيتك لتكون مشرفاً مساعداً في البوت.** أرسل /start لتظهر لك لوحة التحكم.", parse_mode='Markdown')
-                except Exception:
-                    pass
-                admin_state.pop(user_id, None)
-                return
-            except Exception:
-                await update.message.reply_text("❌ آيدي غير صالح!")
-                return
-
-        elif action == 'waiting_for_del_sub_id':
-            try:
-                sub_id = int(text_content)
-                supabase.table("sub_admins").delete().eq("admin_id", sub_id).execute()
-                
-                await update.message.reply_text(f"✅ تم إزالة المشرف `{sub_id}` من قائمة الإدارة بنجاح.", parse_mode='Markdown', reply_markup=get_admin_keyboard())
-                admin_state.pop(user_id, None)
-                return
-            except Exception:
-                await update.message.reply_text("❌ آيدي غير صالح!")
-                return
-
-        elif action == 'waiting_for_forced_add':
-            try:
-                clean_text = text_content.strip()
-                if not clean_text.startswith('@'):
-                    await update.message.reply_text("❌ يجب أن تبدأ القناة بـ @ (مثال: `@DigitalHubOrders`)")
-                    return
-                
-                parts = clean_text.split(maxsplit=1)
-                ch_uname = parts[0]
-                ch_ttl = parts[1] if len(parts) > 1 else "قناة الإشراك الإجباري"
-                
-                supabase.table("forced_channels").upsert({"channel_username": ch_uname, "channel_title": ch_ttl}).execute()
-                
-                await update.message.reply_text(f"✅ تم إضافة القناة `{ch_uname}` للاشتراك الإجباري بنجاح!", parse_mode='Markdown', reply_markup=get_admin_keyboard())
-                admin_state.pop(user_id, None)
-                return
-            except Exception as e:
-                await update.message.reply_text(f"❌ حدث خطأ أثناء الحفظ: {e}")
-                return
-
-        elif action == 'waiting_for_forced_del':
-            try:
-                ch_uname = text_content.strip()
-                supabase.table("forced_channels").delete().eq("channel_username", ch_uname).execute()
-                
-                await update.message.reply_text(f"✅ تم حذف القناة `{ch_uname}` من الاشتراك الإجباري بنجاح.", parse_mode='Markdown', reply_markup=get_admin_keyboard())
-                admin_state.pop(user_id, None)
-                return
-            except Exception:
-                await update.message.reply_text("❌ خطأ، تأكد من كتابة معرف القناة الصحيح.")
-                return
-
-        elif action == 'waiting_for_ban_id':
-            try:
-                target_id = int(text_content)
-                u_info = db_get_user(target_id)
-                new_ban_status = 1 if u_info['is_banned'] == 0 else 0
-                
-                supabase.table("users").update({"is_banned": new_ban_status}).eq("user_id", target_id).execute()
-                
-                status_text = "حظر المستخدم بنجاح 🚫" if new_ban_status == 1 else "فك حظر المستخدم بنجاح ✅"
-                await update.message.reply_text(f"✅ **{status_text}**\n🆔 الآيدي: `{target_id}`", parse_mode='Markdown', reply_markup=get_admin_keyboard())
-                admin_state.pop(user_id, None)
-                return
-            except Exception:
-                await update.message.reply_text("❌ آيدي غير صالح! أرسل أرقام الآيدي الصحيحة.")
-                return
-
         elif action == 'waiting_for_broadcast':
             admin_state.pop(user_id, None)
             all_users = db_get_all_users()
-            status_msg = await update.message.reply_text("🚀 **جاري بدء عملية الإذاعة الشاملة لجميع المستخدمين النشطين...**", parse_mode='Markdown')
-            
-            success_count = 0
-            fail_count = 0
+            status_msg = await update.message.reply_text("🚀 جاري الإذاعة الشاملة...")
+            c = 0
             for uid in all_users:
                 try:
                     await update.message.copy(chat_id=uid)
-                    success_count += 1
-                    await asyncio.sleep(0.04)
+                    c += 1
+                    await asyncio.sleep(0.03)
                 except Exception:
-                    fail_count += 1
-
-            await status_msg.edit_text(
-                f"📊 **تقرير الإذاعة الشاملة والضخمة:**\n\n"
-                f"✅ **تمت الإذاعة بنجاح إلى:** `{success_count} مشترك`\n"
-                f"❌ **فشل (حظروا البوت أو توقفت حساباتهم):** `{fail_count} مشترك`\n"
-                f"👥 **إجمالي المستهدفين:** `{len(all_users)} مشترك`",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ عودة لوحة الأدمن", callback_data='admin_panel')]])
-            )
+                    pass
+            await status_msg.edit_text(f"✅ تمت الإذاعة إلى `{c}` مشترك بنجاح.", reply_markup=get_admin_keyboard())
             return
-
-    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_hm_link':
-        link_text = text_content
-        admin_state[user_id]['link'] = link_text
-        admin_state[user_id]['action'] = 'waiting_for_hm_quantity'
-        
-        await update.message.reply_text(
-            "📦 **الخطوة الثانية للطلب:**\nأرسل الآن **الكمية المطلوبة** (أرقام صحيحة فقط):",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='boosting_services')]])
-        )
-        return
-
-    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_hm_quantity':
-        qty_text = text_content
-        try:
-            quantity = int(qty_text)
-            st_data = admin_state.get(user_id, {})
-            min_q = int(st_data.get('min_qty', 100))
-            max_q = int(st_data.get('max_qty', 1000000))
-
-            if quantity < min_q or quantity > max_q:
-                await update.message.reply_text(
-                    f"❌ **الكمية غير مطابقة لشروط الخدمة!**\nيجب أن تكون بين `{min_q}` و `{max_q}`.\nأرسل الكمية الصحيحة:",
-                    parse_mode='Markdown'
-                )
-                return
-
-            service_id = st_data.get('service_id')
-            link = st_data.get('link')
-            service_name = st_data.get('service_name', 'خدمة رشق')
-            
-            serv_rate = st_data.get('service_rate', 0.0)
-            if serv_rate <= 0:
-                for s in st_data.get('hm_services', []):
-                    if str(s.get('service')) == str(service_id):
-                        try:
-                            orig_rate = float(s.get('rate', 0.0))
-                        except ValueError:
-                            orig_rate = 0.0
-                        serv_rate = round(orig_rate * 3.0, 2)
-                        break
-
-            cost = round((float(quantity) / 1000.0) * serv_rate, 2)
-            if cost <= 0:
-                cost = 0.01
-
-            admin_state[user_id]['quantity'] = quantity
-            admin_state[user_id]['cost'] = cost
-
-            u_data = db_get_user(user_id)
-
-            confirm_text = (
-                "📋 **تأكيد تفاصيل الطلب:**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🔹 **اسم الخدمة:** `{service_name}`\n"
-                f"🔗 **الرابط:** `{mask_link(link)}`\n"
-                f"📦 **الكمية المطلوبة:** `{quantity}`\n"
-                f"💰 **التكلفة الإجمالية:** `${cost:.2f}`\n\n"
-                f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                "👇 انقر على زر التأكيد أدناه لإتمام الطلب:"
-            )
-
-            confirm_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ تأكيد وإتمام الطلب", callback_data='confirm_hm_order')],
-                [InlineKeyboardButton("❌ إلغاء الطلب", callback_data='cancel_hm_order')]
-            ])
-
-            await update.message.reply_text(confirm_text, parse_mode='Markdown', reply_markup=confirm_keyboard)
-        except ValueError:
-            await update.message.reply_text("❌ الرجاء إدخال رقم صحيح وموجب للكمية:", parse_mode='Markdown')
-        return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_id':
         try:
             target_id = int(text_content)
-            if target_id == user_id:
-                await update.message.reply_text("❌ لا يمكنك التحويل إلى نفس حسابك! أرسل آيدي صحيح:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
-                return
-            
-            target_data = db_get_user(target_id)
             admin_state[user_id] = {'action': 'waiting_for_transfer_amount', 'target_id': target_id}
-            
-            await update.message.reply_text(
-                f"👤 **تم العثور على المستخدم بنجاح!**\n🆔 آيدي المستلم: `{target_id}`\n\n💰 **الخطوة الثانية:**\nأرسل الآن **المبلغ بالدولار ($)** المراد تحويله في رسالة:",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]])
-            )
+            await update.message.reply_text("💰 أرسل الآن المبلغ المراد تحويله بالدولار ($):", parse_mode='Markdown')
         except ValueError:
-            await update.message.reply_text("❌ الآيدي يجب أن يكون أرقام صحيحة فقط. أعد إرسال الآيدي:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
+            await update.message.reply_text("❌ الآيدي غير صالح!")
         return
 
     elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_amount':
         try:
             amount = float(text_content)
-            if amount <= 0:
-                raise ValueError()
-            
             st_data = admin_state.pop(user_id)
             target_id = st_data['target_id']
-            sender_data = db_get_user(user_id)
-            
-            if sender_data['balance'] < amount:
-                await update.message.reply_text(
-                    f"❌ **رصيدك غير كافٍ لإتمام التحويل!**\n⭐ رصيدك الحالي: `${sender_data['balance']:.2f}`\n\nأرسل مبلغاً أقل أو اشحن رصيدك:",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+            if u_data['balance'] < amount:
+                await update.message.reply_text("❌ رصيدك غير كافٍ للتحويل!")
                 return
-            
             db_update_balance(user_id, amount, mode="deduct")
             db_update_balance(target_id, amount, mode="add")
-            
-            await update.message.reply_text(
-                f"✅ **تم تحويل الرصيد بنجاح!**\n\n"
-                f"👤 إلى الآيدي: `{target_id}`\n"
-                f"⭐ المبلغ المحول: `${amount:.2f}`\n"
-                f"💎 رصيدك الجديد: `${db_get_user(user_id)['balance']:.2f}`",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-            )
-            
+            await update.message.reply_text(f"✅ تم تحويل مبلغ `${amount:.2f}` بنجاح!", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
             try:
-                await context.bot.send_message(
-                    chat_id=target_id,
-                    text=f"🎁 **لقد استلمت حوالة رصيد جديدة!**\n\n⭐ المبلغ المستلم: `${amount:.2f}`\n👤 من المستخدم: `{user_id}`",
-                    parse_mode='Markdown'
-                )
+                await context.bot.send_message(chat_id=target_id, text=f"🎁 وصلت حوالة بقيمة `${amount:.2f}`!", parse_mode='Markdown')
             except Exception:
                 pass
-            return
         except ValueError:
-            await update.message.reply_text("❌ الرجاء إدخال رقم صحيح وموجب للمبلغ بالدولار:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
-            return
+            await update.message.reply_text("❌ مبلغ غير صالح!")
+        return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_deposit':
         admin_state.pop(user_id, None)
-        text = update.message.text or update.message.caption or "إيصال مرسل (صورة)"
-        
-        await update.message.reply_text(
-            "🔄 **جاري التحقق من رقم العملية يرجى الإنتظار...**",
-            parse_mode='Markdown'
-        )
-
+        text = update.message.text or "إيصال مرسل"
         admin_markup = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("➕ اعتماد $1", callback_data=f"approve_deposit_{user_id}_1.0"),
-                InlineKeyboardButton("➕ اعتماد $5", callback_data=f"approve_deposit_{user_id}_5.0")
-            ],
-            [
-                InlineKeyboardButton("➕ اعتماد $10", callback_data=f"approve_deposit_{user_id}_10.0"),
-                InlineKeyboardButton("✍️ إرسال مبلغ مخصص", callback_data=f"custom_deposit_{user_id}")
-            ],
-            [
-                InlineKeyboardButton("❌ رفض (لا يوجد رصيد)", callback_data=f"reject_deposit_{user_id}")
-            ]
+            [InlineKeyboardButton("➕ اعتماد $1", callback_data=f"approve_deposit_{user_id}_1.0"), InlineKeyboardButton("➕ اعتماد $5", callback_data=f"approve_deposit_{user_id}_5.0")],
+            [InlineKeyboardButton("❌ رفض", callback_data=f"reject_deposit_{user_id}")]
         ])
-        
-        all_admins = [ADMIN_ID] + get_all_sub_admins()
-        for adm_id in set(all_admins):
+        for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
             try:
-                await context.bot.send_message(
-                    chat_id=adm_id,
-                    text=(
-                        f"📥 **طلب شحن رصيد جديد بانتظار التحقق والإشراف!**\n\n"
-                        f"👤 المستخدم: {update.effective_user.full_name}\n"
-                        f"🆔 الآيدي: `{user_id}`\n"
-                        f"💬 تفاصيل العملية أو رقمها:\n`{text}`"
-                    ),
-                    parse_mode='Markdown',
-                    reply_markup=admin_markup
-                )
+                await context.bot.send_message(chat_id=adm_id, text=f"📥 **طلب شحن جديد!**\n🆔 الآيدي: `{user_id}`\nالتفاصيل: `{text}`", parse_mode='Markdown', reply_markup=admin_markup)
             except Exception:
                 pass
+        await update.message.reply_text("✅ تم إرسال إيصالك للإدارة بنجاح، انتظر المراجعة.")
         return
-
-    text = text_content
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"📥 **رسالة جديدة من مستخدم:**\n\n👤 المستخدم: {update.effective_user.full_name}\n🆔 الآيدي: `{user_id}`\n🔢 النص:\n`{text}`",
-            parse_mode='Markdown'
-        )
-    except Exception:
-        pass
 
 if __name__ == '__main__':
     print("🟢 جاري تشغيل البوت بنظام الاستطلاع (Polling) المستقر 24/7...")
