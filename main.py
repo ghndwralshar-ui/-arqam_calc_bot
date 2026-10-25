@@ -1313,7 +1313,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
-            # --- محاولة الاتصال بموقع الرشق مع التقاط وعرض سبب الخطأ بالتفصيل ---
             async with httpx.AsyncClient(timeout=20.0) as client:
                 payload = {
                     'key': HMCARD_API_KEY,
@@ -1371,7 +1370,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 print(f"Log error: {log_err}")
                             return
                         else:
-                            # التقاط خطأ الـ API من محتوى JSON
                             api_error = resp_data.get("error", resp_data.get("message", "خطأ غير معروف من سيرفر الموقع"))
                             await query.edit_message_text(
                                 f"❌ **عذراً، رفض موقع الرشق تنفيذ الطلب!**\n\n💬 **سبب الرفض من الموقع:**\n`{api_error}`",
@@ -1477,7 +1475,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(f"❌ تم رفض الطلب للمستخدم `{target_user_id}`", parse_mode='Markdown')
 
-    # --- الأرقام الافتراضية ---
     elif data in ['service_whatsapp', 'deals_whatsapp']:
         await query.answer("⏳ جاري جلب أحدث أسعار واتساب...", show_alert=False)
         countries = await fetch_5sim_countries('whatsapp')
@@ -1592,7 +1589,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         await query.edit_message_text(f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
 
-    # --- لوحة الأدمن الاحترافية ---
     elif data == 'admin_panel':
         if not is_admin_or_sub(user_id):
             await query.answer("⛔ ليس لديك صلاحيات لوحة التحكم.", show_alert=True)
@@ -1627,22 +1623,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'admin_reply_user':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_reply_id'}
-        await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآيدي ثم مسافة ثم نص الرد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآن **آيدي المستخدم** المراد الرد عليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_send_gift_user':
         if not is_admin_or_sub(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_gift_id'}
-        await query.edit_message_text("🎁 أرسل آيدي المستخدم والمبلغ للإهداء (مثال: `12345678 1.5`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        await query.edit_message_text("🎁 **إرسال هدية مالية:**\nأرسل الآن **آيدي المستخدم** المراد إرسال الهدية له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_add_balance':
         if not is_admin_or_sub(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_add_bal'}
-        await query.edit_message_text("➕ أرسل آيدي المستخدم والمبلغ للإضافة (مثال: `12345678 5.0`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        admin_state[user_id] = {'action': 'waiting_for_add_bal_id'}
+        await query.edit_message_text("➕ **إضافة رصيد:**\nأرسل الآن **آيدي المستخدم** المراد إضافة الرصيد له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_deduct_balance':
         if not is_admin_or_sub(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_deduct_bal'}
-        await query.edit_message_text("➖ أرسل آيدي المستخدم والمبلغ للخصم (مثال: `12345678 2.0`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        admin_state[user_id] = {'action': 'waiting_for_deduct_bal_id'}
+        await query.edit_message_text("➖ **خصم رصيد:**\nأرسل الآن **آيدي المستخدم** المراد الخصم من حسابه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_manage_subadmins':
         if user_id != ADMIN_ID: return
@@ -1755,6 +1751,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
+    # --- معالجة طلبات الرشق (الرابط والعدد بشكل منفصل) ---
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
         admin_state[user_id]['link'] = text_content
         admin_state[user_id]['action'] = 'waiting_for_rashq_count'
@@ -1818,6 +1815,36 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
         return
 
+    # --- تحويل الرصيد (خطوة الآيدي ثم خطوة المبلغ بشكل منفصل تماماً) ---
+    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_id':
+        try:
+            target_id = int(text_content)
+            admin_state[user_id] = {'action': 'waiting_for_transfer_amount', 'target_id': target_id}
+            await update.message.reply_text("💰 أرسل الآن المبلغ المراد تحويله بالدولار ($):", parse_mode='Markdown')
+        except ValueError:
+            await update.message.reply_text("❌ الآيدي غير صالح! يرجى إرسال أرقام صحيحة للآيدي:")
+        return
+
+    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_amount':
+        try:
+            amount = float(text_content)
+            st_data = admin_state.pop(user_id)
+            target_id = st_data['target_id']
+            if u_data['balance'] < amount or amount <= 0:
+                await update.message.reply_text("❌ رصيدك غير كافٍ أو المبلغ غير صالح للتحويل!")
+                return
+            db_update_balance(user_id, amount, mode="deduct")
+            db_update_balance(target_id, amount, mode="add")
+            await update.message.reply_text(f"✅ تم تحويل مبلغ `${amount:.2f}` بنجاح!", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+            try:
+                await context.bot.send_message(chat_id=target_id, text=f"🎁 وصلت حوالة بقيمة `${amount:.2f}`!", parse_mode='Markdown')
+            except Exception:
+                pass
+        except ValueError:
+            await update.message.reply_text("❌ مبلغ غير صالح! أرسل أرقام صحيحة:")
+        return
+
+    # --- فحص أكواد الهدايا ---
     if text_content and not (is_admin_or_sub(user_id) and user_id in admin_state):
         try:
             res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
@@ -1840,6 +1867,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             pass
 
+    # --- عمليات لوحة الأدمن (المنفصلة تماماً للآيدي ثم القيمة أو النص) ---
     if is_admin_or_sub(user_id) and user_id in admin_state:
         action = admin_state[user_id].get('action')
         
@@ -1872,60 +1900,103 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             await status_msg.edit_text(f"✅ تمت الإذاعة بنجاح إلى `{c}` مشترك.", reply_markup=get_admin_keyboard())
             return
 
+        # الرد على مستخدم (خطوة الآيدي أولاً، ثم نص الرد)
         elif action == 'waiting_for_reply_id':
             try:
-                parts = text_content.split(" ", 1)
-                target_id = int(parts[0])
-                reply_msg = parts[1]
-                await context.bot.send_message(chat_id=target_id, text=f"💬 **رد من الإدارة:**\n\n{reply_msg}", parse_mode='Markdown')
-                admin_state.pop(user_id, None)
-                await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!", reply_markup=get_admin_keyboard())
+                target_id = int(text_content)
+                admin_state[user_id] = {'action': 'waiting_for_reply_text', 'target_id': target_id}
+                await update.message.reply_text("💬 أرسل الآن **نص الرد** المراد إرساله للمستخدم:", parse_mode='Markdown')
                 return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي ثم مسافة ثم نص الرد.")
+            except ValueError:
+                await update.message.reply_text("❌ الآيدي غير صالح! أرسل أرقاماً فقط:")
                 return
 
+        elif action == 'waiting_for_reply_text':
+            st_data = admin_state.pop(user_id)
+            target_id = st_data['target_id']
+            try:
+                await context.bot.send_message(chat_id=target_id, text=f"💬 **رد من الإدارة:**\n\n{text_content}", parse_mode='Markdown')
+                await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!", reply_markup=get_admin_keyboard())
+                return
+            except Exception as e:
+                await update.message.reply_text(f"❌ تعذر إرسال الرد للمستخدم: {e}", reply_markup=get_admin_keyboard())
+                return
+
+        # إرسال هدية مالية لشخص (خطوة الآيدي أولاً، ثم المبلغ)
         elif action == 'waiting_for_gift_id':
             try:
-                parts = text_content.split()
-                target_id = int(parts[0])
-                gift_amt = float(parts[1])
+                target_id = int(text_content)
+                admin_state[user_id] = {'action': 'waiting_for_gift_amount', 'target_id': target_id}
+                await update.message.reply_text("🎁 أرسل الآن **المبلغ** المراد إهداؤه بالدولار ($):", parse_mode='Markdown')
+                return
+            except ValueError:
+                await update.message.reply_text("❌ الآيدي غير صالح! أرسل أرقاماً فقط:")
+                return
+
+        elif action == 'waiting_for_gift_amount':
+            try:
+                gift_amt = float(text_content)
+                st_data = admin_state.pop(user_id)
+                target_id = st_data['target_id']
                 db_update_balance(target_id, gift_amt, mode="add")
-                admin_state.pop(user_id, None)
                 await update.message.reply_text(f"✅ تم إرسال الهدية بقيمة `${gift_amt:.2f}` للمستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
                 try:
                     await context.bot.send_message(chat_id=target_id, text=f"🎁 **مبروك! وصلت لك هدية مالية من الإدارة بقيمة:** `${gift_amt:.2f}`", parse_mode='Markdown')
                 except Exception:
                     pass
                 return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي ثم مسافة ثم المبلغ (مثال: `123456 1.5`):")
+            except ValueError:
+                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
                 return
 
-        elif action == 'waiting_for_add_bal':
+        # إضافة رصيد (خطوة الآيدي أولاً، ثم المبلغ)
+        elif action == 'waiting_for_add_bal_id':
             try:
-                parts = text_content.split()
-                target_id = int(parts[0])
-                bal_amt = float(parts[1])
+                target_id = int(text_content)
+                admin_state[user_id] = {'action': 'waiting_for_add_bal_amount', 'target_id': target_id}
+                await update.message.reply_text("➕ أرسل الآن **المبلغ** المراد إضافته للحساب بالدولار ($):", parse_mode='Markdown')
+                return
+            except ValueError:
+                await update.message.reply_text("❌ الآيدي غير صالح! أرسل أرقاماً فقط:")
+                return
+
+        elif action == 'waiting_for_add_bal_amount':
+            try:
+                bal_amt = float(text_content)
+                st_data = admin_state.pop(user_id)
+                target_id = st_data['target_id']
                 db_update_balance(target_id, bal_amt, mode="add")
-                admin_state.pop(user_id, None)
                 await update.message.reply_text(f"✅ تمت إضافة `${bal_amt:.2f}` لحساب المستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
+                try:
+                    await context.bot.send_message(chat_id=target_id, text=ف"💳 **تمت إضافة رصيد لحسابك بواسطة الإدارة بقيمة:** `${bal_amt:.2f}`", parse_mode='Markdown')
+                except Exception:
+                    pass
                 return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي ثم مسافة ثم المبلغ.")
+            except ValueError:
+                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
                 return
 
-        elif action == 'waiting_for_deduct_bal':
+        # خصم رصيد (خطوة الآيدي أولاً، ثم المبلغ)
+        elif action == 'waiting_for_deduct_bal_id':
             try:
-                parts = text_content.split()
-                target_id = int(parts[0])
-                bal_amt = float(parts[1])
+                target_id = int(text_content)
+                admin_state[user_id] = {'action': 'waiting_for_deduct_bal_amount', 'target_id': target_id}
+                await update.message.reply_text("➖ أرسل الآن **المبلغ** المراد خصمه من الحساب بالدولار ($):", parse_mode='Markdown')
+                return
+            except ValueError:
+                await update.message.reply_text("❌ الآيدي غير صالح! أرسل أرقاماً فقط:")
+                return
+
+        elif action == 'waiting_for_deduct_bal_amount':
+            try:
+                bal_amt = float(text_content)
+                st_data = admin_state.pop(user_id)
+                target_id = st_data['target_id']
                 db_update_balance(target_id, bal_amt, mode="deduct")
-                admin_state.pop(user_id, None)
                 await update.message.reply_text(f"✅ تم خصم `${bal_amt:.2f}` من حساب المستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
                 return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل الآيدي ثم مسافة ثم المبلغ.")
+            except ValueError:
+                await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
                 return
 
         elif action == 'waiting_for_sub_id':
@@ -2000,34 +2071,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             except Exception:
                 await update.message.reply_text("❌ الآيدي غير صالح!")
                 return
-
-    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_id':
-        try:
-            target_id = int(text_content)
-            admin_state[user_id] = {'action': 'waiting_for_transfer_amount', 'target_id': target_id}
-            await update.message.reply_text("💰 أرسل الآن المبلغ المراد تحويله بالدولار ($):", parse_mode='Markdown')
-        except ValueError:
-            await update.message.reply_text("❌ الآيدي غير صالح!")
-        return
-
-    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_transfer_amount':
-        try:
-            amount = float(text_content)
-            st_data = admin_state.pop(user_id)
-            target_id = st_data['target_id']
-            if u_data['balance'] < amount or amount <= 0:
-                await update.message.reply_text("❌ رصيدك غير كافٍ أو المبلغ غير صالح للتحويل!")
-                return
-            db_update_balance(user_id, amount, mode="deduct")
-            db_update_balance(target_id, amount, mode="add")
-            await update.message.reply_text(f"✅ تم تحويل مبلغ `${amount:.2f}` بنجاح!", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
-            try:
-                await context.bot.send_message(chat_id=target_id, text=f"🎁 وصلت حوالة بقيمة `${amount:.2f}`!", parse_mode='Markdown')
-            except Exception:
-                pass
-        except ValueError:
-            await update.message.reply_text("❌ مبلغ غير صالح!")
-        return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_deposit':
         admin_state.pop(user_id, None)
