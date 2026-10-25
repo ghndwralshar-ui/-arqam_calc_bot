@@ -24,7 +24,7 @@ SUPPORT_USERNAME = "benti"
 LOG_CHANNEL_ID = "@DigitalHubOrders"
 
 HMCARD_API_URL = "https://hmcard.online/api/v2"
-HMCARD_API_KEY = "579849274547c37577e5e5ec40a1a1d3"
+HMCARD_API_KEY = "0c13f3ad91dc8c152e7cb01f87f1a271"
 
 SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
 SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
@@ -1968,7 +1968,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 db_update_balance(target_id, bal_amt, mode="add")
                 await update.message.reply_text(f"✅ تمت إضافة `${bal_amt:.2f}` لحساب المستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
                 try:
-                    await context.bot.send_message(chat_id=target_id, text=ف"💳 **تمت إضافة رصيد لحسابك بواسطة الإدارة بقيمة:** `${bal_amt:.2f}`", parse_mode='Markdown')
+                    await context.bot.send_message(chat_id=target_id, text=f"💳 **تمت إضافة رصيد لحسابك بواسطة الإدارة بقيمة:** `${bal_amt:.2f}`", parse_mode='Markdown')
                 except Exception:
                     pass
                 return
