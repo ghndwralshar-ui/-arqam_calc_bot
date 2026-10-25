@@ -42,6 +42,8 @@ logging.basicConfig(
 )
 
 admin_state = {}
+user_selected_service = {}
+user_order_data = {}
 
 def init_db():
     print("🟢 قاعدة البيانات السحابية (Supabase) متصلة وجاهزة بنجاح!")
@@ -459,18 +461,17 @@ def get_main_keyboard(user_id):
     return InlineKeyboardMarkup(buttons)
 
 def get_virtual_services_keyboard():
-    buttons = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("🛍️ WHATSAPP - واتساب", callback_data='service_whatsapp'), InlineKeyboardButton("🎲 TELEGRAM - تليجرام", callback_data='service_telegram')],
         [InlineKeyboardButton("🎳 INSTAGRAM - انستغرام", callback_data='service_instagram'), InlineKeyboardButton("🎯 FACEBOOK - فيسبوك", callback_data='service_facebook')],
         [InlineKeyboardButton("🐤 TWITTER - تويتر", callback_data='service_twitter'), InlineKeyboardButton("🎬 TIKTOK - تيك توك", callback_data='service_tiktok')],
         [InlineKeyboardButton("♣️ SNAPCHAT - سناب شات", callback_data='service_snapchat'), InlineKeyboardButton("💎 IMO - ايمو", callback_data='service_imo')],
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
-    ]
-    return InlineKeyboardMarkup(buttons)
+    ])
 
-# --- لوحات الرشق الثابتة الجديدة ---
+# --- لوحات الرشق الثابتة الكاملة ---
 def sections_menu_keyboard():
-    markup = InlineKeyboardMarkup([
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("🟢 خدمات واتساب", callback_data="sec_whatsapp"), InlineKeyboardButton("🚀 خدمات تليجرام", callback_data="sec_telegram")],
         [InlineKeyboardButton("📘 خدمات فيسبوك", callback_data="sec_facebook"), InlineKeyboardButton("📸 خدمات انستغرام", callback_data="sec_instagram")],
         [InlineKeyboardButton("🎵 خدمات تيك توك", callback_data="sec_tiktok"), InlineKeyboardButton("📺 خدمات يوتيوب", callback_data="sec_youtube")],
@@ -479,7 +480,6 @@ def sections_menu_keyboard():
         [InlineKeyboardButton("👻 خدمات سناب شات", callback_data="sec_snapchat"), InlineKeyboardButton("💼 خدمات لينكدإن", callback_data="sec_linkedin")],
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")]
     ])
-    return markup
 
 def whatsapp_services_keyboard():
     return InlineKeyboardMarkup([
@@ -884,22 +884,14 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
                             masked_ph = phone[:4] + "***" + phone[-3:]
                             service_deeplink = f"https://t.me/{bot_username}?start=buy_virtual_number"
                             s_lower = service.lower()
-                            if s_lower == 'whatsapp':
-                                service_deeplink = f"https://t.me/{bot_username}?start=service_whatsapp"
-                            elif s_lower == 'telegram':
-                                service_deeplink = f"https://t.me/{bot_username}?start=service_telegram"
-                            elif s_lower == 'instagram':
-                                service_deeplink = f"https://t.me/{bot_username}?start=service_instagram"
-                            elif s_lower == 'facebook':
-                                service_deeplink = f"https://t.me/{bot_username}?start=service_facebook"
-                            elif s_lower == 'twitter':
-                                service_deeplink = f"https://t.me/{bot_username}?start=service_twitter"
-                            elif s_lower == 'tiktok':
-                                service_deeplink = f"https://t.me/{bot_username}?start=service_tiktok"
-                            elif s_lower == 'snapchat':
-                                service_deeplink = f"https://t.me/{bot_username}?start=service_snapchat"
-                            elif s_lower == 'imo':
-                                service_deeplink = f"https://t.me/{bot_username}?start=service_imo"
+                            if s_lower == 'whatsapp': service_deeplink = f"https://t.me/{bot_username}?start=service_whatsapp"
+                            elif s_lower == 'telegram': service_deeplink = f"https://t.me/{bot_username}?start=service_telegram"
+                            elif s_lower == 'instagram': service_deeplink = f"https://t.me/{bot_username}?start=service_instagram"
+                            elif s_lower == 'facebook': service_deeplink = f"https://t.me/{bot_username}?start=service_facebook"
+                            elif s_lower == 'twitter': service_deeplink = f"https://t.me/{bot_username}?start=service_twitter"
+                            elif s_lower == 'tiktok': service_deeplink = f"https://t.me/{bot_username}?start=service_tiktok"
+                            elif s_lower == 'snapchat': service_deeplink = f"https://t.me/{bot_username}?start=service_snapchat"
+                            elif s_lower == 'imo': service_deeplink = f"https://t.me/{bot_username}?start=service_imo"
 
                             channel_buttons = InlineKeyboardMarkup([
                                 [
@@ -922,8 +914,7 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
                                 reply_markup=channel_buttons
                             )
                         except Exception as log_err:
-                            print(f"خطأ في إرسال سجل الأرقام للقناة: {log_err}")
-
+                            print(f"Log error: {log_err}")
                         return
                     if data.get('status') in ['canceled', 'banned', 'finish']:
                         return
@@ -1052,7 +1043,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
 
-    # --- منطق الرشق الجديد المدمج ---
+    # --- قوائم الرشق الثابتة الجديدة ---
     elif data == "main_rashq":
         await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
 
@@ -1381,7 +1372,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "cancel_order":
         await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
-    # باقي أقسام البوت (الأرقام والمحفظة والإحالات والأدمن)
+    # --- الخدمات الأخرى (أرقام، محفظة، إحالات، أدمن) ---
     elif data == 'free_points':
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
