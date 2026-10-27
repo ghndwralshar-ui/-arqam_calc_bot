@@ -219,10 +219,6 @@ def get_all_sub_admins():
     except Exception:
         return []
 
-# --- تم إلغاء وتعطيل نظام الاشتراك الإجباري نهائياً ---
-async def check_forced_subscription(user_id, bot):
-    return True, []
-
 def mult_price(price: float) -> float:
     return round(price * 2.0, 2)
 
@@ -1046,7 +1042,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🚀 قسم خدمات تليجرام:\nاختر القسم الفرعي المطلوب:", reply_markup=telegram_services_keyboard())
 
     elif data == "sec_facebook":
-        await query.edit_message_text("📘 قسم خدمات فيسبوك:\nاختر القسم الفرعي المطلوب:", reply_markup=facebook_services_keyboard())
+        await query.edit_message_text("📘 خدمات فيسبوك:", reply_markup=facebook_services_keyboard())
 
     elif data == "sec_instagram":
         await query.edit_message_text("📸 خدمات انستغرام:", reply_markup=instagram_services_keyboard())
