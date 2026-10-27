@@ -120,7 +120,7 @@ async def process_successful_join_reward(user, context, u_data):
                 await context.bot.send_message(
                     chat_id=ADMIN_ID,
                     text=(
-                        f"👤 **مستخدم جديد انضم واجتاز الاشتراك الإجباري! (رقم {seq_num})**\n\n"
+                        f"👤 **مستخدم جديد انضم إلى البوت! (رقم {seq_num})**\n\n"
                         f"▫️ الاسم: {user.full_name}\n"
                         f"▫️ المعرف: @{user.username if user.username else 'لا يوجد'}\n"
                         f"▫️ الآيدي: `{user.id}`"
@@ -145,7 +145,7 @@ async def process_successful_join_reward(user, context, u_data):
                     text=(
                         "🎉🔥 **تهانينا القلبية لك يا بطل!** 🔥🎉\n"
                         "━━━━━━━━━━━━━━━━━━━━━━\n"
-                        "🌟 انضم مستخدم حقيقي واجتاز الاشتراك الإجباري عبر رابط الإحالة الخاص بك!\n\n"
+                        "🌟 انضم مستخدم جديد عبر رابط الإحالة الخاص بك!\n\n"
                         "🎁 **تمت إضافة:** `$0.10` إلى رصيدك كمكافأة دعوة.\n"
                         f"💰 **رصيدك الحالي:** `${updated_ref_info['balance']:.2f}`\n"
                         f"👥 **إجمالي دعواتك:** `{updated_ref_info['referrals']} شخص`\n\n"
@@ -219,30 +219,8 @@ def get_all_sub_admins():
     except Exception:
         return []
 
-def get_forced_channels():
-    try:
-        res = supabase.table("forced_channels").select("channel_username, channel_title").execute()
-        rows = res.data if hasattr(res, 'data') else []
-        return [(row["channel_username"], row["channel_title"]) for row in rows] if rows else []
-    except Exception:
-        return []
-
+# --- تم إلغاء وتعطيل نظام الاشتراك الإجباري نهائياً ---
 async def check_forced_subscription(user_id, bot):
-    channels = get_forced_channels()
-    if not channels:
-        return True, []
-    
-    not_subscribed = []
-    for ch_username, ch_title in channels:
-        try:
-            member = await bot.get_chat_member(chat_id=ch_username, user_id=user_id)
-            if member.status in ['left', 'kicked']:
-                not_subscribed.append((ch_username, ch_title))
-        except Exception:
-            not_subscribed.append((ch_username, ch_title or ch_username))
-            
-    if not_subscribed:
-        return False, not_subscribed
     return True, []
 
 def mult_price(price: float) -> float:
@@ -257,7 +235,6 @@ def mask_link(link: str) -> str:
     half = length // 2
     return link[:half] + "..."
 
-# قائمة الدول والترجمات الشاملة (مع الرايات والأسرار)
 COUNTRY_TRANSLATIONS = {
     "Afghanistan": {"name_ar": "أفغانستان", "flag": "🇦🇫"},
     "Albania": {"name_ar": "ألبانيا", "flag": "🇦🇱"},
@@ -417,7 +394,6 @@ COUNTRY_TRANSLATIONS = {
     "Zimbabwe": {"name_ar": "زيمبابوي", "flag": "🇿🇼"}
 }
 
-# دالة جلب الأرقام والأسعار من 5sim مع المضاعفة والترتيب
 async def fetch_5sim_countries(service_name):
     async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
         try:
@@ -438,7 +414,7 @@ async def fetch_5sim_countries(service_name):
                                 total_count += int(op_data['count'])
                     
                     if min_p != 999999 and total_count > 0:
-                        final_p = mult_price(min_p) # مضاعفة السعر ضعفين (x2)
+                        final_p = mult_price(min_p)
                         info = COUNTRY_TRANSLATIONS.get(country, {"name_ar": country, "flag": "🏳️"})
                         countries_dict.append({
                             "code": country,
@@ -447,7 +423,6 @@ async def fetch_5sim_countries(service_name):
                             "price": final_p,
                             "count": total_count
                         })
-                # ترتيب القائمة من الأرخص سعراً إلى الأعلى
                 countries_dict.sort(key=lambda x: x['price'])
                 return countries_dict
         except Exception as e:
@@ -854,7 +829,6 @@ def get_admin_keyboard():
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
         [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
         [InlineKeyboardButton("👥 إدارة المشرفين (إضافة / حذف)", callback_data='admin_manage_subadmins')],
-        [InlineKeyboardButton("📢 إدارة الاشتراك الإجباري (إضافة / حذف)", callback_data='admin_manage_forced')],
         [InlineKeyboardButton("🎁 إرسال هدية مالية (Bonus) للجميع", callback_data='admin_send_bonus')],
         [InlineKeyboardButton("🧹 تصفير جميع أرصدة المستخدمين", callback_data='admin_reset_balances')],
         [InlineKeyboardButton("🚫 حظر / إلغاء حظر مستخدم", callback_data='admin_ban_user')],
@@ -947,21 +921,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", user.id).execute()
                 u_data['referred_by'] = referrer_id
 
-    is_subbed, not_subbed_list = await check_forced_subscription(user.id, context.bot)
-    if not is_subbed:
-        sub_buttons = []
-        for ch_username, ch_title in not_subbed_list:
-            clean_ch = ch_username.replace("@", "")
-            sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
-        
-        await update.message.reply_text(
-            "🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup(sub_buttons)
-        )
-        return
-
     await process_successful_join_reward(user, context, u_data)
 
     welcome_text = (
@@ -992,21 +951,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     user_first_name = query.from_user.first_name
     data = query.data
-
-    is_subbed, not_subbed_list = await check_forced_subscription(user_id, context.bot)
-    if not is_subbed and data != 'main_menu':
-        sub_buttons = []
-        for ch_username, ch_title in not_subbed_list:
-            clean_ch = ch_username.replace("@", "")
-            sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
-        
-        await query.edit_message_text(
-            "🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup(sub_buttons)
-        )
-        return
 
     if data == 'main_menu':
         u_data = db_get_user(user_id)
@@ -1703,22 +1647,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
         await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
-    elif data == 'admin_manage_forced':
-        if user_id != ADMIN_ID: return
-        channels = get_forced_channels()
-        ch_text = "📢 قنوات الاشتراك الإجباري:\n" + ("\n".join([f"• {title} (`{ch}`)" for ch, title in channels]) if channels else "لا توجد قنوات.")
-        await query.edit_message_text(ch_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_forced'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_forced')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-
-    elif data == 'admin_add_forced':
-        if user_id != ADMIN_ID: return
-        admin_state[user_id] = {'action': 'waiting_for_forced_add'}
-        await query.edit_message_text("أرسل معرف القناة مع العنوان (مثال: `@Channel Title`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-
-    elif data == 'admin_del_forced':
-        if user_id != ADMIN_ID: return
-        admin_state[user_id] = {'action': 'waiting_for_forced_del'}
-        await query.edit_message_text("أرسل معرف القناة المراد حذفها (مثال: `@Channel`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-
     elif data == 'admin_send_bonus':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_bonus_amount'}
@@ -1783,16 +1711,6 @@ def prompt_user_for_pubg_id(message, service_info, context):
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    is_subbed, not_subbed_list = await check_forced_subscription(user_id, context.bot)
-    if not is_subbed:
-        sub_buttons = []
-        for ch_username, ch_title in not_subbed_list:
-            clean_ch = ch_username.replace("@", "")
-            sub_buttons.append([InlineKeyboardButton(f"📢 {ch_title}", url=f"https://t.me/{clean_ch}")])
-        sub_buttons.append([InlineKeyboardButton("🔄 { التحقق من الاشتراك }", callback_data='main_menu')])
-        await update.message.reply_text("🏦 عليك الاشتراك في قناة البوت أولاً اشترك ثم اضغط على تحقق ✅", reply_markup=InlineKeyboardMarkup(sub_buttons))
-        return
-
     u_data = db_get_user(user_id)
     await process_successful_join_reward(update.effective_user, context, u_data)
 
@@ -2058,30 +1976,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 return
             except Exception:
                 await update.message.reply_text("❌ حدث خطأ!")
-                return
-
-        elif action == 'waiting_for_forced_add':
-            try:
-                parts = text_content.split(" ", 1)
-                ch_username = parts[0]
-                ch_title = parts[1] if len(parts) > 1 else ch_username
-                supabase.table("forced_channels").upsert({"channel_username": ch_username, "channel_title": ch_title}).execute()
-                admin_state.pop(user_id, None)
-                await update.message.reply_text("✅ تمت إضافة قناة الاشتراك الإجباري بنجاح!", reply_markup=get_admin_keyboard())
-                return
-            except Exception:
-                await update.message.reply_text("❌ صيغة خاطئة! أرسل هكذا: `@Channel Title`")
-                return
-
-        elif action == 'waiting_for_forced_del':
-            try:
-                ch_username = text_content
-                supabase.table("forced_channels").delete().eq("channel_username", ch_username).execute()
-                admin_state.pop(user_id, None)
-                await update.message.reply_text("✅ تم حذف القناة من الاشتراك الإجباري بنجاح!", reply_markup=get_admin_keyboard())
-                return
-            except Exception:
-                await update.message.reply_text("❌ حدث خطأ أثناء الحذف!")
                 return
 
         elif action == 'waiting_for_bonus_amount':
