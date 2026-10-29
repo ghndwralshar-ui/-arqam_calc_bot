@@ -148,21 +148,6 @@ async def get_available_countries_for_service(service: str):
     available_countries.sort(key=lambda x: x["price"])
     return available_countries
 
-async def get_doubled_price_single(service: str, country_code: str) -> float:
-    url = f"https://5sim.net/v1/guest/prices?country={country_code}&product={service}"
-    async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
-        try:
-            res = await client.get(url)
-            if res.status_code == 200:
-                data = res.json()
-                prod_data = data.get(service, {})
-                for operator, op_vals in prod_data.items():
-                    if isinstance(op_vals, dict) and "cost" in op_vals:
-                        return round(float(op_vals["cost"]) * 2.0, 2)
-        except Exception:
-            pass
-    return 1.00
-
 async def show_available_countries_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, service_code: str, service_title: str):
     query = update.callback_query
     user_id = query.from_user.id
@@ -181,8 +166,10 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     buttons = []
     row = []
     for c in available_countries:
+        # عرض الزر بدون مفتاح الدولة، في صفين، مع السعر المضاعف
         btn_text = f"{c['flag']} {c['name_ar']} • ${c['price']:.2f}"
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}"))
+        # تخزين السعر مباشرة في الـ callback_data لضمان مطابقة الخصم تماماً
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}_{c['price']}"))
         if len(row) == 2:
             buttons.append(row)
             row = []
@@ -195,7 +182,7 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     await query.edit_message_text(
         f"🔹 **• الدول المتوفرة حالياً لأرقام ({service_title}) •**\n"
         f"⭐ رصيدك: `${u_data['balance']:.2f}`\n\n"
-        "👇 **اختر الدولة المطلوبة (مرتبة في صفين):**",
+        "👇 **اختر الدولة المطلوبة:**",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(buttons)
     )
@@ -245,15 +232,20 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                         sms_code = sms_list[0].get('code', 'لا يوجد كود')
                         full_text = sms_list[0].get('text', '')
                         
+                        # النموذج الأول المزخرف لرسالة نجاح الشراء
+                        c_flag = COUNTRY_INFO.get(service, {}).get("flag", "🌐")
                         success_msg = (
-                            f"✅ **تم الشراء الرقم لقسم ({section_name}) بنجاح!**\n"
-                            f"🌍 الدولة: {country_name}\n"
-                            f"📞 مفتاح الدولة: `{dial_code}`\n"
-                            f"📱 الرقم: `{phone}`\n"
-                            f"⭐ تم خصم: `${price:.2f}`\n\n"
+                            f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"✅ **تم شراء الرقم بنجاح تام!**\n\n"
+                            f"📦 **القسم:** `{section_name}`\n"
+                            f"🌍 **الدولة:** {country_name}\n"
+                            f"📞 **مفتاح الدولة:** `{dial_code}`\n"
+                            f"📱 **الرقم المشتري:** `{phone}`\n"
+                            f"⭐ **المبلغ المخصوم:** `${price:.2f}`\n\n"
                             f"🔑 **الكود الواصل:** `{sms_code}`\n"
                             f"💬 **النص الكامل:** `{full_text}`\n\n"
-                            f"💡 قم بتفعيل الرقم وطلب الكود من قسم ({section_name})"
+                            f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
                         )
                         
                         try:
@@ -454,9 +446,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith('buy_num_'):
         parts = data.split('_')
-        service, country_code = parts[2], parts[3]
-        
-        country_price = await get_doubled_price_single(service, country_code)
+        service, country_code, country_price_str = parts[2], parts[3], parts[4]
+        country_price = float(country_price_str)
         
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
@@ -497,14 +488,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     db_update_balance(user_id, country_price, mode="deduct")
                     
+                    # النموذج الأول المزخرف لرسالة نجاح الشراء الأولية
                     success_msg = (
-                        f"✅ **تم الشراء الرقم لقسم ({sec_name_ar}) بنجاح!**\n"
-                        f"🌍 الدولة: {c_name_ar}\n"
-                        f"📞 مفتاح الدولة: `{c_dial}`\n"
-                        f"📱 الرقم: `{phone}`\n"
-                        f"⭐ تم خصم: `${country_price:.2f}`\n\n"
-                        f"⏳ **جاري انتظار وصول الكود تلقائياً...**\n\n"
-                        f"💡 قم بتفعيل الرقم وطلب الكود من قسم ({sec_name_ar})"
+                        f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"✅ **تم شراء الرقم بنجاح تام!**\n\n"
+                        f"📦 **القسم:** `{sec_name_ar}`\n"
+                        f"🌍 **الدولة:** {c_name_ar}\n"
+                        f"📞 **مفتاح الدولة:** `{c_dial}`\n"
+                        f"📱 **الرقم المشتري:** `{phone}`\n"
+                        f"⭐ **المبلغ المخصوم:** `${country_price:.2f}`\n\n"
+                        f"⏳ **جاري رصد واستقبال الكود تلقائياً...**\n"
+                        f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
                     )
                     
                     sent_msg = await query.edit_message_text(
