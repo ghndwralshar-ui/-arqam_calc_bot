@@ -33,6 +33,14 @@ admin_state = {}
 user_selected_service = {}
 user_order_data = {}
 
+def get_subadmin_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
+        [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
+        [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
+        [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
+    ])
+
 async def check_user_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     if user_id == ADMIN_ID:
         return True
@@ -166,9 +174,7 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     buttons = []
     row = []
     for c in available_countries:
-        # عرض الزر بدون مفتاح الدولة، في صفين، مع السعر المضاعف
         btn_text = f"{c['flag']} {c['name_ar']} • ${c['price']:.2f}"
-        # تخزين السعر مباشرة في الـ callback_data لضمان مطابقة الخصم تماماً
         row.append(InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}_{c['price']}"))
         if len(row) == 2:
             buttons.append(row)
@@ -232,8 +238,6 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                         sms_code = sms_list[0].get('code', 'لا يوجد كود')
                         full_text = sms_list[0].get('text', '')
                         
-                        # النموذج الأول المزخرف لرسالة نجاح الشراء
-                        c_flag = COUNTRY_INFO.get(service, {}).get("flag", "🌐")
                         success_msg = (
                             f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
                             f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -488,7 +492,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     db_update_balance(user_id, country_price, mode="deduct")
                     
-                    # النموذج الأول المزخرف لرسالة نجاح الشراء الأولية
                     success_msg = (
                         f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -955,17 +958,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin_or_sub(user_id, ADMIN_ID):
             await query.answer("⛔ ليس لديك صلاحيات لوحة التحكم.", show_alert=True)
             return
-        stats = db_get_advanced_stats()
-        panel_text = (
-            "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"👥 **إجمالي المستخدمين:** `{stats['total_users']} مشترك`\n"
-            f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats['new_24h']} مشترك جديد` 📈\n"
-            f"💰 **إجمالي أرصدة المحافظ:** `${stats['total_balances']:.2f}`\n"
-            f"🔗 **إجمالي الإحالات الكلية:** `{stats['total_referrals']} دعوة`\n\n"
-            "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
-        )
-        await query.edit_message_text(panel_text, parse_mode='Markdown', reply_markup=get_admin_keyboard())
+        
+        # إذا كان المستخدم هو المالك الأساسي (ADMIN_ID)
+        if user_id == ADMIN_ID:
+            stats = db_get_advanced_stats()
+            panel_text = (
+                "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"👥 **إجمالي المستخدمين:** `{stats['total_users']} مشترك`\n"
+                f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats['new_24h']} مشترك جديد` 📈\n"
+                f"💰 **إجمالي أرصدة المحافظ:** `${stats['total_balances']:.2f}`\n"
+                f"🔗 **إجمالي الإحالات الكلية:** `{stats['total_referrals']} دعوة`\n\n"
+                "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
+            )
+            await query.edit_message_text(panel_text, parse_mode='Markdown', reply_markup=get_admin_keyboard())
+        else:
+            # إذا كان مشرفاً مساعداً، تظهر له لوحة مبسطة (بدون إحصائيات وبدون صلاحيات خطيرة)
+            sub_panel_text = (
+                "🛡️ **• لوحة تحكم المشرف المساعد •** 🛡️\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للرد على المستخدمين وإدارة الأرصدة:"
+            )
+            await query.edit_message_text(sub_panel_text, parse_mode='Markdown', reply_markup=get_subadmin_keyboard())
 
     elif data == 'admin_top_refs':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
@@ -985,6 +999,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'admin_reply_user':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_reply_id'}
+        back_markup = get_admin_keyboard() if user_id == ADMIN_ID else get_subadmin_keyboard()
         await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآن **آيدي المستخدم** المراد الرد عليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_send_gift_user':
@@ -1193,8 +1208,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state:
         action = admin_state[user_id].get('action')
+        admin_markup = get_admin_keyboard() if user_id == ADMIN_ID else get_subadmin_keyboard()
         
         if action == 'waiting_for_promo_details':
+            if user_id != ADMIN_ID: return
             try:
                 parts = text_content.split()
                 code_str = parts[0]
@@ -1203,13 +1220,14 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 from database import supabase
                 supabase.table("promo_codes").upsert({"code": code_str, "amount": amt, "max_uses": uses, "used_count": 0}).execute()
                 admin_state.pop(user_id, None)
-                await update.message.reply_text("✅ تم إنشاء وتفعيل كود الهدية بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text("✅ تم إنشاء وتفعيل كود الهدية بنجاح!", reply_markup=admin_markup)
                 return
             except Exception:
                 await update.message.reply_text("❌ صيغة خاطئة! أرسل هكذا: `CODE 0.50 100`")
                 return
 
         elif action == 'waiting_for_broadcast':
+            if user_id != ADMIN_ID: return
             admin_state.pop(user_id, None)
             all_users = db_get_all_users()
             status_msg = await update.message.reply_text("🚀 جاري إرسال الإذاعة الشاملة لجميع المشتركين...")
@@ -1221,7 +1239,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     await asyncio.sleep(0.03)
                 except Exception:
                     pass
-            await status_msg.edit_text(f"✅ تمت الإذاعة بنجاح إلى `{c}` مشترك.", reply_markup=get_admin_keyboard())
+            await status_msg.edit_text(f"✅ تمت الإذاعة بنجاح إلى `{c}` مشترك.", reply_markup=admin_markup)
             return
 
         elif action == 'waiting_for_reply_id':
@@ -1239,10 +1257,20 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             target_id = st_data['target_id']
             try:
                 await context.bot.send_message(chat_id=target_id, text=f"💬 **رد من الإدارة:**\n\n{text_content}", parse_mode='Markdown')
-                await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!", reply_markup=admin_markup)
+                
+                # إشعار للمالك إذا قام بالعملية مشرف مساعد
+                if user_id != ADMIN_ID:
+                    try:
+                        await context.bot.send_message(
+                            chat_id=ADMIN_ID,
+                            text=f"🔔 **تنبيه إداري:** قام المشرف (`{user_id}`) بالرد على المستخدم (`{target_id}`).\n💬 **النص:** {text_content}"
+                        )
+                    except Exception:
+                        pass
                 return
             except Exception as e:
-                await update.message.reply_text(f"❌ تعذر إرسال الرد للمستخدم: {e}", reply_markup=get_admin_keyboard())
+                await update.message.reply_text(f"❌ تعذر إرسال الرد للمستخدم: {e}", reply_markup=admin_markup)
                 return
 
         elif action == 'waiting_for_gift_id':
@@ -1261,11 +1289,21 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 st_data = admin_state.pop(user_id)
                 target_id = st_data['target_id']
                 db_update_balance(target_id, gift_amt, mode="add")
-                await update.message.reply_text(f"✅ تم إرسال الهدية بقيمة `${gift_amt:.2f}` للمستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text(f"✅ تم إرسال الهدية بقيمة `${gift_amt:.2f}` للمستخدم `{target_id}` بنجاح!", reply_markup=admin_markup)
                 try:
                     await context.bot.send_message(chat_id=target_id, text=f"🎁 **مبروك! وصلت لك هدية مالية من الإدارة بقيمة:** `${gift_amt:.2f}`", parse_mode='Markdown')
                 except Exception:
                     pass
+                
+                # إشعار للمالك إذا قام بالعملية مشرف مساعد
+                if user_id != ADMIN_ID:
+                    try:
+                        await context.bot.send_message(
+                            chat_id=ADMIN_ID,
+                            text=f"🔔 **تنبيه إداري:** قام المشرف (`{user_id}`) بإرسال هدية مالية بقيمة `${gift_amt:.2f}` للمستخدم (`{target_id}`)."
+                        )
+                    except Exception:
+                        pass
                 return
             except ValueError:
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
@@ -1287,11 +1325,21 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 st_data = admin_state.pop(user_id)
                 target_id = st_data['target_id']
                 db_update_balance(target_id, bal_amt, mode="add")
-                await update.message.reply_text(f"✅ تمت إضافة `${bal_amt:.2f}` لحساب المستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text(f"✅ تمت إضافة `${bal_amt:.2f}` لحساب المستخدم `{target_id}` بنجاح!", reply_markup=admin_markup)
                 try:
                     await context.bot.send_message(chat_id=target_id, text=f"💳 **تمت إضافة رصيد لحسابك بواسطة الإدارة بقيمة:** `${bal_amt:.2f}`", parse_mode='Markdown')
                 except Exception:
                     pass
+                
+                # إشعار للمالك إذا قام بالعملية مشرف مساعد
+                if user_id != ADMIN_ID:
+                    try:
+                        await context.bot.send_message(
+                            chat_id=ADMIN_ID,
+                            text=f"🔔 **تنبيه إداري:** قام المشرف (`{user_id}`) بإضافة رصيد بقيمة `${bal_amt:.2f}` للمستخدم (`{target_id}`)."
+                        )
+                    except Exception:
+                        pass
                 return
             except ValueError:
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
@@ -1313,50 +1361,64 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 st_data = admin_state.pop(user_id)
                 target_id = st_data['target_id']
                 db_update_balance(target_id, bal_amt, mode="deduct")
-                await update.message.reply_text(f"✅ تم خصم `${bal_amt:.2f}` من حساب المستخدم `{target_id}` بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text(f"✅ تم خصم `${bal_amt:.2f}` من حساب المستخدم `{target_id}` بنجاح!", reply_markup=admin_markup)
+                
+                # إشعار للمالك إذا قام بالعملية مشرف مساعد
+                if user_id != ADMIN_ID:
+                    try:
+                        await context.bot.send_message(
+                            chat_id=ADMIN_ID,
+                            text=f"🔔 **تنبيه إداري:** قام المشرف (`{user_id}`) بخصم رصيد بقيمة `${bal_amt:.2f}` من المستخدم (`{target_id}`)."
+                        )
+                    except Exception:
+                        pass
                 return
             except ValueError:
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
                 return
 
         elif action == 'waiting_for_sub_id':
+            if user_id != ADMIN_ID: return
             try:
                 new_sub_id = int(text_content)
                 from database import supabase
                 supabase.table("sub_admins").upsert({"admin_id": new_sub_id}).execute()
                 admin_state.pop(user_id, None)
-                await update.message.reply_text("✅ تمت إضافة المشرف المساعد بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text("✅ تمت إضافة المشرف المساعد بنجاح!", reply_markup=admin_markup)
                 return
             except Exception:
                 await update.message.reply_text("❌ الآيدي غير صالح!")
                 return
 
         elif action == 'waiting_for_del_sub_id':
+            if user_id != ADMIN_ID: return
             try:
                 del_sub_id = int(text_content)
                 from database import supabase
                 supabase.table("sub_admins").delete().eq("admin_id", del_sub_id).execute()
                 admin_state.pop(user_id, None)
-                await update.message.reply_text("✅ تم حذف المشرف المساعد بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text("✅ تم حذف المشرف المساعد بنجاح!", reply_markup=admin_markup)
                 return
             except Exception:
                 await update.message.reply_text("❌ حدث خطأ!")
                 return
 
         elif action == 'waiting_for_bonus_amount':
+            if user_id != ADMIN_ID: return
             try:
                 bonus_amt = float(text_content)
                 admin_state.pop(user_id, None)
                 all_users = db_get_all_users()
                 for uid in all_users:
                     db_update_balance(uid, bonus_amt, mode="add")
-                await update.message.reply_text(f"✅ تم توزيع الهدية المالية بقيمة `${bonus_amt:.2f}` على جميع المشتركين بنجاح!", reply_markup=get_admin_keyboard())
+                await update.message.reply_text(f"✅ تم توزيع الهدية المالية بقيمة `${bonus_amt:.2f}` على جميع المشتركين بنجاح!", reply_markup=admin_markup)
                 return
             except Exception:
                 await update.message.reply_text("❌ مبلغ غير صالح!")
                 return
 
         elif action == 'waiting_for_ban_id':
+            if user_id != ADMIN_ID: return
             try:
                 target_id = int(text_content)
                 u_info = db_get_user(target_id)
@@ -1365,7 +1427,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 supabase.table("users").update({"is_banned": new_ban}).eq("user_id", target_id).execute()
                 admin_state.pop(user_id, None)
                 status_str = "حظر" if new_ban == 1 else "فك حظر"
-                await update.message.reply_text(f"✅ تم تنفيذ عملية ({status_str}) للمستخدم `{target_id}` بنجاح.", reply_markup=get_admin_keyboard())
+                await update.message.reply_text(f"✅ تم تنفيذ عملية ({status_str}) للمستخدم `{target_id}` بنجاح.", reply_markup=admin_markup)
                 return
             except Exception:
                 await update.message.reply_text("❌ الآيدي غير صالح!")
