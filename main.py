@@ -21,7 +21,6 @@ FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQs
 ADMIN_ID = 6472852297
 SUPPORT_USERNAME = "benti"
 
-# قناة الاشتراك الإجباري وقناة السجلات الخاصة بك فقط
 FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"
 FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"
 LOG_CHANNEL_ID = "@DigitalHubOrders"
@@ -48,38 +47,38 @@ admin_state = {}
 user_selected_service = {}
 user_order_data = {}
 
-# قائمة الدول الثابتة والأسعار المعتمدة
+# قائمة الدول المعتمدة مع أسمائها العربية ومفاتيحها
 STATIC_COUNTRIES = [
-    {"code": "russia", "name_ar": "روسيا", "flag": "🇷🇺", "price": 0.70, "count": 150},
-    {"code": "usa", "name_ar": "أمريكا", "flag": "🇺🇸", "price": 2.50, "count": 120},
-    {"code": "uk", "name_ar": "بريطانيا", "flag": "🇬🇧", "price": 2.00, "count": 100},
-    {"code": "india", "name_ar": "الهند", "flag": "🇮🇳", "price": 0.50, "count": 300},
-    {"code": "indonesia", "name_ar": "إندونيسيا", "flag": "🇮🇩", "price": 1.00, "count": 200},
-    {"code": "brazil", "name_ar": "البرازيل", "flag": "🇧🇷", "price": 0.80, "count": 90},
-    {"code": "germany", "name_ar": "ألمانيا", "flag": "🇩🇪", "price": 1.80, "count": 85},
-    {"code": "turkey", "name_ar": "تركيا", "flag": "🇹🇷", "price": 0.90, "count": 130},
-    {"code": "ukraine", "name_ar": "أوكرانيا", "flag": "🇺🇦", "price": 0.70, "count": 110},
-    {"code": "kazakhstan", "name_ar": "كازاخستان", "flag": "🇰🇿", "price": 0.60, "count": 95},
-    {"code": "vietnam", "name_ar": "فيتنام", "flag": "🇻🇳", "price": 0.65, "count": 140},
-    {"code": "philippines", "name_ar": "الفلبين", "flag": "🇵🇭", "price": 1.00, "count": 160},
-    {"code": "poland", "name_ar": "بولندا", "flag": "🇵🇱", "price": 0.80, "count": 75},
-    {"code": "colombia", "name_ar": "كولومبيا", "flag": "🇨🇴", "price": 0.75, "count": 80},
-    {"code": "egypt", "name_ar": "مصر", "flag": "🇪🇬", "price": 0.85, "count": 210},
-    {"code": "nigeria", "name_ar": "نيجيريا", "flag": "🇳🇬", "price": 0.70, "count": 65},
-    {"code": "kenya", "name_ar": "كينيا", "flag": "🇰🇪", "price": 0.60, "count": 70},
-    {"code": "southafrica", "name_ar": "جنوب أفريقيا", "flag": "🇿🇦", "price": 0.75, "count": 60},
-    {"code": "myanmar", "name_ar": "ميانمار", "flag": "🇲🇲", "price": 0.55, "count": 50},
-    {"code": "cambodia", "name_ar": "كمبوديا", "flag": "🇰🇭", "price": 0.55, "count": 45},
-    {"code": "bangladesh", "name_ar": "بنغلاديش", "flag": "🇧🇩", "price": 0.55, "count": 180},
-    {"code": "pakistan", "name_ar": "باكستان", "flag": "🇵🇰", "price": 0.60, "count": 190},
-    {"code": "malaysia", "name_ar": "ماليزيا", "flag": "🇲🇾", "price": 0.70, "count": 85},
-    {"code": "thailand", "name_ar": "تايلاند", "flag": "🇹🇭", "price": 0.75, "count": 90},
-    {"code": "mexico", "name_ar": "المكسيك", "flag": "🇲🇽", "price": 0.80, "count": 115},
-    {"code": "spain", "name_ar": "إسبانيا", "flag": "🇪🇸", "price": 1.50, "count": 70},
-    {"code": "france", "name_ar": "فرنسا", "flag": "🇫🇷", "price": 1.60, "count": 95},
-    {"code": "italy", "name_ar": "إيطاليا", "flag": "🇮🇹", "price": 1.50, "count": 80},
-    {"code": "canada", "name_ar": "كندا", "flag": "🇨🇦", "price": 1.80, "count": 85},
-    {"code": "yemen", "name_ar": "اليمن", "flag": "🇾🇪", "price": 1.20, "count": 50}
+    {"code": "russia", "name_ar": "روسيا", "flag": "🇷🇺", "dial": "+7"},
+    {"code": "usa", "name_ar": "أمريكا", "flag": "🇺🇸", "dial": "+1"},
+    {"code": "uk", "name_ar": "بريطانيا", "flag": "🇬🇧", "dial": "+44"},
+    {"code": "india", "name_ar": "الهند", "flag": "🇮🇳", "dial": "+91"},
+    {"code": "indonesia", "name_ar": "إندونيسيا", "flag": "🇮🇩", "dial": "+62"},
+    {"code": "brazil", "name_ar": "البرازيل", "flag": "🇧🇷", "dial": "+55"},
+    {"code": "germany", "name_ar": "ألمانيا", "flag": "🇩🇪", "dial": "+49"},
+    {"code": "turkey", "name_ar": "تركيا", "flag": "🇹🇷", "dial": "+90"},
+    {"code": "ukraine", "name_ar": "أوكرانيا", "flag": "🇺🇦", "dial": "+380"},
+    {"code": "kazakhstan", "name_ar": "كازاخستان", "flag": "🇰🇿", "dial": "+7"},
+    {"code": "vietnam", "name_ar": "فيتنام", "flag": "🇻🇳", "dial": "+84"},
+    {"code": "philippines", "name_ar": "الفلبين", "flag": "🇵🇭", "dial": "+63"},
+    {"code": "poland", "name_ar": "بولندا", "flag": "🇵🇱", "dial": "+48"},
+    {"code": "colombia", "name_ar": "كولومبيا", "flag": "🇨🇴", "dial": "+57"},
+    {"code": "egypt", "name_ar": "مصر", "flag": "🇪🇬", "dial": "+20"},
+    {"code": "nigeria", "name_ar": "نيجيريا", "flag": "🇳🇬", "dial": "+234"},
+    {"code": "kenya", "name_ar": "كينيا", "flag": "🇰🇪", "dial": "+254"},
+    {"code": "southafrica", "name_ar": "جنوب أفريقيا", "flag": "🇿🇦", "dial": "+27"},
+    {"code": "myanmar", "name_ar": "ميانمار", "flag": "🇲🇲", "dial": "+95"},
+    {"code": "cambodia", "name_ar": "كمبوديا", "flag": "🇰🇭", "dial": "+855"},
+    {"code": "bangladesh", "name_ar": "بنغلاديش", "flag": "🇧🇩", "dial": "+880"},
+    {"code": "pakistan", "name_ar": "باكستان", "flag": "🇵🇰", "dial": "+92"},
+    {"code": "malaysia", "name_ar": "ماليزيا", "flag": "🇲🇾", "dial": "+60"},
+    {"code": "thailand", "name_ar": "تايلاند", "flag": "🇹🇭", "dial": "+66"},
+    {"code": "mexico", "name_ar": "المكسيك", "flag": "🇲🇽", "dial": "+52"},
+    {"code": "spain", "name_ar": "إسبانيا", "flag": "🇪🇸", "dial": "+34"},
+    {"code": "france", "name_ar": "فرنسا", "flag": "🇫🇷", "dial": "+33"},
+    {"code": "italy", "name_ar": "إيطاليا", "flag": "🇮🇹", "dial": "+39"},
+    {"code": "canada", "name_ar": "كندا", "flag": "🇨🇦", "dial": "+1"},
+    {"code": "yemen", "name_ar": "اليمن", "flag": "🇾🇪", "dial": "+967"}
 ]
 
 def init_db():
@@ -108,12 +107,7 @@ def db_get_user(user_id):
             }
             supabase.table("users").insert(new_data).execute()
             return {
-                "balance": 0.0,
-                "referrals": 0,
-                "referred_by": 0,
-                "is_banned": 0,
-                "user_sequence": new_seq,
-                "reward_claimed": 0
+                "balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": new_seq, "reward_claimed": 0
             }
         
         row = rows[0]
@@ -188,7 +182,6 @@ async def process_successful_join_reward(user, context, u_data):
         referrer_id = u_data.get("referred_by", 0)
         if referrer_id > 0 and referrer_id != user.id:
             db_update_balance(referrer_id, 0.10, mode="add")
-            
             ref_info = db_get_user(referrer_id)
             new_ref_count = ref_info["referrals"] + 1
             supabase.table("users").update({"referrals": new_ref_count}).eq("user_id", referrer_id).execute()
@@ -223,20 +216,17 @@ def db_get_advanced_stats():
 
         now = datetime.now()
         yesterday = now - timedelta(days=1)
-        
         new_24h = 0
         for u in users:
             joined_str = u.get("joined_date", "")
             if joined_str:
                 try:
                     j_date = datetime.strptime(joined_str.strip(), "%Y-%m-%d %H:%M:%S")
-                    if j_date >= yesterday:
-                        new_24h += 1
+                    if j_date >= yesterday: new_24h += 1
                 except Exception:
                     try:
                         j_date = datetime.strptime(joined_str.strip()[:10], "%Y-%m-%d")
-                        if j_date >= yesterday.replace(hour=0, minute=0, second=0, microsecond=0):
-                            new_24h += 1
+                        if j_date >= yesterday.replace(hour=0, minute=0, second=0, microsecond=0): new_24h += 1
                     except Exception:
                         pass
 
@@ -275,14 +265,30 @@ def get_all_sub_admins():
         return []
 
 def mask_link(link: str) -> str:
-    if not link:
-        return "لا يوجد رابط"
+    if not link: return "لا يوجد رابط"
     length = len(link)
-    if length <= 10:
-        return link[:3] + "..."
+    if length <= 10: return link[:3] + "..."
     half = length // 2
     return link[:half] + "..."
 
+# دالة جلب السعر ومضاعفته مرتين من 5sim
+async def get_doubled_price(service: str, country_code: str) -> float:
+    url = f"https://5sim.net/v1/guest/prices?country={country_code}&product={service}"
+    async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
+        try:
+            res = await client.get(url)
+            if res.status_code == 200:
+                data = res.json()
+                prod_data = data.get(service, {})
+                for operator, op_vals in prod_data.items():
+                    if isinstance(op_vals, dict) and "cost" in op_vals:
+                        base_cost = float(op_vals["cost"])
+                        return round(base_cost * 2.0, 2)
+        except Exception as e:
+            print(f"Error fetching 5sim price for {country_code}/{service}: {e}")
+    return 1.00
+
+# القوائم واللوحات الرئيسية
 def get_main_keyboard(user_id):
     buttons = [
         [InlineKeyboardButton("🛒 شــراء رقــم افتـراضـي", callback_data='buy_virtual_number')],
@@ -690,13 +696,45 @@ def get_admin_keyboard():
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
     ])
 
+# دالة فحص الكود يدوياً عبر زر "طلب الكود"
+async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer("🔄 جاري فحص وصول الكود...", show_alert=False)
+    
+    parts = query.data.split('_')
+    order_id = parts[2]
+    
+    url = f"https://5sim.net/v1/user/check/{order_id}"
+    async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
+        try:
+            res = await client.get(url)
+            if res.status_code == 200:
+                data = res.json()
+                sms_list = data.get('sms', [])
+                if sms_list:
+                    sms_code = sms_list[0].get('code', 'لا يوجد كود')
+                    full_text = sms_list[0].get('text', '')
+                    current_text = query.message.text
+                    
+                    updated_text = current_text + f"\n\n🔑 **الكود:** `{sms_code}`\n💬 **النص:** `{full_text}`"
+                    await query.edit_message_text(
+                        updated_text, parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                else:
+                    await query.answer("⏳ لم يتم استلام الكود بعد، انتظر قليلاً واضغط مجدداً.", show_alert=True)
+            else:
+                await query.answer("⚠️ تعذر فحص الطلب حالياً.", show_alert=True)
+        except Exception:
+            await query.answer("❌ خطأ في الاتصال بالسيرفر.", show_alert=True)
+
 async def post_init(application):
     try:
         await application.bot.set_my_commands([BotCommand("start", "بدء استخدام البوت 🚀")])
     except Exception as e:
         print(f"Post init error: {e}")
 
-async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str, price: float, service: str, user_id: int, bot_username: str):
+async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str, price: float, service: str, user_id: int, bot_username: str, section_name: str, country_name: str, dial_code: str):
     url = f"https://5sim.net/v1/user/check/{order_id}"
     async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
         for _ in range(300):
@@ -704,35 +742,35 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
             try:
                 res = await client.get(url)
                 if res.status_code == 200:
-                    try:
-                        data = res.json()
-                    except Exception:
-                        continue
-                    
+                    data = res.json()
                     sms_list = data.get('sms', [])
                     if sms_list:
                         sms_code = sms_list[0].get('code', 'لا يوجد كود')
                         full_text = sms_list[0].get('text', '')
                         
-                        await context.bot.edit_message_text(
-                            chat_id=chat_id, message_id=message_id,
-                            text=f"✅ **تم وصول الكود بنجاح!**\n\n📱 **الرقم:** `{phone}`\n🔑 **الكود:** `{sms_code}`\n\n💬 **النص:** `{full_text}`",
-                            parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                        success_msg = (
+                            f"✅ **تم الشراء الرقم لقسم ({section_name}) بنجاح!**\n"
+                            f"🌍 الدولة: {country_name}\n"
+                            f"📞 مفتاح الدولة: `{dial_code}`\n"
+                            f"📱 الرقم: `{phone}`\n"
+                            f"⭐ تم خصم: `${price:.2f}`\n\n"
+                            f"🔑 **الكود الواصل:** `{sms_code}`\n"
+                            f"💬 **النص الكامل:** `{full_text}`\n\n"
+                            f"💡 قم بتفعيل الرقم وطلب الكود من قسم ({section_name})"
                         )
+                        
+                        try:
+                            await context.bot.edit_message_text(
+                                chat_id=chat_id, message_id=message_id,
+                                text=success_msg, parse_mode='Markdown',
+                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                            )
+                        except Exception:
+                            pass
                         
                         try:
                             masked_ph = phone[:4] + "***" + phone[-3:]
                             service_deeplink = f"https://t.me/{bot_username}?start=buy_virtual_number"
-                            s_lower = service.lower()
-                            if s_lower == 'whatsapp': service_deeplink = f"https://t.me/{bot_username}?start=service_whatsapp"
-                            elif s_lower == 'telegram': service_deeplink = f"https://t.me/{bot_username}?start=service_telegram"
-                            elif s_lower == 'instagram': service_deeplink = f"https://t.me/{bot_username}?start=service_instagram"
-                            elif s_lower == 'facebook': service_deeplink = f"https://t.me/{bot_username}?start=service_facebook"
-                            elif s_lower == 'twitter': service_deeplink = f"https://t.me/{bot_username}?start=service_twitter"
-                            elif s_lower == 'tiktok': service_deeplink = f"https://t.me/{bot_username}?start=service_tiktok"
-                            elif s_lower == 'snapchat': service_deeplink = f"https://t.me/{bot_username}?start=service_snapchat"
-                            elif s_lower == 'imo': service_deeplink = f"https://t.me/{bot_username}?start=service_imo"
-
                             channel_buttons = InlineKeyboardMarkup([
                                 [
                                     InlineKeyboardButton("🛒 شراء من نفس الخدمة", url=service_deeplink),
@@ -745,13 +783,12 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
                                     "🔥 **تم اكتمال تفعيل رقم جديد بنجاح!** ✅\n"
                                     "━━━━━━━━━━━━━━━━━━━━━━\n"
                                     f"👤 **آيدي الشخص:** `{user_id}`\n"
-                                    f"🛍️ **الخدمة:** `{service.upper()}`\n"
+                                    f"🛍️ **القسم:** `{section_name}`\n"
                                     f"📱 **الرقم:** `{masked_ph}`\n"
                                     f"🔑 **الكود:** `{sms_code}`\n"
                                     f"⭐ **الحالة:** مكتمل ومنجز بنجاح 🚀"
                                 ),
-                                parse_mode='Markdown',
-                                reply_markup=channel_buttons
+                                parse_mode='Markdown', reply_markup=channel_buttons
                             )
                         except Exception as log_err:
                             print(f"Log error: {log_err}")
@@ -772,8 +809,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_user_subscription(user.id, context):
         await update.message.reply_text(
             f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
-            parse_mode='Markdown',
-            reply_markup=await get_forced_subscription_keyboard()
+            parse_mode='Markdown', reply_markup=await get_forced_subscription_keyboard()
         )
         return
 
@@ -811,6 +847,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user.id))
 
+def prompt_user_for_link(message, service_info, context):
+    user_id = message.chat.id
+    stype = service_info.get("type", "channel")
+    prompts = {
+        "channel": "🔗 أرسل الآن رابط الحساب أو القناة المستهدفة:",
+        "post": "🔗 أرسل الآن رابط المنشور أو الفيديو المطلوب:",
+        "comment": "💬 أرسل رابط المنشور مع رابط التعليق:",
+        "comment_text": "💬 أرسل رابط المنشور وتحته التعليقات المطلوبة (كل تعليق بسطر):",
+        "poll": "📊 أرسل رابط المنشور مع مسافة ثم رقم الخيار المطلوب:"
+    }
+    admin_state[user_id] = {'action': 'waiting_for_rashq_link', 'service_info': service_info}
+    context.application.create_task(message.reply_text(prompts.get(stype, "🔗 أرسل الآن الرابط المطلوب:")))
+
+def prompt_user_for_pubg_id(message, service_info, context):
+    user_id = message.chat.id
+    admin_state[user_id] = {'action': 'waiting_for_pubg_id', 'service_info': service_info}
+    context.application.create_task(message.reply_text(f"🎮 أرسل الآن آيدي اللاعب (Player ID):\n(الخدمة: {service_info['name']})"))
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
@@ -840,8 +894,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await query.edit_message_text(
                 f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
-                parse_mode='Markdown',
-                reply_markup=await get_forced_subscription_keyboard()
+                parse_mode='Markdown', reply_markup=await get_forced_subscription_keyboard()
             )
         except Exception:
             pass
@@ -865,23 +918,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id))
 
-    elif data == 'bot_instructions':
-        instructions_text = (
-            "💎 **دليل استخدام بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة في مكان واحد وبأفضل الأسعار! 🌟\n\n"
-            "📱 **1️⃣ قسم الأرقام الافتراضية:**\n"
-            "• احصل فوراً على أرقام لتفعيل (واتساب، تليجرام، انستغرام، فيسبوك، وغيرها) من مختلف دول العالم.\n\n"
-            "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
-            "• اطلب خدمات زيادة المتابعين والتفاعلات لجميع المنصات بكل سهولة.\n\n"
-            "> 💡 *انقر على الزر أدناه للعودة للقائمة الرئيسية واستكشاف خدماتنا فوراً!* 👇"
-        )
-        await query.edit_message_text(
-            instructions_text,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]])
-        )
-
     elif data == 'buy_virtual_number':
         u_data = db_get_user(user_id)
         services_text = (
@@ -894,28 +930,135 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
 
     elif data == 'most_available':
-        top_available = sorted(STATIC_COUNTRIES, key=lambda x: -x['count'])[:8]
         buttons = []
-        for item in top_available:
-            buttons.append([InlineKeyboardButton(f"{item['flag']} {item['name_ar']} (متوفر:{item['count']}) • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}")])
+        for item in STATIC_COUNTRIES[:10]:
+            buttons.append([InlineKeyboardButton(f"{item['flag']} {item['name_ar']} ({item['dial']})", callback_data=f"buy_num_whatsapp_{item['code']}")])
         buttons.append([InlineKeyboardButton("🔙 عودة للقائمة", callback_data='main_menu')])
-        await query.edit_message_text("🎳 **• الدول الأكثر توفراً لأرقام واتساب حالياً •**\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text("🎳 **• الدول المتاحة لأرقام واتساب •**\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == 'deals_whatsapp':
         buttons = []
-        for item in STATIC_COUNTRIES[:10]:
-            buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} • ${item['price']:.2f} (متوفر: {item['count']})", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}")])
+        for item in STATIC_COUNTRIES[:12]:
+            buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} ({item['dial']})", callback_data=f"buy_num_whatsapp_{item['code']}")])
         buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(f"💬 **• أرخص عروض أرقام واتساب في البوت •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text(f"💬 **• اختر الدولة لأرقام واتساب •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == 'deals_telegram':
         buttons = []
-        for item in STATIC_COUNTRIES[:10]:
-            buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} • ${item['price']:.2f} (متوفر: {item['count']})", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}")])
+        for item in STATIC_COUNTRIES[:12]:
+            buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} ({item['dial']})", callback_data=f"buy_num_telegram_{item['code']}")])
         buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(f"✈️ **• أرخص عروض أرقام تليجرام في البوت •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text(f"✈️ **• اختر الدولة لأرقام تليجرام •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+
+    elif data in ['service_whatsapp', 'service_telegram', 'service_instagram', 'service_facebook', 'service_twitter', 'service_tiktok', 'service_snapchat', 'service_imo']:
+        serv_codes = {
+            'service_whatsapp': ('whatsapp', 'واتساب 🛍️'),
+            'service_telegram': ('telegram', 'تليجرام 🎲'),
+            'service_instagram': ('instagram', 'انستغرام 🎳'),
+            'service_facebook': ('facebook', 'فيسبوك 🎯'),
+            'service_twitter': ('twitter', 'تويتر 🐤'),
+            'service_tiktok': ('tiktok', 'تيك توك 🎬'),
+            'service_snapchat': ('snapchat', 'سناب شات ♣️'),
+            'service_imo': ('imo', 'إيمو 💎')
+        }
+        s_code, s_title = serv_codes.get(data, ('whatsapp', 'واتساب'))
+        buttons = []
+        row = []
+        for item in STATIC_COUNTRIES:
+            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} ({item['dial']})", callback_data=f"buy_num_{s_code}_{item['code']}"))
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+        if row: buttons.append(row)
+        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
+        u_data = db_get_user(user_id)
+        await query.edit_message_text(f"🔹 **• أرقام قسم ({s_title}) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+
+    elif data.startswith('buy_num_'):
+        parts = data.split('_')
+        service, country_code = parts[2], parts[3]
+        
+        country_price = await get_doubled_price(service, country_code)
+        
+        u_data = db_get_user(user_id)
+        current_balance = float(u_data.get('balance', 0.0))
+        if current_balance <= 0 or current_balance < country_price:
+            await query.edit_message_text(
+                f"❌ **عذراً، رصيدك غير كافٍ أو صفر لشراء الرقم!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 سعر الرقم: `${country_price:.2f}`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+            )
+            return
+
+        section_names_ar = {
+            'whatsapp': 'واتساب', 'telegram': 'تليجرام', 'instagram': 'انستغرام',
+            'facebook': 'فيسبوك', 'twitter': 'تويتر', 'tiktok': 'تيك توك',
+            'snapchat': 'سناب شات', 'imo': 'إيمو'
+        }
+        sec_name_ar = section_names_ar.get(service, service.upper())
+
+        c_info = next((c for c in STATIC_COUNTRIES if c['code'] == country_code), {"name_ar": country_code, "dial": "+?"})
+        c_name_ar = c_info['name_ar']
+        c_dial = c_info['dial']
+
+        await query.answer("🔄 جاري الشراء وتجهيز الرقم...", show_alert=False)
+        async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
+            try:
+                res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/any/{service}")
+                if res.status_code == 200:
+                    try:
+                        res_data = res.json()
+                    except Exception:
+                        await query.edit_message_text("⚠️ **حدث خطأ في استقبال الرد من مزود الأرقام.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        return
+
+                    phone, order_id = res_data.get('phone'), res_data.get('id')
+                    if not phone or not order_id:
+                        await query.edit_message_text("⚠️ **عذراً، نفدت الأرقام لهذه الدولة حالياً.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        return
+
+                    db_update_balance(user_id, country_price, mode="deduct")
+                    
+                    success_msg = (
+                        f"✅ **تم الشراء الرقم لقسم ({sec_name_ar}) بنجاح!**\n"
+                        f"🌍 الدولة: {c_name_ar}\n"
+                        f"📞 مفتاح الدولة: `{c_dial}`\n"
+                        f"📱 الرقم: `{phone}`\n"
+                        f"⭐ تم خصم: `${country_price:.2f}`\n\n"
+                        f"⏳ **جاري انتظار وصول الكود تلقائياً...**\n\n"
+                        f"💡 قم بتفعيل الرقم وطلب الكود من قسم ({sec_name_ar})"
+                    )
+                    
+                    sent_msg = await query.edit_message_text(
+                        success_msg,
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{order_id}")],
+                            [InlineKeyboardButton("❌ إلغاء الرقم واسترداد الرصيد", callback_data=f"cnl_paid_{order_id}_{country_price}")]
+                        ])
+                    )
+                    
+                    asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username, sec_name_ar, c_name_ar, c_dial))
+                else:
+                    await query.edit_message_text("❌ **الأرقام غير متوفرة حالياً لهذه الدولة.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+            except Exception as e:
+                await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
+
+    elif data.startswith('chk_sms_'):
+        await check_sms_manual(update, context)
+        return
+
+    elif data.startswith('cnl_'):
+        parts = data.split('_')
+        cancel_type, order_id, price = parts[1], parts[2], float(parts[3])
+        async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
+            res = await client.get(f"https://5sim.net/v1/user/cancel/{order_id}")
+            if res.status_code == 200 or res.status_code == 400:
+                if cancel_type == 'paid': db_update_balance(user_id, price, mode="add")
+                await query.answer("✅ تم إلغاء الرقم واسترداد الرصيد بنجاح!", show_alert=True)
+                await query.edit_message_text("🚫 **تم إلغاء الرقم واسترداد مبلغ الرصيد إلى محفظتك بنجاح.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
     elif data == "main_rashq":
         await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
@@ -1198,18 +1341,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
                 try:
                     res = await client.post(HMCARD_API_URL, data=payload)
-                    print(f"HMCARD Status Code: {res.status_code}")
-                    
                     if res.status_code == 200:
                         try:
                             resp_data = res.json()
                         except Exception:
                             text_resp = res.text
-                            print(f"HMCARD Non-JSON Response Full: {text_resp}")
                             await query.edit_message_text(
-                                f"❌ **عذراً، موقع الرشق يرسل صفحة حماية أو خطأ (HTML).**\n"
-                                f"🔍 الرد المختصر من الموقع:\n`{text_resp[:150]}`...\n\n"
-                                f"💡 *تأكد من صحة رابط الـ API أو أن موقع الرشق لا يحظر طلبات البوت.*",
+                                f"❌ **عذراً، موقع الرشق يرسل صفحة حماية أو خطأ.**\n🔍 الرد: `{text_resp[:150]}`",
                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
                             )
                             return
@@ -1227,59 +1365,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 parse_mode='Markdown',
                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                             )
-                            
-                            try:
-                                bot_username = context.bot.username
-                                channel_buttons = InlineKeyboardMarkup([
-                                    [
-                                        InlineKeyboardButton("🛒 شراء من نفس الخدمة", url=f"https://t.me/{bot_username}?start=main_rashq"),
-                                        InlineKeyboardButton("🤖 الدخول إلى البوت", url=f"https://t.me/{bot_username}?start=main_menu")
-                                    ]
-                                ])
-                                await context.bot.send_message(
-                                    chat_id=LOG_CHANNEL_ID,
-                                    text=(
-                                        "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
-                                        "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                        f"👤 **آيدي الشخص:** `{user_id}`\n"
-                                        f"🔭 **الخدمة:** `{service['name']}`\n"
-                                        f"🆔 **رقم الطلب:** `{order_id}`\n"
-                                        f"📦 **الكمية:** `{qty}`\n"
-                                        f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
-                                        f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
-                                        f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
-                                    ),
-                                    parse_mode='Markdown',
-                                    reply_markup=channel_buttons
-                                )
-                            except Exception as log_err:
-                                print(f"Log error: {log_err}")
                             return
                         else:
-                            api_error = resp_data.get("error", resp_data.get("message", "خطأ غير معروف من سيرفر الموقع"))
+                            api_error = resp_data.get("error", resp_data.get("message", "خطأ غير معروف"))
                             await query.edit_message_text(
-                                f"❌ **عذراً، رفض موقع الرشق تنفيذ الطلب!**\n\n💬 **سبب الرفض من الموقع:**\n`{api_error}`",
+                                f"❌ **عذراً، رفض موقع الرشق تنفيذ الطلب!**\n\n💬 **السبب:** `{api_error}`",
                                 parse_mode='Markdown',
                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                             )
                             return
-                    else:
-                        await query.edit_message_text(
-                            f"❌ **خطأ في الاتصال بسيرفر الموقع (Status: {res.status_code})**",
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-                        )
-                        return
                 except Exception as api_err:
-                    print(f"HMCARD Connection Exception: {api_err}")
-                    await query.edit_message_text(
-                        f"❌ **حدث استثناء أثناء الاتصال بالموقع:**\n`{str(api_err)[:100]}`",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-                    )
-                    return
+                    await query.edit_message_text(f"❌ **استثناء أثناء الاتصال:** `{str(api_err)[:100]}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
 
     elif data == "cancel_order":
         await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+
+    elif data == 'bot_instructions':
+        instructions_text = (
+            "💎 **دليل استخدام بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة في مكان واحد وبأفضل الأسعار! 🌟\n\n"
+            "📱 **1️⃣ قسم الأرقام الافتراضية:**\n"
+            "• احصل فوراً على أرقام لتفعيل (واتساب، تليجرام، انستغرام، فيسبوك، وغيرها) من مختلف دول العالم.\n\n"
+            "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
+            "• اطلب خدمات زيادة المتابعين والتفاعلات لجميع المنصات بكل سهولة.\n\n"
+            "> 💡 *انقر على الزر أدناه للعودة للقائمة الرئيسية واستكشاف خدماتنا فوراً!* 👇"
+        )
+        await query.edit_message_text(
+            instructions_text, parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]])
+        )
 
     elif data == 'free_points':
         bot_username = context.bot.username
@@ -1360,82 +1475,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(f"❌ تم رفض الطلب للمستخدم `{target_user_id}`", parse_mode='Markdown')
-
-    elif data in ['service_whatsapp', 'service_telegram', 'service_instagram', 'service_facebook', 'service_twitter', 'service_tiktok', 'service_snapchat', 'service_imo']:
-        serv_codes = {
-            'service_whatsapp': ('whatsapp', 'واتساب 🛍️'),
-            'service_telegram': ('telegram', 'تليجرام 🎲'),
-            'service_instagram': ('instagram', 'انستغرام 🎳'),
-            'service_facebook': ('facebook', 'فيسبوك 🎯'),
-            'service_twitter': ('twitter', 'تويتر 🐤'),
-            'service_tiktok': ('tiktok', 'تيك توك 🎬'),
-            'service_snapchat': ('snapchat', 'سناب شات ♣️'),
-            'service_imo': ('imo', 'إيمو 💎')
-        }
-        s_code, s_title = serv_codes.get(data, ('whatsapp', 'واتساب'))
-        buttons = []
-        row = []
-        for item in STATIC_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_{s_code}_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🔹 **• أرقام {s_title} ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif data.startswith('buy_num_'):
-        parts = data.split('_')
-        service, country_code, country_price = parts[2], parts[3], float(parts[4])
-        
-        u_data = db_get_user(user_id)
-        current_balance = float(u_data.get('balance', 0.0))
-        if current_balance <= 0 or current_balance < country_price:
-            await query.edit_message_text(
-                f"❌ **عذراً، رصيدك غير كافٍ أو صفر لشراء الرقم!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 سعر الرقم: `${country_price:.2f}`",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-            )
-            return
-
-        await query.answer("🔄 جاري الشراء...", show_alert=False)
-        async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
-            try:
-                res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/any/{service}")
-                if res.status_code == 200:
-                    try:
-                        res_data = res.json()
-                    except Exception:
-                        await query.edit_message_text("⚠️ **حدث خطأ في استقبال الرد من مزود الأرقام.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-                        return
-
-                    phone, order_id = res_data.get('phone'), res_data.get('id')
-                    if not phone or not order_id:
-                        await query.edit_message_text("⚠️ **عذراً، نفدت الأرقام لهذه الدولة حالياً.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-                        return
-
-                    db_update_balance(user_id, country_price, mode="deduct")
-                    sent_msg = await query.edit_message_text(
-                        f"✅ **تم الشراء بنجاح!**\n📱 الرقم: `{phone}`\n⭐ تم خصم: `${country_price:.2f}`\n⏳ جاري انتظار الكود...",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء واسترداد الرصيد", callback_data=f"cnl_paid_{order_id}_{country_price}")], [InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-                    )
-                    asyncio.create_task(watch_order_sms(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username))
-                else:
-                    await query.edit_message_text("❌ **الأرقام غير متوفرة حالياً.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-            except Exception as e:
-                await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
-
-    elif data.startswith('cnl_'):
-        parts = data.split('_')
-        cancel_type, order_id, price = parts[1], parts[2], float(parts[3])
-        async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
-            res = await client.get(f"https://5sim.net/v1/user/cancel/{order_id}")
-            if res.status_code == 200:
-                if cancel_type == 'paid': db_update_balance(user_id, price, mode="add")
-                await query.answer("✅ تم الإلغاء واسترداد الرصيد!", show_alert=True)
-                await query.edit_message_text("🚫 تم إلغاء الطلب.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
     elif data == 'user_account':
         u_data = db_get_user(user_id)
@@ -1551,32 +1590,13 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
         except Exception:
             pass
 
-def prompt_user_for_link(message, service_info, context):
-    user_id = message.chat.id
-    stype = service_info.get("type", "channel")
-    prompts = {
-        "channel": "🔗 أرسل الآن رابط الحساب أو القناة المستهدفة:",
-        "post": "🔗 أرسل الآن رابط المنشور أو الفيديو المطلوب:",
-        "comment": "💬 أرسل رابط المنشور مع رابط التعليق:",
-        "comment_text": "💬 أرسل رابط المنشور وتحته التعليقات المطلوبة (كل تعليق بسطر):",
-        "poll": "📊 أرسل رابط المنشور مع مسافة ثم رقم الخيار المطلوب:"
-    }
-    admin_state[user_id] = {'action': 'waiting_for_rashq_link', 'service_info': service_info}
-    context.application.create_task(message.reply_text(prompts.get(stype, "🔗 أرسل الآن الرابط المطلوب:")))
-
-def prompt_user_for_pubg_id(message, service_info, context):
-    user_id = message.chat.id
-    admin_state[user_id] = {'action': 'waiting_for_pubg_id', 'service_info': service_info}
-    context.application.create_task(message.reply_text(f"🎮 أرسل الآن آيدي اللاعب (Player ID):\n(الخدمة: {service_info['name']})"))
-
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if not await check_user_subscription(user_id, context):
         await update.message.reply_text(
             f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
-            parse_mode='Markdown',
-            reply_markup=await get_forced_subscription_keyboard()
+            parse_mode='Markdown', reply_markup=await get_forced_subscription_keyboard()
         )
         return
 
@@ -1876,21 +1896,20 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_deposit':
         admin_state.pop(user_id, None)
-        text = update.message.text or "إيصال مرسل"
         admin_markup = InlineKeyboardMarkup([
             [InlineKeyboardButton("➕ اعتماد $1", callback_data=f"approve_deposit_{user_id}_1.0"), InlineKeyboardButton("➕ اعتماد $5", callback_data=f"approve_deposit_{user_id}_5.0")],
             [InlineKeyboardButton("❌ رفض", callback_data=f"reject_deposit_{user_id}")]
         ])
         for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
             try:
-                await context.bot.send_message(chat_id=adm_id, text=f"📥 **طلب شحن جديد!**\n🆔 الآيدي: `{user_id}`\nالتفاصيل: `{text}`", parse_Message='Markdown', reply_markup=admin_markup)
+                await context.bot.send_message(chat_id=adm_id, text=f"📥 **طلب شحن جديد!**\n🆔 الآيدي: `{user_id}`\nالتفاصيل: `{text_content}`", parse_mode='Markdown', reply_markup=admin_markup)
             except Exception:
                 pass
         await update.message.reply_text("✅ تم إرسال إيصالك للإدارة بنجاح، انتظر المراجعة.")
         return
 
 if __name__ == '__main__':
-    print("🟢 جاري تشغيل البوت بنظام الاستطلاع (Polling) المستقر 24/7...")
+    print("🟢 جاري تشغيل البوت الكامل بنظام الاستطلاع (Polling) المستقر 24/7...")
     init_db()
     
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
@@ -1901,5 +1920,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
-    print("🚀 البوت يعمل الآن بنجاح واستقرار تام!")
+    print("🚀 البوت يعمل الآن بكامل قوائمه بنجاح واستقرار تام!")
     app.run_polling(drop_pending_updates=True)
