@@ -47,39 +47,41 @@ admin_state = {}
 user_selected_service = {}
 user_order_data = {}
 
-# قائمة الدول المعتمدة مع أسمائها العربية ومفاتيحها
-STATIC_COUNTRIES = [
-    {"code": "russia", "name_ar": "روسيا", "flag": "🇷🇺", "dial": "+7"},
-    {"code": "usa", "name_ar": "أمريكا", "flag": "🇺🇸", "dial": "+1"},
-    {"code": "uk", "name_ar": "بريطانيا", "flag": "🇬🇧", "dial": "+44"},
-    {"code": "india", "name_ar": "الهند", "flag": "🇮🇳", "dial": "+91"},
-    {"code": "indonesia", "name_ar": "إندونيسيا", "flag": "🇮🇩", "dial": "+62"},
-    {"code": "brazil", "name_ar": "البرازيل", "flag": "🇧🇷", "dial": "+55"},
-    {"code": "germany", "name_ar": "ألمانيا", "flag": "🇩🇪", "dial": "+49"},
-    {"code": "turkey", "name_ar": "تركيا", "flag": "🇹🇷", "dial": "+90"},
-    {"code": "ukraine", "name_ar": "أوكرانيا", "flag": "🇺🇦", "dial": "+380"},
-    {"code": "kazakhstan", "name_ar": "كازاخستان", "flag": "🇰🇿", "dial": "+7"},
-    {"code": "vietnam", "name_ar": "فيتنام", "flag": "🇻🇳", "dial": "+84"},
-    {"code": "philippines", "name_ar": "الفلبين", "flag": "🇵🇭", "dial": "+63"},
-    {"code": "poland", "name_ar": "بولندا", "flag": "🇵🇱", "dial": "+48"},
-    {"code": "colombia", "name_ar": "كولومبيا", "flag": "🇨🇴", "dial": "+57"},
-    {"code": "egypt", "name_ar": "مصر", "flag": "🇪🇬", "dial": "+20"},
-    {"code": "nigeria", "name_ar": "نيجيريا", "flag": "🇳🇬", "dial": "+234"},
-    {"code": "kenya", "name_ar": "كينيا", "flag": "🇰🇪", "dial": "+254"},
-    {"code": "southafrica", "name_ar": "جنوب أفريقيا", "flag": "🇿🇦", "dial": "+27"},
-    {"code": "myanmar", "name_ar": "ميانمار", "flag": "🇲🇲", "dial": "+95"},
-    {"code": "cambodia", "name_ar": "كمبوديا", "flag": "🇰🇭", "dial": "+855"},
-    {"code": "bangladesh", "name_ar": "بنغلاديش", "flag": "🇧🇩", "dial": "+880"},
-    {"code": "pakistan", "name_ar": "باكستان", "flag": "🇵🇰", "dial": "+92"},
-    {"code": "malaysia", "name_ar": "ماليزيا", "flag": "🇲🇾", "dial": "+60"},
-    {"code": "thailand", "name_ar": "تايلاند", "flag": "🇹🇭", "dial": "+66"},
-    {"code": "mexico", "name_ar": "المكسيك", "flag": "🇲🇽", "dial": "+52"},
-    {"code": "spain", "name_ar": "إسبانيا", "flag": "🇪🇸", "dial": "+34"},
-    {"code": "france", "name_ar": "فرنسا", "flag": "🇫🇷", "dial": "+33"},
-    {"code": "italy", "name_ar": "إيطاليا", "flag": "🇮🇹", "dial": "+39"},
-    {"code": "canada", "name_ar": "كندا", "flag": "🇨🇦", "dial": "+1"},
-    {"code": "yemen", "name_ar": "اليمن", "flag": "🇾🇪", "dial": "+967"}
-]
+# قاموس ومصفوفة الدول المعتمدة مع أسمائها العربية ومفاتيحها
+COUNTRY_INFO = {
+    "russia": {"name_ar": "روسيا", "flag": "🇷🇺", "dial": "+7"},
+    "usa": {"name_ar": "أمريكا", "flag": "🇺🇸", "dial": "+1"},
+    "uk": {"name_ar": "بريطانيا", "flag": "🇬🇧", "dial": "+44"},
+    "india": {"name_ar": "الهند", "flag": "🇮🇳", "dial": "+91"},
+    "indonesia": {"name_ar": "إندونيسيا", "flag": "🇮🇩", "dial": "+62"},
+    "brazil": {"name_ar": "البرازيل", "flag": "🇧🇷", "dial": "+55"},
+    "germany": {"name_ar": "ألمانيا", "flag": "🇩🇪", "dial": "+49"},
+    "turkey": {"name_ar": "تركيا", "flag": "🇹🇷", "dial": "+90"},
+    "ukraine": {"name_ar": "أوكرانيا", "flag": "🇺🇦", "dial": "+380"},
+    "kazakhstan": {"name_ar": "كازاخستان", "flag": "🇰🇿", "dial": "+7"},
+    "vietnam": {"name_ar": "فيتنام", "flag": "🇻🇳", "dial": "+84"},
+    "philippines": {"name_ar": "الفلبين", "flag": "🇵🇭", "dial": "+63"},
+    "poland": {"name_ar": "بولندا", "flag": "🇵🇱", "dial": "+48"},
+    "colombia": {"name_ar": "كولومبيا", "flag": "🇨🇴", "dial": "+57"},
+    "egypt": {"name_ar": "مصر", "flag": "🇪🇬", "dial": "+20"},
+    "nigeria": {"name_ar": "نيجيريا", "flag": "🇳🇬", "dial": "+234"},
+    "kenya": {"name_ar": "كينيا", "flag": "🇰🇪", "dial": "+254"},
+    "southafrica": {"name_ar": "جنوب أفريقيا", "flag": "🇿🇦", "dial": "+27"},
+    "myanmar": {"name_ar": "ميانمار", "flag": "🇲🇲", "dial": "+95"},
+    "cambodia": {"name_ar": "كمبوديا", "flag": "🇰🇭", "dial": "+855"},
+    "bangladesh": {"name_ar": "بنغلاديش", "flag": "🇧🇩", "dial": "+880"},
+    "pakistan": {"name_ar": "باكستان", "flag": "🇵🇰", "dial": "+92"},
+    "malaysia": {"name_ar": "ماليزيا", "flag": "🇲🇾", "dial": "+60"},
+    "thailand": {"name_ar": "تايلاند", "flag": "🇹🇭", "dial": "+66"},
+    "mexico": {"name_ar": "المكسيك", "flag": "🇲🇽", "dial": "+52"},
+    "spain": {"name_ar": "إسبانيا", "flag": "🇪🇸", "dial": "+34"},
+    "france": {"name_ar": "فرنسا", "flag": "🇫🇷", "dial": "+33"},
+    "italy": {"name_ar": "إيطاليا", "flag": "🇮🇹", "dial": "+39"},
+    "canada": {"name_ar": "كندا", "flag": "🇨🇦", "dial": "+1"},
+    "yemen": {"name_ar": "اليمن", "flag": "🇾🇪", "dial": "+967"}
+}
+
+STATIC_COUNTRIES = [{"code": k, **v} for k, v in COUNTRY_INFO.items()]
 
 def init_db():
     print("🟢 قاعدة البيانات السحابية (Supabase) متصلة وجاهزة بنجاح!")
@@ -271,8 +273,48 @@ def mask_link(link: str) -> str:
     half = length // 2
     return link[:half] + "..."
 
-# دالة جلب السعر ومضاعفته مرتين من 5sim
-async def get_doubled_price(service: str, country_code: str) -> float:
+# --- الدوال المحدثة: جلب الدول المتوفرة فقط مع مضاعفة السعر ضعفين ($\times 2$) ---
+async def get_available_countries_for_service(service: str):
+    url = f"https://5sim.net/v1/guest/prices?product={service}"
+    available_countries = []
+    async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
+        try:
+            res = await client.get(url)
+            if res.status_code == 200:
+                data = res.json()
+                product_data = data.get(service, data)
+                if isinstance(product_data, dict):
+                    for country_code, country_info in product_data.items():
+                        if country_code not in COUNTRY_INFO:
+                            continue
+                        has_stock = False
+                        min_price = 999.0
+                        if isinstance(country_info, dict):
+                            for operator, op_data in country_info.items():
+                                if isinstance(op_data, dict):
+                                    count = op_data.get("count", 0)
+                                    cost = op_data.get("cost", 0)
+                                    if count > 0 and cost is not None:
+                                        has_stock = True
+                                        base_price = float(cost)
+                                        if base_price < min_price:
+                                            min_price = base_price
+                        if has_stock and min_price < 999.0:
+                            doubled_price = round(min_price * 2.0, 2)
+                            c_meta = COUNTRY_INFO[country_code]
+                            available_countries.append({
+                                "code": country_code,
+                                "name_ar": c_meta["name_ar"],
+                                "flag": c_meta["flag"],
+                                "dial": c_meta["dial"],
+                                "price": doubled_price
+                            })
+        except Exception as e:
+            print(f"Error fetching countries for {service}: {e}")
+    available_countries.sort(key=lambda x: x["price"])
+    return available_countries
+
+async def get_doubled_price_single(service: str, country_code: str) -> float:
     url = f"https://5sim.net/v1/guest/prices?country={country_code}&product={service}"
     async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
         try:
@@ -282,10 +324,9 @@ async def get_doubled_price(service: str, country_code: str) -> float:
                 prod_data = data.get(service, {})
                 for operator, op_vals in prod_data.items():
                     if isinstance(op_vals, dict) and "cost" in op_vals:
-                        base_cost = float(op_vals["cost"])
-                        return round(base_cost * 2.0, 2)
-        except Exception as e:
-            print(f"Error fetching 5sim price for {country_code}/{service}: {e}")
+                        return round(float(op_vals["cost"]) * 2.0, 2)
+        except Exception:
+            pass
     return 1.00
 
 # القوائم واللوحات الرئيسية
@@ -696,6 +737,39 @@ def get_admin_keyboard():
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
     ])
 
+# دالة عرض الأزرار الديناميكية للدول المتوفرة مع الأسعار المضاعفة
+async def show_available_countries_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, service_code: str, service_title: str):
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    await query.answer("⏳ جاري فحص الدول المتوفرة والأسعار المحدثة...", show_alert=False)
+    available_countries = await get_available_countries_for_service(service_code)
+    
+    if not available_countries:
+        await query.edit_message_text(
+            f"❌ **عذراً، لا توجد أرقام متاحة حالياً لقسم ({service_title}).**",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')]])
+        )
+        return
+
+    buttons = []
+    for c in available_countries:
+        # الشكل المطلوب: 🇷🇺 روسيا (+7) • $1.40
+        btn_text = f"{c['flag']} {c['name_ar']} ({c['dial']}) • ${c['price']:.2f}"
+        buttons.append([InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}")])
+
+    buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
+    u_data = db_get_user(user_id)
+    
+    await query.edit_message_text(
+        f"🔹 **• الدول المتوفرة حالياً لأرقام ({service_title}) •**\n"
+        f"⭐ رصيدك: `${u_data['balance']:.2f}`\n\n"
+        "👇 **اختر الدولة المطلوبة (السعر أمامك مضاعف ضعفين):**",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
 # دالة فحص الكود يدوياً عبر زر "طلب الكود"
 async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -901,14 +975,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await query.answer()
-    user_first_name = query.from_user.first_name
 
     if data == 'main_menu':
         u_data = db_get_user(user_id)
         await process_successful_join_reward(query.from_user, context, u_data)
         admin_state.pop(user_id, None)
         welcome_text = (
-            f"💎 **مرحباً بك عزيزي {user_first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
+            f"💎 **مرحباً بك عزيزي {query.from_user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"👤 **الآيدي:** `{user_id}`\n"
             f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
@@ -930,57 +1003,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
 
     elif data == 'most_available':
-        buttons = []
-        for item in STATIC_COUNTRIES[:10]:
-            buttons.append([InlineKeyboardButton(f"{item['flag']} {item['name_ar']} ({item['dial']})", callback_data=f"buy_num_whatsapp_{item['code']}")])
-        buttons.append([InlineKeyboardButton("🔙 عودة للقائمة", callback_data='main_menu')])
-        await query.edit_message_text("🎳 **• الدول المتاحة لأرقام واتساب •**\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await show_available_countries_menu(update, context, "whatsapp", "واتساب")
 
     elif data == 'deals_whatsapp':
-        buttons = []
-        for item in STATIC_COUNTRIES[:12]:
-            buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} ({item['dial']})", callback_data=f"buy_num_whatsapp_{item['code']}")])
-        buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"💬 **• اختر الدولة لأرقام واتساب •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await show_available_countries_menu(update, context, "whatsapp", "واتساب")
 
     elif data == 'deals_telegram':
-        buttons = []
-        for item in STATIC_COUNTRIES[:12]:
-            buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} ({item['dial']})", callback_data=f"buy_num_telegram_{item['code']}")])
-        buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"✈️ **• اختر الدولة لأرقام تليجرام •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await show_available_countries_menu(update, context, "telegram", "تليجرام")
 
-    elif data in ['service_whatsapp', 'service_telegram', 'service_instagram', 'service_facebook', 'service_twitter', 'service_tiktok', 'service_snapchat', 'service_imo']:
-        serv_codes = {
-            'service_whatsapp': ('whatsapp', 'واتساب 🛍️'),
-            'service_telegram': ('telegram', 'تليجرام 🎲'),
-            'service_instagram': ('instagram', 'انستغرام 🎳'),
-            'service_facebook': ('facebook', 'فيسبوك 🎯'),
-            'service_twitter': ('twitter', 'تويتر 🐤'),
-            'service_tiktok': ('tiktok', 'تيك توك 🎬'),
-            'service_snapchat': ('snapchat', 'سناب شات ♣️'),
-            'service_imo': ('imo', 'إيمو 💎')
-        }
-        s_code, s_title = serv_codes.get(data, ('whatsapp', 'واتساب'))
-        buttons = []
-        row = []
-        for item in STATIC_COUNTRIES:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} ({item['dial']})", callback_data=f"buy_num_{s_code}_{item['code']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🔹 **• أرقام قسم ({s_title}) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+    elif data == 'service_whatsapp':
+        await show_available_countries_menu(update, context, "whatsapp", "واتساب 🛍️")
+    elif data == 'service_telegram':
+        await show_available_countries_menu(update, context, "telegram", "تليجرام 🎲")
+    elif data == 'service_instagram':
+        await show_available_countries_menu(update, context, "instagram", "انستغرام 🎳")
+    elif data == 'service_facebook':
+        await show_available_countries_menu(update, context, "facebook", "فيسبوك 🎯")
+    elif data == 'service_twitter':
+        await show_available_countries_menu(update, context, "twitter", "تويتر 🐤")
+    elif data == 'service_tiktok':
+        await show_available_countries_menu(update, context, "tiktok", "تيك توك 🎬")
+    elif data == 'service_snapchat':
+        await show_available_countries_menu(update, context, "snapchat", "سناب شات ♣️")
+    elif data == 'service_imo':
+        await show_available_countries_menu(update, context, "imo", "إيمو 💎")
 
     elif data.startswith('buy_num_'):
         parts = data.split('_')
         service, country_code = parts[2], parts[3]
         
-        country_price = await get_doubled_price(service, country_code)
+        country_price = await get_doubled_price_single(service, country_code)
         
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
@@ -999,7 +1051,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         sec_name_ar = section_names_ar.get(service, service.upper())
 
-        c_info = next((c for c in STATIC_COUNTRIES if c['code'] == country_code), {"name_ar": country_code, "dial": "+?"})
+        c_info = COUNTRY_INFO.get(country_code, {"name_ar": country_code, "dial": "+?"})
         c_name_ar = c_info['name_ar']
         c_dial = c_info['dial']
 
