@@ -21,6 +21,9 @@ FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQs
 ADMIN_ID = 6472852297
 SUPPORT_USERNAME = "benti"
 
+# قناة الاشتراك الإجباري وقناة السجلات الخاصة بك فقط
+FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"
+FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"
 LOG_CHANNEL_ID = "@DigitalHubOrders"
 
 HMCARD_API_URL = "https://hmcard.online/api/v2"
@@ -106,6 +109,24 @@ def db_update_balance(user_id, amount, mode="add"):
         supabase.table("users").update({"balance": new_bal}).eq("user_id", user_id).execute()
     except Exception as e:
         print(f"db_update_balance Error: {e}")
+
+async def check_user_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    if user_id == ADMIN_ID:
+        return True
+    try:
+        member = await context.bot.get_chat_member(chat_id=FORCED_CHANNEL_USERNAME, user_id=user_id)
+        if member.status in ['member', 'administrator', 'creator']:
+            return True
+    except Exception as e:
+        print(f"Subscription check error: {e}")
+        return True
+    return False
+
+async def get_forced_subscription_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 اضغط هنا للانضمام إلى القناة", url=FORCED_CHANNEL_URL)],
+        [InlineKeyboardButton("✅ اشتركت، تحقق من الاشتراك 🔄", callback_data="check_subscription")]
+    ])
 
 async def process_successful_join_reward(user, context, u_data):
     try:
@@ -907,6 +928,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
         return
 
+    # التحقق من الاشتراك الإجباري لقناتك فقط
+    if not await check_user_subscription(user.id, context):
+        await update.message.reply_text(
+            f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
+            parse_mode='Markdown',
+            reply_markup=await get_forced_subscription_keyboard()
+        )
+        return
+
     args = context.args
     arg_param = args[0] if args else None
 
@@ -943,10 +973,42 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     user_id = query.from_user.id
-    user_first_name = query.from_user.first_name
     data = query.data
+
+    if data == 'check_subscription':
+        if await check_user_subscription(user_id, context):
+            await query.answer("✅ تم التحقق من اشتراكك بنجاح! أهلاً بك.", show_alert=True)
+            u_data = db_get_user(user_id)
+            await process_successful_join_reward(query.from_user, context, u_data)
+            welcome_text = (
+                f"💎 **مرحباً بك عزيزي {query.from_user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"👤 **الآيدي:** `{user_id}`\n"
+                f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "🌟 بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة، الأرقام الافتراضية، والرشق!\n\n"
+                "👇 **اختر ما يناسبك من القائمة أدناه:**"
+            )
+            await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id))
+        else:
+            await query.answer("❌ عذراً، لم تقم بالاشتراك في القناة بعد! يرجى الاشتراك ثم إعادة المحاولة.", show_alert=True)
+        return
+
+    if not await check_user_subscription(user_id, context):
+        await query.answer("⚠️ يجب عليك الاشتراك في القناة أولاً لاستخدام البوت!", show_alert=True)
+        try:
+            await query.edit_message_text(
+                f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
+                parse_mode='Markdown',
+                reply_markup=await get_forced_subscription_keyboard()
+            )
+        except Exception:
+            pass
+        return
+
+    await query.answer()
+    user_first_name = query.from_user.first_name
 
     if data == 'main_menu':
         u_data = db_get_user(user_id)
@@ -1707,6 +1769,15 @@ def prompt_user_for_pubg_id(message, service_info, context):
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
+    # التحقق من الاشتراك الإجباري عند إرسال أي نص
+    if not await check_user_subscription(user_id, context):
+        await update.message.reply_text(
+            f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
+            parse_mode='Markdown',
+            reply_markup=await get_forced_subscription_keyboard()
+        )
+        return
+
     u_data = db_get_user(user_id)
     await process_successful_join_reward(update.effective_user, context, u_data)
 
