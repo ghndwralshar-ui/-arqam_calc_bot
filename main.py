@@ -412,8 +412,9 @@ COUNTRY_TRANSLATIONS = {
 }
 
 async def fetch_5sim_countries(service_name):
-    async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
+    async with httpx.AsyncClient(headers=HEADERS, timeout=20.0, follow_redirects=True) as client:
         try:
+            # تم تحديث الرابط ليكون أكثر استقراراً لجلب الأسعار للمنتج
             url = f"https://5sim.net/v1/guest/prices?product={service_name}"
             res = await client.get(url)
             print(f"5sim API Status for {service_name}: {res.status_code}")
