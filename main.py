@@ -48,6 +48,40 @@ admin_state = {}
 user_selected_service = {}
 user_order_data = {}
 
+# قائمة الدول الثابتة والأسعار المعتمدة
+STATIC_COUNTRIES = [
+    {"code": "russia", "name_ar": "روسيا", "flag": "🇷🇺", "price": 0.70, "count": 150},
+    {"code": "usa", "name_ar": "أمريكا", "flag": "🇺🇸", "price": 2.50, "count": 120},
+    {"code": "uk", "name_ar": "بريطانيا", "flag": "🇬🇧", "price": 2.00, "count": 100},
+    {"code": "india", "name_ar": "الهند", "flag": "🇮🇳", "price": 0.50, "count": 300},
+    {"code": "indonesia", "name_ar": "إندونيسيا", "flag": "🇮🇩", "price": 1.00, "count": 200},
+    {"code": "brazil", "name_ar": "البرازيل", "flag": "🇧🇷", "price": 0.80, "count": 90},
+    {"code": "germany", "name_ar": "ألمانيا", "flag": "🇩🇪", "price": 1.80, "count": 85},
+    {"code": "turkey", "name_ar": "تركيا", "flag": "🇹🇷", "price": 0.90, "count": 130},
+    {"code": "ukraine", "name_ar": "أوكرانيا", "flag": "🇺🇦", "price": 0.70, "count": 110},
+    {"code": "kazakhstan", "name_ar": "كازاخستان", "flag": "🇰🇿", "price": 0.60, "count": 95},
+    {"code": "vietnam", "name_ar": "فيتنام", "flag": "🇻🇳", "price": 0.65, "count": 140},
+    {"code": "philippines", "name_ar": "الفلبين", "flag": "🇵🇭", "price": 1.00, "count": 160},
+    {"code": "poland", "name_ar": "بولندا", "flag": "🇵🇱", "price": 0.80, "count": 75},
+    {"code": "colombia", "name_ar": "كولومبيا", "flag": "🇨🇴", "price": 0.75, "count": 80},
+    {"code": "egypt", "name_ar": "مصر", "flag": "🇪🇬", "price": 0.85, "count": 210},
+    {"code": "nigeria", "name_ar": "نيجيريا", "flag": "🇳🇬", "price": 0.70, "count": 65},
+    {"code": "kenya", "name_ar": "كينيا", "flag": "🇰🇪", "price": 0.60, "count": 70},
+    {"code": "southafrica", "name_ar": "جنوب أفريقيا", "flag": "🇿🇦", "price": 0.75, "count": 60},
+    {"code": "myanmar", "name_ar": "ميانمار", "flag": "🇲🇲", "price": 0.55, "count": 50},
+    {"code": "cambodia", "name_ar": "كمبوديا", "flag": "🇰🇭", "price": 0.55, "count": 45},
+    {"code": "bangladesh", "name_ar": "بنغلاديش", "flag": "🇧🇩", "price": 0.55, "count": 180},
+    {"code": "pakistan", "name_ar": "باكستان", "flag": "🇵🇰", "price": 0.60, "count": 190},
+    {"code": "malaysia", "name_ar": "ماليزيا", "flag": "🇲🇾", "price": 0.70, "count": 85},
+    {"code": "thailand", "name_ar": "تايلاند", "flag": "🇹🇭", "price": 0.75, "count": 90},
+    {"code": "mexico", "name_ar": "المكسيك", "flag": "🇲🇽", "price": 0.80, "count": 115},
+    {"code": "spain", "name_ar": "إسبانيا", "flag": "🇪🇸", "price": 1.50, "count": 70},
+    {"code": "france", "name_ar": "فرنسا", "flag": "🇫🇷", "price": 1.60, "count": 95},
+    {"code": "italy", "name_ar": "إيطاليا", "flag": "🇮🇹", "price": 1.50, "count": 80},
+    {"code": "canada", "name_ar": "كندا", "flag": "🇨🇦", "price": 1.80, "count": 85},
+    {"code": "yemen", "name_ar": "اليمن", "flag": "🇾🇪", "price": 1.20, "count": 50}
+]
+
 def init_db():
     print("🟢 قاعدة البيانات السحابية (Supabase) متصلة وجاهزة بنجاح!")
 
@@ -240,9 +274,6 @@ def get_all_sub_admins():
     except Exception:
         return []
 
-def mult_price(price: float) -> float:
-    return round(price * 2.0, 2)
-
 def mask_link(link: str) -> str:
     if not link:
         return "لا يوجد رابط"
@@ -251,221 +282,6 @@ def mask_link(link: str) -> str:
         return link[:3] + "..."
     half = length // 2
     return link[:half] + "..."
-
-COUNTRY_TRANSLATIONS = {
-    "Afghanistan": {"name_ar": "أفغانستان", "flag": "🇦🇫"},
-    "Albania": {"name_ar": "ألبانيا", "flag": "🇦🇱"},
-    "Algeria": {"name_ar": "الجزائر", "flag": "🇩🇿"},
-    "Andorra": {"name_ar": "أندورا", "flag": "🇦🇩"},
-    "Angola": {"name_ar": "أنغولا", "flag": "🇦🇴"},
-    "Argentina": {"name_ar": "الأرجنتين", "flag": "🇦🇷"},
-    "Armenia": {"name_ar": "أرمينيا", "flag": "🇦🇲"},
-    "Australia": {"name_ar": "أستراليا", "flag": "🇦🇺"},
-    "Austria": {"name_ar": "النمسا", "flag": "🇦🇹"},
-    "Azerbaijan": {"name_ar": "أذربيجان", "flag": "🇦🇿"},
-    "Bahrain": {"name_ar": "البحرين", "flag": "🇧🇭"},
-    "Bangladesh": {"name_ar": "بنغلاديش", "flag": "🇧🇩"},
-    "Belarus": {"name_ar": "بيلاروسيا", "flag": "🇧🇾"},
-    "Belgium": {"name_ar": "بلجيكا", "flag": "🇧🇪"},
-    "Belize": {"name_ar": "بيليز", "flag": "🇧🇿"},
-    "Benin": {"name_ar": "بنين", "flag": "🇧🇯"},
-    "Bolivia": {"name_ar": "بوليفيا", "flag": "🇧🇴"},
-    "Bosnia": {"name_ar": "البوسنة والهرسك", "flag": "🇧🇦"},
-    "Botswana": {"name_ar": "بوتسوانا", "flag": "🇧🇼"},
-    "Brazil": {"name_ar": "البرازيل", "flag": "🇧🇷"},
-    "Brunei": {"name_ar": "بروناي", "flag": "🇧🇳"},
-    "Bulgaria": {"name_ar": "بلغاريا", "flag": "🇧🇬"},
-    "Burkina": {"name_ar": "بوركينا فاسو", "flag": "🇧🇫"},
-    "Burundi": {"name_ar": "بوروندي", "flag": "🇧🇮"},
-    "Cambodia": {"name_ar": "كمبوديا", "flag": "🇰🇭"},
-    "Cameroon": {"name_ar": "الكاميرون", "flag": "🇨🇲"},
-    "Canada": {"name_ar": "كندا", "flag": "🇨🇦"},
-    "Chad": {"name_ar": "تشاد", "flag": "🇹🇩"},
-    "Chile": {"name_ar": "تشيلي", "flag": "🇨🇱"},
-    "China": {"name_ar": "الصين", "flag": "🇨🇳"},
-    "Colombia": {"name_ar": "كولومبيا", "flag": "🇨🇴"},
-    "Comoros": {"name_ar": "جزر القمر", "flag": "🇰🇲"},
-    "Congo": {"name_ar": "الكونغو", "flag": "🇨🇬"},
-    "CostaRica": {"name_ar": "كوستاريكا", "flag": "🇨🇷"},
-    "Croatia": {"name_ar": "كرواتيا", "flag": "🇭🇷"},
-    "Cyprus": {"name_ar": "قبرص", "flag": "🇨🇾"},
-    "Czech": {"name_ar": "التشيك", "flag": "🇨🇿"},
-    "Denmark": {"name_ar": "الدنمارك", "flag": "🇩🇰"},
-    "Djibouti": {"name_ar": "جيبوتي", "flag": "🇩🇯"},
-    "Dominican": {"name_ar": "الدومينيكان", "flag": "🇩🇴"},
-    "Ecuador": {"name_ar": "الإكوادور", "flag": "🇪🇨"},
-    "Egypt": {"name_ar": "مصر", "flag": "🇪🇬"},
-    "ElSalvador": {"name_ar": "السلفادور", "flag": "🇸🇻"},
-    "Estonia": {"name_ar": "إستونيا", "flag": "🇪🇪"},
-    "Ethiopia": {"name_ar": "إثيوبيا", "flag": "🇪🇹"},
-    "Finland": {"name_ar": "فنلندا", "flag": "🇫🇮"},
-    "France": {"name_ar": "فرنسا", "flag": "🇫🇷"},
-    "Gabon": {"name_ar": "الغابون", "flag": "🇬🇦"},
-    "Gambia": {"name_ar": "غامبيا", "flag": "🇬🇲"},
-    "Georgia": {"name_ar": "جورجيا", "flag": "🇬🇪"},
-    "Germany": {"name_ar": "ألمانيا", "flag": "🇩🇪"},
-    "Ghana": {"name_ar": "غانا", "flag": "🇬🇭"},
-    "Greece": {"name_ar": "اليونان", "flag": "🇬🇷"},
-    "Guatemala": {"name_ar": "غواتيمالا", "flag": "🇬🇹"},
-    "Guinea": {"name_ar": "غينيا", "flag": "🇬🇳"},
-    "Haiti": {"name_ar": "هايتي", "flag": "🇭🇹"},
-    "Honduras": {"name_ar": "هوندوراس", "flag": "🇭🇳"},
-    "Hongkong": {"name_ar": "هونغ كونغ", "flag": "🇭🇰"},
-    "Hungary": {"name_ar": "المجر", "flag": "🇭🇺"},
-    "India": {"name_ar": "الهند", "flag": "🇮🇳"},
-    "Indonesia": {"name_ar": "إندونيسيا", "flag": "🇮🇩"},
-    "Iran": {"name_ar": "إيران", "flag": "🇮🇷"},
-    "Iraq": {"name_ar": "العراق", "flag": "🇮🇶"},
-    "Ireland": {"name_ar": "أيرلندا", "flag": "🇮🇪"},
-    "Israel": {"name_ar": "إسرائيل", "flag": "🇮🇱"},
-    "Italy": {"name_ar": "إيطاليا", "flag": "🇮🇹"},
-    "IvoryCoast": {"name_ar": "ساحل العاج", "flag": "🇨🇮"},
-    "Jamaica": {"name_ar": "جامايكا", "flag": "🇯🇲"},
-    "Japan": {"name_ar": "اليابان", "flag": "🇯🇵"},
-    "Jordan": {"name_ar": "الأردن", "flag": "🇯🇴"},
-    "Kazakhstan": {"name_ar": "كازاخستان", "flag": "🇰🇿"},
-    "Kenya": {"name_ar": "كينيا", "flag": "🇰🇪"},
-    "Kuwait": {"name_ar": "الكويت", "flag": "🇰🇼"},
-    "Kyrgyzstan": {"name_ar": "قرغيزستان", "flag": "🇰🇬"},
-    "Laos": {"name_ar": "لاوس", "flag": "🇱🇦"},
-    "Latvia": {"name_ar": "لاتفيا", "flag": "🇱🇻"},
-    "Lebanon": {"name_ar": "لبنان", "flag": "🇱🇧"},
-    "Lesotho": {"name_ar": "ليسوتو", "flag": "🇱🇸"},
-    "Liberia": {"name_ar": "ليبيريا", "flag": "🇱🇷"},
-    "Libya": {"name_ar": "ليبيا", "flag": "🇱🇾"},
-    "Lithuania": {"name_ar": "ليتوانيا", "flag": "🇱🇹"},
-    "Luxembourg": {"name_ar": "لوكسمبورغ", "flag": "🇱🇺"},
-    "Madagascar": {"name_ar": "مدغشقر", "flag": "🇲🇬"},
-    "Malawi": {"name_ar": "مالاوي", "flag": "🇲🇼"},
-    "Malaysia": {"name_ar": "ماليزيا", "flag": "🇲🇾"},
-    "Mali": {"name_ar": "مالي", "flag": "🇲🇱"},
-    "Malta": {"name_ar": "مالطا", "flag": "🇲🇹"},
-    "Mauritania": {"name_ar": "موريتانيا", "flag": "🇲🇷"},
-    "Mauritius": {"name_ar": "موريشيوس", "flag": "🇲🇺"},
-    "Mexico": {"name_ar": "المكسيك", "flag": "🇲🇽"},
-    "Moldova": {"name_ar": "مولدوفا", "flag": "🇲🇩"},
-    "Mongolia": {"name_ar": "منغوليا", "flag": "🇲🇳"},
-    "Montenegro": {"name_ar": "الجبل الأسود", "flag": "🇲🇪"},
-    "Morocco": {"name_ar": "المغرب", "flag": "🇲🇦"},
-    "Mozambique": {"name_ar": "موزمبيق", "flag": "🇲🇿"},
-    "Myanmar": {"name_ar": "ميانمار", "flag": "🇲🇲"},
-    "Namibia": {"name_ar": "ناميبيا", "flag": "🇳🇦"},
-    "Nepal": {"name_ar": "نيبال", "flag": "🇳🇵"},
-    "Netherland": {"name_ar": "هولندا", "flag": "🇳🇱"},
-    "NewZealand": {"name_ar": "نيوزيلندا", "flag": "🇳🇿"},
-    "Nicaragua": {"name_ar": "نيكاراغوا", "flag": "🇳🇮"},
-    "Niger": {"name_ar": "النيجر", "flag": "🇳🇪"},
-    "Nigeria": {"name_ar": "نيجيريا", "flag": "🇳🇬"},
-    "NorthMacedonia": {"name_ar": "مقدونيا الشمالية", "flag": "🇲🇰"},
-    "Norway": {"name_ar": "النرويج", "flag": "🇳🇴"},
-    "Oman": {"name_ar": "عمان", "flag": "🇴🇲"},
-    "Pakistan": {"name_ar": "باكستان", "flag": "🇵🇰"},
-    "Palestine": {"name_ar": "فلسطين", "flag": "🇵🇸"},
-    "Panama": {"name_ar": "بنما", "flag": "🇵🇦"},
-    "Paraguay": {"name_ar": "باراغواي", "flag": "🇵🇾"},
-    "Peru": {"name_ar": "بيرو", "flag": "🇵🇪"},
-    "Philippines": {"name_ar": "الفلبين", "flag": "🇵🇭"},
-    "Poland": {"name_ar": "بولندا", "flag": "🇵🇱"},
-    "Portugal": {"name_ar": "البرتغال", "flag": "🇵🇹"},
-    "PuertoRico": {"name_ar": "بورتوريكو", "flag": "🇵🇷"},
-    "Qatar": {"name_ar": "قطر", "flag": "🇶🇦"},
-    "Romania": {"name_ar": "رومانيا", "flag": "🇷🇴"},
-    "Russia": {"name_ar": "روسيا", "flag": "🇷🇺"},
-    "Rwanda": {"name_ar": "رواندا", "flag": "🇷🇼"},
-    "SaudiArabia": {"name_ar": "السعودية", "flag": "🇸🇦"},
-    "Senegal": {"name_ar": "السنغال", "flag": "🇸🇳"},
-    "Serbia": {"name_ar": "صربيا", "flag": "🇷🇸"},
-    "SierraLeone": {"name_ar": "سيراليون", "flag": "🇸🇱"},
-    "Singapore": {"name_ar": "سنغافورة", "flag": "🇸🇬"},
-    "Slovakia": {"name_ar": "سلوفاكيا", "flag": "🇸🇰"},
-    "Slovenia": {"name_ar": "سلوفينيا", "flag": "🇸🇮"},
-    "Somalia": {"name_ar": "الصومال", "flag": "🇸🇴"},
-    "SouthAfrica": {"name_ar": "جنوب أفريقيا", "flag": "🇿🇦"},
-    "SouthSudan": {"name_ar": "جنوب السودان", "flag": "🇸🇸"},
-    "Spain": {"name_ar": "إسبانيا", "flag": "🇪🇸"},
-    "SriLanka": {"name_ar": "سريلانكا", "flag": "🇱🇰"},
-    "Sudan": {"name_ar": "السودان", "flag": "🇸🇩"},
-    "Suriname": {"name_ar": "سورينام", "flag": "🇸🇷"},
-    "Sweden": {"name_ar": "السويد", "flag": "🇸🇪"},
-    "Switzerland": {"name_ar": "سويسرا", "flag": "🇨🇭"},
-    "Syria": {"name_ar": "سوريا", "flag": "🇸🇾"},
-    "Taiwan": {"name_ar": "تايوان", "flag": "🇹🇼"},
-    "Tajikistan": {"name_ar": "طاجيكستان", "flag": "🇹🇯"},
-    "Tanzania": {"name_ar": "تنزانيا", "flag": "🇹🇿"},
-    "Thailand": {"name_ar": "تايلاند", "flag": "🇹🇭"},
-    "Togo": {"name_ar": "توغو", "flag": "🇹🇬"},
-    "Tunisia": {"name_ar": "تونس", "flag": "🇹🇳"},
-    "Turkey": {"name_ar": "تركيا", "flag": "🇹🇷"},
-    "Turkmenistan": {"name_ar": "تركمانستان", "flag": "🇹🇲"},
-    "Uganda": {"name_ar": "أوغندا", "flag": "🇺🇬"},
-    "Ukraine": {"name_ar": "أوكرانيا", "flag": "🇺🇦"},
-    "UAE": {"name_ar": "الإمارات", "flag": "🇦🇪"},
-    "UK": {"name_ar": "بريطانيا", "flag": "🇬🇧"},
-    "USA": {"name_ar": "أمريكا", "flag": "🇺🇸"},
-    "Uruguay": {"name_ar": "أوروغواي", "flag": "🇺🇾"},
-    "Uzbekistan": {"name_ar": "أوزبكستان", "flag": "🇺🇿"},
-    "Venezuela": {"name_ar": "فنزويلا", "flag": "🇻🇪"},
-    "Vietnam": {"name_ar": "فيتنام", "flag": "🇻🇳"},
-    "Yemen": {"name_ar": "اليمن", "flag": "🇾🇪"},
-    "Zambia": {"name_ar": "زامبيا", "flag": "🇿🇲"},
-    "Zimbabwe": {"name_ar": "زيمبابوي", "flag": "🇿🇼"}
-}
-
-async def fetch_5sim_countries(service_name):
-    async with httpx.AsyncClient(headers=HEADERS, timeout=20.0, follow_redirects=True) as client:
-        try:
-            # تم تحديث الرابط ليكون أكثر استقراراً لجلب الأسعار للمنتج
-            url = f"https://5sim.net/v1/guest/prices?product={service_name}"
-            res = await client.get(url)
-            print(f"5sim API Status for {service_name}: {res.status_code}")
-            
-            if res.status_code == 200:
-                try:
-                    data = res.json()
-                except Exception as json_err:
-                    print(f"5sim JSON Decode Error: {json_err}, Response text: {res.text[:200]}")
-                    return []
-                
-                if not isinstance(data, dict):
-                    return []
-
-                countries_dict = []
-                for country, operators in data.items():
-                    min_p = 999999
-                    total_count = 0
-                    if isinstance(operators, dict):
-                        for op_name, op_data in operators.items():
-                            if isinstance(op_data, dict):
-                                if 'cost' in op_data:
-                                    try:
-                                        c = float(op_data['cost'])
-                                        if c < min_p:
-                                            min_p = c
-                                    except Exception:
-                                        pass
-                                if 'count' in op_data:
-                                    try:
-                                        total_count += int(op_data['count'])
-                                    except Exception:
-                                        pass
-                    
-                    if min_p != 999999 and total_count > 0:
-                        final_p = mult_price(min_p)
-                        info = COUNTRY_TRANSLATIONS.get(country, {"name_ar": country, "flag": "🏳️"})
-                        countries_dict.append({
-                            "code": country,
-                            "name_ar": info["name_ar"],
-                            "flag": info["flag"],
-                            "price": final_p,
-                            "count": total_count
-                        })
-                countries_dict.sort(key=lambda x: x['price'])
-                return countries_dict
-            else:
-                print(f"5sim Error Response: {res.text[:300]}")
-        except Exception as e:
-            print(f"Error fetching 5sim prices for {service_name}: {e}")
-        return []
 
 def get_main_keyboard(user_id):
     buttons = [
@@ -1078,12 +894,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
 
     elif data == 'most_available':
-        await query.answer("⏳ جاري فحص الخدمات الأكثر توفراً...", show_alert=False)
-        countries = await fetch_5sim_countries('whatsapp')
-        if not countries:
-            await query.edit_message_text("⚠️ لا توجد أرقام متاحة حالياً.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
-            return
-        top_available = sorted(countries, key=lambda x: -x['count'])[:8]
+        top_available = sorted(STATIC_COUNTRIES, key=lambda x: -x['count'])[:8]
         buttons = []
         for item in top_available:
             buttons.append([InlineKeyboardButton(f"{item['flag']} {item['name_ar']} (متوفر:{item['count']}) • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}")])
@@ -1091,28 +902,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🎳 **• الدول الأكثر توفراً لأرقام واتساب حالياً •**\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == 'deals_whatsapp':
-        await query.answer("⏳ جاري جلب أرخص أسعار واتساب...", show_alert=False)
-        countries = await fetch_5sim_countries('whatsapp')
-        if not countries:
-            await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لواتساب.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
-            return
-        cheapest_countries = countries[:10]
         buttons = []
-        for item in cheapest_countries:
+        for item in STATIC_COUNTRIES[:10]:
             buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} • ${item['price']:.2f} (متوفر: {item['count']})", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}")])
         buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
         u_data = db_get_user(user_id)
         await query.edit_message_text(f"💬 **• أرخص عروض أرقام واتساب في البوت •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المناسبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data == 'deals_telegram':
-        await query.answer("⏳ جاري جلب أرخص أسعار تليجرام...", show_alert=False)
-        countries = await fetch_5sim_countries('telegram')
-        if not countries:
-            await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لتليجرام.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='main_menu')]]))
-            return
-        cheapest_countries = countries[:10]
         buttons = []
-        for item in cheapest_countries:
+        for item in STATIC_COUNTRIES[:10]:
             buttons.append([InlineKeyboardButton(f"🔥 {item['flag']} {item['name_ar']} • ${item['price']:.2f} (متوفر: {item['count']})", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}")])
         buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
         u_data = db_get_user(user_id)
@@ -1122,7 +921,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
 
     elif data == "sec_whatsapp":
-        await query.edit_message_text("🟢 قسم خدمات واتساب:\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
+        await query.edit_message_text("🟢 خدمات واتساب:\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
 
     elif data == "sec_telegram":
         await query.edit_message_text("🚀 خدمات تليجرام:\nاختر القسم الفرعي المطلوب:", reply_markup=telegram_services_keyboard())
@@ -1562,44 +1361,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(f"❌ تم رفض الطلب للمستخدم `{target_user_id}`", parse_mode='Markdown')
 
-    elif data in ['service_whatsapp']:
-        await query.answer("⏳ جاري جلب أحدث أسعار واتساب...", show_alert=False)
-        countries = await fetch_5sim_countries('whatsapp')
-        if not countries:
-            await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لخدمة واتساب من الخادم.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-            return
-        buttons = []
-        row = []
-        for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_whatsapp_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسية", callback_data='buy_virtual_number')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🔥 **• قائمة دول أرقام واتساب ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif data in ['service_telegram']:
-        await query.answer("⏳ جاري جلب أحدث أسعار تليجرام...", show_alert=False)
-        countries = await fetch_5sim_countries('telegram')
-        if not countries:
-            await query.edit_message_text("⚠️ عذراً، لا توجد أرقام متوفرة حالياً لخدمة تليجرام من الخادم.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-            return
-        buttons = []
-        row = []
-        for item in countries:
-            row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_telegram_{item['code']}_{item['price']}"))
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
-        if row: buttons.append(row)
-        buttons.append([InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسية", callback_data='buy_virtual_number')])
-        u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🎲 **• قائمة دول أرقام تليجرام ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif data in ['service_instagram', 'service_facebook', 'service_twitter', 'service_tiktok', 'service_snapchat', 'service_imo']:
+    elif data in ['service_whatsapp', 'service_telegram', 'service_instagram', 'service_facebook', 'service_twitter', 'service_tiktok', 'service_snapchat', 'service_imo']:
         serv_codes = {
+            'service_whatsapp': ('whatsapp', 'واتساب 🛍️'),
+            'service_telegram': ('telegram', 'تليجرام 🎲'),
             'service_instagram': ('instagram', 'انستغرام 🎳'),
             'service_facebook': ('facebook', 'فيسبوك 🎯'),
             'service_twitter': ('twitter', 'تويتر 🐤'),
@@ -1607,15 +1372,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'service_snapchat': ('snapchat', 'سناب شات ♣️'),
             'service_imo': ('imo', 'إيمو 💎')
         }
-        s_code, s_title = serv_codes.get(data, ('instagram', 'انستغرام'))
-        await query.answer(f"⏳ جاري جلب أسعار {s_title}...", show_alert=False)
-        countries = await fetch_5sim_countries(s_code)
-        if not countries:
-            await query.edit_message_text(f"⚠️ عذراً، لا توجد أرقام متوفرة حالياً لخدمة {s_title}.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-            return
+        s_code, s_title = serv_codes.get(data, ('whatsapp', 'واتساب'))
         buttons = []
         row = []
-        for item in countries:
+        for item in STATIC_COUNTRIES:
             row.append(InlineKeyboardButton(f"{item['flag']} {item['name_ar']} • ${item['price']:.2f}", callback_data=f"buy_num_{s_code}_{item['code']}_{item['price']}"))
             if len(row) == 2:
                 buttons.append(row)
@@ -1623,7 +1383,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if row: buttons.append(row)
         buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
         u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🔹 **• {s_title} ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text(f"🔹 **• أرقام {s_title} ($) •**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\nاختر الدولة المطلوبة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
 
     elif data.startswith('buy_num_'):
         parts = data.split('_')
@@ -2123,7 +1883,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         ])
         for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
             try:
-                await context.bot.send_message(chat_id=adm_id, text=f"📥 **طلب شحن جديد!**\n🆔 الآيدي: `{user_id}`\nالتفاصيل: `{text}`", parse_mode='Markdown', reply_markup=admin_markup)
+                await context.bot.send_message(chat_id=adm_id, text=f"📥 **طلب شحن جديد!**\n🆔 الآيدي: `{user_id}`\nالتفاصيل: `{text}`", parse_Message='Markdown', reply_markup=admin_markup)
             except Exception:
                 pass
         await update.message.reply_text("✅ تم إرسال إيصالك للإدارة بنجاح، انتظر المراجعة.")
