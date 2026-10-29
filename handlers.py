@@ -179,9 +179,15 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
         return
 
     buttons = []
+    row = []
     for c in available_countries:
-        btn_text = f"{c['flag']} {c['name_ar']} ({c['dial']}) • ${c['price']:.2f}"
-        buttons.append([InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}")])
+        btn_text = f"{c['flag']} {c['name_ar']} • ${c['price']:.2f}"
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}"))
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
 
     buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
     u_data = db_get_user(user_id)
@@ -189,7 +195,7 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     await query.edit_message_text(
         f"🔹 **• الدول المتوفرة حالياً لأرقام ({service_title}) •**\n"
         f"⭐ رصيدك: `${u_data['balance']:.2f}`\n\n"
-        "👇 **اختر الدولة المطلوبة (السعر أمامك مضاعف ضعفين):**",
+        "👇 **اختر الدولة المطلوبة (مرتبة في صفين):**",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup(buttons)
     )
