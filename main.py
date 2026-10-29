@@ -36,7 +36,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 HEADERS = {
     'Authorization': f'Bearer {FIVESIM_API_KEY}',
     'Accept': 'application/json',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
 logging.basicConfig(
@@ -414,11 +414,15 @@ COUNTRY_TRANSLATIONS = {
 async def fetch_5sim_countries(service_name):
     async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
         try:
-            res = await client.get(f"https://5sim.net/v1/guest/prices?product={service_name}")
+            url = f"https://5sim.net/v1/guest/prices?product={service_name}"
+            res = await client.get(url)
+            print(f"5sim API Status for {service_name}: {res.status_code}")
+            
             if res.status_code == 200:
                 try:
                     data = res.json()
-                except Exception:
+                except Exception as json_err:
+                    print(f"5sim JSON Decode Error: {json_err}, Response text: {res.text[:200]}")
                     return []
                 
                 if not isinstance(data, dict):
@@ -456,6 +460,8 @@ async def fetch_5sim_countries(service_name):
                         })
                 countries_dict.sort(key=lambda x: x['price'])
                 return countries_dict
+            else:
+                print(f"5sim Error Response: {res.text[:300]}")
         except Exception as e:
             print(f"Error fetching 5sim prices for {service_name}: {e}")
         return []
@@ -946,7 +952,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
         return
 
-    # التحقق من الاشتراك الإجباري لقناتك فقط
     if not await check_user_subscription(user.id, context):
         await update.message.reply_text(
             f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
@@ -1383,7 +1388,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}, timeout=20.0) as client:
                 payload = {
                     'key': HMCARD_API_KEY,
                     'action': 'add',
@@ -1393,14 +1398,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
                 try:
                     res = await client.post(HMCARD_API_URL, data=payload)
+                    print(f"HMCARD Status Code: {res.status_code}")
+                    
                     if res.status_code == 200:
                         try:
                             resp_data = res.json()
                         except Exception:
                             text_resp = res.text
-                            print(f"HMCARD Non-JSON Response: {text_resp}")
+                            print(f"HMCARD Non-JSON Response Full: {text_resp}")
                             await query.edit_message_text(
-                                f"❌ **عذراً، موقع الرشق لم يرجع رداً صالحاً.**\nالرد من الموقع: `{text_resp[:100]}`",
+                                f"❌ **عذراً، موقع الرشق يرسل صفحة حماية أو خطأ (HTML).**\n"
+                                f"🔍 الرد المختصر من الموقع:\n`{text_resp[:150]}`...\n\n"
+                                f"💡 *تأكد من صحة رابط الـ API أو أن موقع الرشق لا يحظر طلبات البوت.*",
                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
                             )
                             return
@@ -1802,7 +1811,6 @@ def prompt_user_for_pubg_id(message, service_info, context):
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    # التحقق من الاشتراك الإجباري عند إرسال أي نص
     if not await check_user_subscription(user_id, context):
         await update.message.reply_text(
             f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
