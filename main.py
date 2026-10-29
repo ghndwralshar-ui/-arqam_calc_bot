@@ -36,7 +36,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 HEADERS = {
     'Authorization': f'Bearer {FIVESIM_API_KEY}',
     'Accept': 'application/json',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
 
 logging.basicConfig(
@@ -416,19 +416,33 @@ async def fetch_5sim_countries(service_name):
         try:
             res = await client.get(f"https://5sim.net/v1/guest/prices?product={service_name}")
             if res.status_code == 200:
-                data = res.json()
+                try:
+                    data = res.json()
+                except Exception:
+                    return []
+                
+                if not isinstance(data, dict):
+                    return []
+
                 countries_dict = []
                 for country, operators in data.items():
                     min_p = 999999
                     total_count = 0
-                    for op_name, op_data in operators.items():
-                        if isinstance(op_data, dict):
-                            if 'cost' in op_data:
-                                c = float(op_data['cost'])
-                                if c < min_p:
-                                    min_p = c
-                            if 'count' in op_data:
-                                total_count += int(op_data['count'])
+                    if isinstance(operators, dict):
+                        for op_name, op_data in operators.items():
+                            if isinstance(op_data, dict):
+                                if 'cost' in op_data:
+                                    try:
+                                        c = float(op_data['cost'])
+                                        if c < min_p:
+                                            min_p = c
+                                    except Exception:
+                                        pass
+                                if 'count' in op_data:
+                                    try:
+                                        total_count += int(op_data['count'])
+                                    except Exception:
+                                        pass
                     
                     if min_p != 999999 and total_count > 0:
                         final_p = mult_price(min_p)
@@ -867,7 +881,11 @@ async def watch_order_sms(context: ContextTypes.DEFAULT_TYPE, chat_id: int, mess
             try:
                 res = await client.get(url)
                 if res.status_code == 200:
-                    data = res.json()
+                    try:
+                        data = res.json()
+                    except Exception:
+                        continue
+                    
                     sms_list = data.get('sms', [])
                     if sms_list:
                         sms_code = sms_list[0].get('code', 'لا يوجد كود')
@@ -1376,7 +1394,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 try:
                     res = await client.post(HMCARD_API_URL, data=payload)
                     if res.status_code == 200:
-                        resp_data = res.json()
+                        try:
+                            resp_data = res.json()
+                        except Exception:
+                            text_resp = res.text
+                            print(f"HMCARD Non-JSON Response: {text_resp}")
+                            await query.edit_message_text(
+                                f"❌ **عذراً، موقع الرشق لم يرجع رداً صالحاً.**\nالرد من الموقع: `{text_resp[:100]}`",
+                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                            )
+                            return
+
                         if isinstance(resp_data, dict) and "order" in resp_data:
                             order_id = resp_data["order"]
                             db_update_balance(user_id, final_cost, mode="deduct")
@@ -1606,7 +1634,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/any/{service}")
                 if res.status_code == 200:
-                    res_data = res.json()
+                    try:
+                        res_data = res.json()
+                    except Exception:
+                        await query.edit_message_text("⚠️ **حدث خطأ في استقبال الرد من مزود الأرقام.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        return
+
                     phone, order_id = res_data.get('phone'), res_data.get('id')
                     if not phone or not order_id:
                         await query.edit_message_text("⚠️ **عذراً، نفدت الأرقام لهذه الدولة حالياً.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
