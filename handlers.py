@@ -1128,22 +1128,46 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         admin_state.pop(user_id, None)
         
         processing_msg = await update.message.reply_text(
-            "🤖 **جاري معالجة إيصال التحويل وشحن الرصيد...**\n"
+            "🤖 **جاري استلام الإيصال والتحقق من السجلات...**\n"
             "⏳ **يرجى الانتظار ثوانٍ...**",
             parse_mode='Markdown'
         )
         
         try:
-            tx_id = f"TX_{user_id}_{int(asyncio.get_event_loop().time())}"
+            photo_file_id = update.message.photo[-1].file_id
+            tx_id = f"TX_{user_id}_{update.message.photo[-1].file_unique_id[-8:]}"
+
+            from database import supabase
+            
+            # 1️⃣ التحقق الصارم من عدم تكرار الإيصال مسبقاً
+            existing_tx = supabase.table("transactions").select("*").eq("tx_id", tx_id).execute()
+            rows = existing_tx.data if hasattr(existing_tx, 'data') else []
+            
+            if rows:
+                await processing_msg.edit_text(
+                    "❌ **عذراً، هذا الإيصال تم استخدامه مسبقاً ولا يمكن تكراره!**\n"
+                    "⚠️ النظام يحمي المحفظة من استخدام نفس الإيصال أكثر من مرة.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            # تحديد المبلغ المقدر (افتراضي 1000 ريال = 1.82 دولار، أو يتم مراجعته)
             amount_yer = 1000.0
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
 
-            from database import supabase
+            # 2️⃣ حفظ المعاملة في قاعدة البيانات لمنع استخدامها مجدداً
             try:
-                supabase.table("transactions").insert({"user_id": user_id, "tx_id": tx_id, "amount_yer": amount_yer, "usd_amount": usd_amount}).execute()
-            except Exception:
-                pass
+                supabase.table("transactions").insert({
+                    "user_id": user_id, 
+                    "tx_id": tx_id, 
+                    "amount_yer": amount_yer, 
+                    "usd_amount": usd_amount
+                }).execute()
+            except Exception as db_ins_err:
+                print(f"DB Insert Error (Duplicate check): {db_ins_err}")
 
+            # 3️⃣ إضافة الرصيد وإشعار العميل
             db_update_balance(user_id, usd_amount, mode="add")
             u_data = db_get_user(user_id)
 
@@ -1154,10 +1178,10 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **طريقة الشحن:** `{wallet_name}`\n"
                 f"🔢 **رقم مرجع العملية:** `{tx_id}`\n"
-                f"💵 **المبلغ المضاف:** `{amount_yer:,.0f} ريال يمني`\n"
-                f"⭐ **المبلغ بالدولار:** `${usd_amount:.2f}`\n"
+                f"💵 **المبلغ المقدر:** `{amount_yer:,.0f} ريال يمني`\n"
+                f"⭐ **المبلغ المضاف بالدولار:** `${usd_amount:.2f}`\n"
                 f"💰 **رصيدك الحالي الجديد:** `${u_data['balance']:.2f}`\n\n"
-                f"🚀 *تمت إضافة الأموال وتنبيه الإدارة للمراجعة الفورية بنجاح!*"
+                f"🚀 *تمت إضافة الأموال وتم إرسال الإيصال للإدارة للمراجعة النهائية.*"
             )
             
             await processing_msg.edit_text(
@@ -1166,29 +1190,31 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
+            # 4️⃣ إرسال صورة الإيصال للإدارة للمراجعة الشاملة
             for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
                 try:
                     await context.bot.send_photo(
                         chat_id=adm_id,
-                        photo=update.message.photo[-1].file_id,
+                        photo=photo_file_id,
                         caption=(
                             f"🚨 **[إيصال شحن جديد يحتاج مراجعة]** 💳\n"
                             f"━━━━━━━━━━━━━━━━━━━━━━\n"
                             f"👤 **آيدي العميل:** `{user_id}`\n"
                             f"💳 **الطريقة:** `{wallet_name}`\n"
-                            f"🔢 **رقم العملية:** `{tx_id}`\n"
-                            f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}`"
+                            f"🔢 **رقم العمليـة:** `{tx_id}`\n"
+                            f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}` (`{amount_yer:,.0f} ر.ي`)\n"
+                            f"⚠️ *يرجى التأكد من الحساب البنكي.*"
                         ),
                         parse_mode='Markdown'
                     )
-                except Exception:
-                    pass
+                except Exception as admin_send_err:
+                    print(f"Error sending receipt to admin: {admin_send_err}")
 
         except Exception as e:
             print(f"Receipt Processing Error: {e}")
             await processing_msg.edit_text(
-                "❌ **عذراً، حدث خطأ أثناء معالجة الصورة!**\n"
-                "يرجى التأكد من وضوح إيصال الشحن وإعادة إرساله مجدداً.",
+                "❌ **عذراً، حدث خطأ أثناء معالجة الإيصال!**\n"
+                "يرجى التأكد من وضوح الصورة وإعادة محاولة إرسالها.",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
