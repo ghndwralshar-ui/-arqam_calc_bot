@@ -1,40 +1,42 @@
 import os
 
 # ==========================================
-# إعدادات البوت الأساسية
+# إعدادات البوت الأساسية (من نسختك القديمة)
 # ==========================================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "7963283120:AAHq0iVq1B-4QJ4y_YQj9YQj9YQj9YQj9YQ")  # توكن البوت الخاص بك
-ADMIN_ID = 7446545229  # آيدي المالك الأساسي للبوت
+BOT_TOKEN = "8850483932:AAEng210C30m9AEfyeb9lmzWAGKaZ2tkbQo"
+ADMIN_ID = 6472852297
+SUPPORT_USERNAME = "benti"
 
 # ==========================================
-# إعدادات قاعدة البيانات (Supabase) المتوافقة مع database.py
+# إعدادات قاعدة البيانات Supabase (الخاصة بقاعدتك القديمة لتستعيد الأرصدة)
 # ==========================================
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://your-supabase-url.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "your-supabase-anon-key")
+SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
+SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
 
 # ==========================================
 # إعدادات القنوات والروابط
 # ==========================================
-FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"  # معرف القناة للاشتراك الإجباري
-FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"  # رابط القناة
-SUPPORT_USERNAME = "@DigitalHubOrders"  # معرف الدعم الفني
-
-# آيدي قناة السجلات والإكتمالات (الرقمي الصريح الذي يبدأ بـ -100)
-LOG_CHANNEL_ID = -1004374640175
+FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"
+FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"
+LOG_CHANNEL_ID = -1004374640175  # آيدي قناة السجلات الرقمي الصحيح
 
 # ==========================================
-# إعدادات API موقع HMCARD (خدمات الرشق وشحن الألعاب)
+# إعدادات المزودات (HMCARD & 5sim)
 # ==========================================
-HMCARD_API_URL = "https://hmcard.net/api/v2"
-HMCARD_API_KEY = "3aa88e0ab8be2a8c3e8006cdb505963b"  # مفتاح الـ API الخاص بك في موقع HMCARD
+FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
+
+HMCARD_API_URL = "https://hmcard.online/api/v2"
+HMCARD_API_KEY = "0c13f3ad91dc8c152e7cb01f87f1a271"
 
 # ==========================================
-# إعدادات الاتصال العامة و Headers
+# إعدادات الاتصال والـ Headers
 # ==========================================
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json"
+    'Authorization': f'Bearer {FIVESIM_API_KEY}',
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
+
 
 # ==========================================
 # معلومات الدول والأرقام الافتراضية (5sim)
