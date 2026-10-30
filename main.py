@@ -39,8 +39,17 @@ if __name__ == '__main__':
     # تهيئة قاعدة البيانات
     init_db()
     
-    # بناء تطبيق التليجرام
-    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
+    # بناء تطبيق التليجرام مع ضبط مهلات الاتصال لمنع أي ReadTimeout نهائياً
+    app = (
+        ApplicationBuilder()
+        .token(BOT_TOKEN)
+        .connect_timeout(30.0)
+        .read_timeout(30.0)
+        .write_timeout(30.0)
+        .pool_timeout(30.0)
+        .post_init(post_init)
+        .build()
+    )
     
     # إضافة المعالجات (Handlers)
     app.add_handler(CommandHandler('start', start))
