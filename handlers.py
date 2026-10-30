@@ -1,4 +1,4 @@
-import logging
+Import logging
 import asyncio
 import httpx
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
@@ -487,7 +487,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     phone, order_id = res_data.get('phone'), res_data.get('id')
                     if not phone or not order_id:
-                        await query.edit_message_text("⚠️ **عذراً، نفدت الأرقام لهذه الدولة حالياً.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        # الرسالة الجديدة التي تم اختيارها (رقم 1)
+                        out_of_stock_msg = (
+                            "📢 **عذراً عزيزي العميل!**\n"
+                            "🇸🇦 نفدت أرقام هذه الدولة مؤقتاً بسبب الضغط الشديد.\n"
+                            "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
+                        )
+                        await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
                         return
 
                     db_update_balance(user_id, country_price, mode="deduct")
@@ -516,7 +522,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username, sec_name_ar, c_name_ar, c_dial))
                 else:
-                    await query.edit_message_text("❌ **الأرقام غير متوفرة حالياً لهذه الدولة.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                    # الرسالة الجديدة التي تم اختيارها (رقم 1) في حال فشل الطلب أو عدم التوفر
+                    out_of_stock_msg = (
+                        "📢 **عذراً عزيزي العميل!**\n"
+                        "🇸🇦 نفدت أرقام هذه الدولة مؤقتاً بسبب الضغط الشديد.\n"
+                        "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
+                    )
+                    await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
             except Exception as e:
                 await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
 
