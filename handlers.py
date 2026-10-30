@@ -1,4 +1,4 @@
-Import logging
+import logging
 import asyncio
 import httpx
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
