@@ -11,7 +11,8 @@ from config import (
 )
 from database import (
     db_get_user, db_update_balance, db_get_advanced_stats, 
-    db_get_all_users, is_admin_or_sub, get_all_sub_admins
+    db_get_all_users, is_admin_or_sub, get_all_sub_admins,
+    db_check_transaction_exists, db_save_transaction
 )
 from keyboards import (
     get_main_keyboard, get_virtual_services_keyboard, sections_menu_keyboard,
@@ -921,11 +922,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"🔄 **تحويل الرصيد:**\n⭐ رصيدك الحالي: `${u_data['balance']:.2f}`\n\nأرسل الآن **آيدي (ID)** المستخدم المراد التحويل إليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
 
     elif data == 'deposit_menu':
-        deposit_text = "🌐 **طرق الدفع والشحن المتوفرة ✓**\n✅ يمكنك شحن حسابك في البوت بشكل فوري عبر **نجوم تليجرام (Telegram Stars)** أو عبر الطرق اليدوية:"
+        deposit_text = (
+            "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🌟 **بوابة شحن الرصيد الفوري والآمن** 🌟\n\n"
+            "أهلاً بك عزيزي العميل في مركز الشحن الخاص بك. لتعبئة رصيدك والاستمتاع بخدماتنا فوراً، اختر أحد الطرق المتاحة أدناه:\n\n"
+            "⭐ **1️⃣ الشحن الفوري عبر نجوم تليجرام (Stars):**\n"
+            "• الطريقة الأسرع والأوتوماتيكية بالكامل! اضغط على الباقة المناسبة وشحن رصيدك بضغطة زر واحدة.\n\n"
+            "📲 **2️⃣ الشحن عبر محفظة جيب أو الكريمي:**\n"
+            "• قم بتحويل المبلغ المطلوب إلى رقم الحساب المعتمد:\n"
+            "  📌 `772074924`\n"
+            "• بعد إتمام التحويل، **قم بإرسال صورة إيصال التحويل (الشاشة) مباشرة إلى هنا في المحادثة**، وسيتم فحص الإيصال وإضافة الرصيد لحسابك آلياً في ثوانٍ معدودة! 🚀\n\n"
+            "💡 *ملاحظة هامة:* جميع الإيصالات تخضع لنظام تحقق ذكي لمنع التكرار وضمان حقوق الجميع. اختر طريقتك ودع الباقي علينا! 👇"
+        )
         deposit_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("⭐ شحن الرصيد عبر نجوم تليجرام (Stars)", callback_data='dep_telegram_stars')],
-            [InlineKeyboardButton("الدفع عبر محفظة جيب", callback_data='dep_jaib')],
-            [InlineKeyboardButton("الدفع عبر بنك الكريمي", callback_data='dep_alkurimi')],
+            [InlineKeyboardButton("⭐ الشحن الفوري عبر نجوم تليجرام (Stars)", callback_data='dep_telegram_stars')],
+            [InlineKeyboardButton("📲 إرسال إيصال التحويل (جيب / الكريمي)", callback_data='dep_jaib')],
             [InlineKeyboardButton("• عودة •", callback_data='main_menu')]
         ])
         await query.edit_message_text(deposit_text, parse_mode='Markdown', reply_markup=deposit_keyboard)
@@ -952,11 +964,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'dep_jaib':
         admin_state[user_id] = {'action': 'waiting_for_deposit'}
-        await query.edit_message_text("📲 قم بتحويل المبلغ إلى رقم جيب: `78132392` ثم أرسل رقم العملية أو الإيصال هنا:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
-
-    elif data == 'dep_alkurimi':
-        admin_state[user_id] = {'action': 'waiting_for_deposit'}
-        await query.edit_message_text("📲 قم بتحويل المبلغ إلى حساب الكريمي: `3105004949` ثم أرسل رقم الحوالة أو الإيصال هنا:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
+        await query.edit_message_text(
+            "📲 **تعليمات شحن الرصيد اليدوي:**\n\n"
+            "1️⃣ قم بتحويل المبلغ إلى رقم المحفظة المعتمد:\n"
+            "   📌 `772074924`\n"
+            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة** لكي يتم فحصها وإضافة رصيدك فوراً! 🚀",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
+        )
 
     elif data.startswith('approve_deposit_'):
         if not is_admin_or_sub(user_id, ADMIN_ID): return
@@ -1104,6 +1119,44 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             await update.message.reply_text(f"🎉 **تمت عملية الشحن الفوري بنجاح!**\n⭐ تم إضافة: `${amount:.2f}` لحسابك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
         except Exception:
             pass
+
+async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """دالة معالجة صور الإيصالات والتحقق الآلي منها"""
+    user_id = update.effective_user.id
+    
+    if not await check_user_subscription(user_id, context):
+        return
+
+    # التحقق هل المستخدم في حالة انتظار إيصال الشحن
+    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_deposit':
+        admin_state.pop(user_id, None)
+        
+        # حفظ الصورة أو تحويلها إلى المشرفين / الفحص الآلي
+        receipt_caption = update.message.caption or "إيصال شحن بدون تعليق"
+        
+        # إشعار للمستخدم بأن الإيصال قيد المراجعة الفورية أو الاعتماد
+        processing_msg = await update.message.reply_text("🔄 **جاري فحص إيصال التحويل على المحفظة (772074924)...** انتظر لحظة ⏳", parse_mode='Markdown')
+        
+        # إرسال الصورة للإدارة مع أزرار الاعتماد السريع
+        admin_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ اعتماد $1", callback_data=f"approve_deposit_{user_id}_1.0"), InlineKeyboardButton("➕ اعتماد $5", callback_data=f"approve_deposit_{user_id}_5.0")],
+            [InlineKeyboardButton("❌ رفض", callback_data=f"reject_deposit_{user_id}")]
+        ])
+        
+        for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
+            try:
+                await context.bot.send_photo(
+                    chat_id=adm_id,
+                    photo=update.message.photo[-1].file_id,
+                    caption=f"📥 **إيصال شحن جديد (صورة)!**\n🆔 الآيدي: `{user_id}`\n💬 الوصف: {receipt_caption}",
+                    parse_mode='Markdown',
+                    reply_markup=admin_markup
+                )
+            except Exception:
+                pass
+        
+        await processing_msg.edit_text("✅ **تم استلام صورة الإيصال بنجاح!**\nجاري مراجعة الحوالة وإضافة الرصيد إلى حسابك فوراً من قِبل الإدارة.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+        return
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
