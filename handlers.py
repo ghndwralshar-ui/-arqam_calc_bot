@@ -164,8 +164,13 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     available_countries = await get_available_countries_for_service(service_code)
     
     if not available_countries:
+        out_of_stock_msg = (
+            "📢 **عذراً عزيزي العميل!**\n"
+            "🇸🇦 نفدت أرقام هذه الدولة مؤقتاً بسبب الضغط الشديد.\n"
+            "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
+        )
         await query.edit_message_text(
-            f"❌ **عذراً، لا توجد أرقام متاحة حالياً لقسم ({service_title}).**",
+            out_of_stock_msg,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')]])
         )
@@ -474,6 +479,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c_name_ar = c_info['name_ar']
         c_dial = c_info['dial']
 
+        out_of_stock_msg = (
+            "📢 **عذراً عزيزي العميل!**\n"
+            "🇸🇦 نفدت أرقام هذه الدولة مؤقتاً بسبب الضغط الشديد.\n"
+            "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
+        )
+
         await query.answer("🔄 جاري الشراء وتجهيز الرقم...", show_alert=False)
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
@@ -482,17 +493,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     try:
                         res_data = res.json()
                     except Exception:
-                        await query.edit_message_text("⚠️ **حدث خطأ في استقبال الرد من مزود الأرقام.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
                         return
 
                     phone, order_id = res_data.get('phone'), res_data.get('id')
                     if not phone or not order_id:
-                        # الرسالة الجديدة التي تم اختيارها (رقم 1)
-                        out_of_stock_msg = (
-                            "📢 **عذراً عزيزي العميل!**\n"
-                            "🇸🇦 نفدت أرقام هذه الدولة مؤقتاً بسبب الضغط الشديد.\n"
-                            "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
-                        )
                         await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
                         return
 
@@ -522,12 +527,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username, sec_name_ar, c_name_ar, c_dial))
                 else:
-                    # الرسالة الجديدة التي تم اختيارها (رقم 1) في حال فشل الطلب أو عدم التوفر
-                    out_of_stock_msg = (
-                        "📢 **عذراً عزيزي العميل!**\n"
-                        "🇸🇦 نفدت أرقام هذه الدولة مؤقتاً بسبب الضغط الشديد.\n"
-                        "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
-                    )
                     await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
             except Exception as e:
                 await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
@@ -852,7 +851,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                             )
                             
-                            # إرسال إشعار تلقائي إلى قناة الإكتمالات والسجلات (LOG_CHANNEL_ID)
                             try:
                                 service_name = service.get('name', 'خدمة رقمية')
                                 await context.bot.send_message(
