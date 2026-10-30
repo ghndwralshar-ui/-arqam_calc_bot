@@ -42,7 +42,7 @@ EXCHANGE_RATE = 550.0
 
 # أرقام الحافظات المعتمدة
 JAIB_ACCOUNT = "772074924"
-KREEMI_ACCOUNT = "3" # رقم حساب الكريمي الذي يبدأ بـ 3
+KREEMI_ACCOUNT = "3105004949" # رقم حساب الكريمي المعتمد
 
 def get_subadmin_keyboard():
     return InlineKeyboardMarkup([
@@ -987,8 +987,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             "🏦 **تعليمات الشحن عبر بنك الكريمي:**\n\n"
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
-            "   📌 رقم الحساب يبدأ بـ: `3...` (تأكد من رقم الحساب الصحيح)\n\n"
-            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) الأصلية** هنا في المحادثة.\n"
+            f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
+            "2️⃣ قم بإرسال صورة إيصال التحويل (Screenshot) الأصلية هنا في المحادثة.\n"
             "🤖 *البوت سيقوم فورا وبشكل آلي بقراءة الإيصال، التحقق من الحساب، المبلغ، رقم العملية، وإضافة الدولارات لرصيدك في ثوانٍ!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
@@ -1145,18 +1145,21 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             if action_type == 'waiting_for_jaib_deposit':
                 if JAIB_ACCOUNT in extracted_text or any(JAIB_ACCOUNT in n for n in numbers_found):
                     account_matched = True
-            else: # بنك الكريمي (يبدأ بـ 3)
-                for text_block in extracted_text.split():
-                    if text_block.startswith('3') and len(text_block) >= 6:
-                        account_matched = True
-                        break
-                if not account_matched:
-                    for n in numbers_found:
-                        if n.startswith('3') and len(n) >= 6:
+            else: # بنك الكريمي (التحقق من رقم الحساب 3105004949 أو أي رقم يبدأ بـ 3)
+                if KREEMI_ACCOUNT in extracted_text or any(KREEMI_ACCOUNT in n for n in numbers_found):
+                    account_matched = True
+                else:
+                    for text_block in extracted_text.split():
+                        if text_block.startswith('3') and len(text_block) >= 6:
                             account_matched = True
                             break
+                    if not account_matched:
+                        for n in numbers_found:
+                            if n.startswith('3') and len(n) >= 6:
+                                account_matched = True
+                                break
 
-            potential_tx_ids = [n for n in numbers_found if len(n) >= 6 and n != JAIB_ACCOUNT]
+            potential_tx_ids = [n for n in numbers_found if len(n) >= 6 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT]
             tx_id = potential_tx_ids[0] if potential_tx_ids else f"TX_{user_id}_{int(asyncio.get_event_loop().time())}"
 
             # فحص عدم تكرار رقم العملية لمنع النصب تماماً
@@ -1176,7 +1179,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             amount_yer = 0.0
             for n in numbers_found:
                 val = float(n)
-                if 500 <= val <= 5000000 and n != JAIB_ACCOUNT and len(n) <= 8:
+                if 500 <= val <= 5000000 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT and len(n) <= 8:
                     amount_yer = val
                     break
             
@@ -1223,8 +1226,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"💰 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
                 f"🚀 *تم شحن حسابك آلياً وبدون أي تدخل بشري!*"
             )
-            await processing_msg.edit_text(success_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-            )
+            await processing_msg.edit_text(success_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
             # إشعار صامت للمالك فقط
             try:
