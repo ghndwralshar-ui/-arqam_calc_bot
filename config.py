@@ -7,6 +7,12 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "7963283120:AAHq0iVq1B-4QJ4y_YQj9YQj9YQj9YQj9
 ADMIN_ID = 7446545229  # آيدي المالك الأساسي للبوت
 
 # ==========================================
+# إعدادات قاعدة البيانات (Supabase)
+# ==========================================
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://your-supabase-url.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "your-supabase-anon-key")
+
+# ==========================================
 # إعدادات القنوات والروابط
 # ==========================================
 FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"  # معرف القناة للاشتراك الإجباري
