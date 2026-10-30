@@ -12,7 +12,14 @@ from telegram.ext import (
 # استيراد الإعدادات، وقاعدة البيانات، ومعالجات الأزرار والأوامر من الملفات الأخرى
 from config import BOT_TOKEN
 from database import init_db
-from handlers import start, button_handler, handle_text_messages, pre_checkout_handler, successful_payment_handler
+from handlers import (
+    start, 
+    button_handler, 
+    handle_text_messages, 
+    handle_photo_receipt,  # الدالة الخاصة بمعالجة وفحص صور الإيصالات
+    pre_checkout_handler, 
+    successful_payment_handler
+)
 
 # إعدادات التسجيل (Logging)
 logging.basicConfig(
@@ -40,6 +47,11 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+    
+    # معالج صور الإيصالات (يستقبل الصور ويوجهها لدالة معالجة الإيصالات)
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo_receipt))
+    
+    # معالج الرسائل النصية
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
     print("🚀 البوت يعمل الآن بكامل قوائمه بنجاح واستقرار تام!")
