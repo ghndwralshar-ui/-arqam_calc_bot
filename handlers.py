@@ -1,6 +1,10 @@
 import logging
 import asyncio
+import re
 import httpx
+from PIL import Image
+import pytesseract
+from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
@@ -35,6 +39,10 @@ user_order_data = {}
 
 # سعر الصرف الثابت (كل 1 دولار = 550 ريال يمني بالعملة القديمة)
 EXCHANGE_RATE = 550.0
+
+# أرقام الحافظات المعتمدة
+JAIB_ACCOUNT = "772074924"
+KREEMI_ACCOUNT = "3" # رقم حساب الكريمي الذي يبدأ بـ 3
 
 def get_subadmin_keyboard():
     return InlineKeyboardMarkup([
@@ -928,19 +936,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🌟 **بوابة شحن الرصيد الفوري والآمن** 🌟\n\n"
-            "أهلاً بك عزيزي العميل. لتعبئة رصيدك في البوت بالدولار ($)، يمكنك التحويل بالريال اليمني عبر محفظة جيب أو الكريمي:\n\n"
-            "📌 **رقم الحساب/المحفظة المعتمد:** `772074924`\n\n"
+            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($)، يرجى اختيار محفظة التحويل المناسبة:\n\n"
             "💱 **سعر الصرف المعتمد (بالعملة القديمة):**\n"
             "• **كل 1 دولار ($) = 550 ريال يمني**\n"
-            "  *(البوت يقوم آلياً بحساب وتحويل أي مبلغ يمني ترسله إلى ما يعادله بالدولار وإضافته لرصيدك)*\n\n"
-            "📲 **خطوات الشحن:**\n"
-            "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى الرقم أعلاه.\n"
-            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) الأصلية** تماماً كما تم حفظها من تطبيق جيب أو الكريمي بدون أي تعديل.\n\n"
-            "👇 اختر طريقة الإرسال أو الشحن المتاحة:"
+            "  *(البوت يتحقق من الإيصال ويضيف الرصيد آلياً فوراً)*\n\n"
+            "👇 اختر محفظة الشحن المعتمدة:"
         )
         deposit_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💳 الشحن عبر محفظة جيب (Jaib)", callback_data='dep_jaib')],
+            [InlineKeyboardButton("🏦 الشحن عبر بنك الكريمي (Al-Kuraimi)", callback_data='dep_kreemi')],
             [InlineKeyboardButton("⭐ الشحن الفوري عبر نجوم تليجرام (Stars)", callback_data='dep_telegram_stars')],
-            [InlineKeyboardButton("📲 إرسال إيصال التحويل (جيب / الكريمي)", callback_data='dep_jaib')],
             [InlineKeyboardButton("• عودة •", callback_data='main_menu')]
         ])
         await query.edit_message_text(deposit_text, parse_mode='Markdown', reply_markup=deposit_keyboard)
@@ -966,59 +971,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("⚠️ تعذر إنشاء الفاتورة.", show_alert=True)
 
     elif data == 'dep_jaib':
-        admin_state[user_id] = {'action': 'waiting_for_deposit'}
+        admin_state[user_id] = {'action': 'waiting_for_jaib_deposit'}
         await query.edit_message_text(
-            "📲 **تعليمات شحن الرصيد الآلي عبر الإيصال:**\n\n"
-            "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى رقم الحساب المعتمد:\n"
-            "   📌 `772074924`\n"
-            "   *(سعر الصرف: 1 دولار = 550 ريال يمني بالعملة القديمة)*\n\n"
-            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) الأصلية** تماماً كما تم حفظها من محفظة جيب أو الكريمي.\n"
-            "⚠️ *تنبيه:* أي صورة يُشتبه في تعديلها أو قصها سيتم رفضها تلقائياً وتنبيهك.",
+            "💳 **تعليمات الشحن عبر محفظة جيب:**\n\n"
+            f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
+            f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
+            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) الأصلية** هنا في المحادثة.\n"
+            "🤖 *البوت سيقوم فورا وبشكل آلي بقراءة الإيصال، التحقق من الحساب، المبلغ، رقم العملية، وإضافة الدولارات لرصيدك في ثوانٍ!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
 
-    elif data.startswith('approve_deposit_'):
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
-        _, _, target_user_id, yer_amount = data.split('_', 3)
-        target_user_id, yer_amount = int(target_user_id), float(yer_amount)
-        
-        # آلة حاسبة الصرف: تحويل الريال اليمني إلى دولار بناءً على سعر الصرف 550
-        usd_amount = round(yer_amount / EXCHANGE_RATE, 2)
-        
-        db_update_balance(target_user_id, usd_amount, mode="add")
-        try:
-            await context.bot.send_message(
-                chat_id=target_user_id, 
-                text=f"🎉 **مبروك! تمت إضافة الرصيد بنجاح بعد تحويل الحوالة:**\n💵 المبلغ المحول: `{yer_amount:,.0f} ريال يمني`\n⭐ رصيدك المضاف: `${usd_amount:.2f}`", 
-                parse_mode='Markdown'
-            )
-        except Exception:
-            pass
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(f"✅ تم الاعتماد بنجاح للمستخدم `{target_user_id}` بمبلغ `${usd_amount:.2f}` (يعادل {yer_amount:,.0f} ريال)", parse_mode='Markdown')
-
-    elif data.startswith('approve_custom_yer_'):
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
-        _, _, _, target_user_id = data.split('_', 3)
-        admin_state[user_id] = {'action': 'waiting_for_yer_amount_input', 'target_user_id': int(target_user_id)}
-        await query.message.reply_text("🔢 أرسل الآن **المبلغ بالريال اليمني** الذي تحوله المستخدم (مثلاً: `5500` أو `11000`) لكي يحسبه البوت آلياً ويضيفه بالدولار:", parse_mode='Markdown')
-        return
-
-    elif data.startswith('reject_deposit_'):
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
-        _, _, target_user_id = data.split('_', 2)
-        target_user_id = int(target_user_id)
-        try:
-            await context.bot.send_message(
-                chat_id=target_user_id, 
-                text="❌ **عذراً، الصورة غير واضحة أو تبدو معدلة!**\nيرجى إرسال الصورة **بدون أي تعديل** وإرسالها كما تم حفظها من محفظة جيب أو الكريمي لكي يتم اعتماد الرصيد وتحويله آلياً.", 
-                parse_mode='Markdown'
-            )
-        except Exception:
-            pass
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(f"❌ تم رفض الطلب وإرسال تنبيه الصورة للمستخدم `{target_user_id}`", parse_mode='Markdown')
+    elif data == 'dep_kreemi':
+        admin_state[user_id] = {'action': 'waiting_for_kreemi_deposit'}
+        await query.edit_message_text(
+            "🏦 **تعليمات الشحن عبر بنك الكريمي:**\n\n"
+            "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
+            "   📌 رقم الحساب يبدأ بـ: `3...` (تأكد من رقم الحساب الصحيح)\n\n"
+            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) الأصلية** هنا في المحادثة.\n"
+            "🤖 *البوت سيقوم فورا وبشكل آلي بقراءة الإيصال، التحقق من الحساب، المبلغ، رقم العملية، وإضافة الدولارات لرصيدك في ثوانٍ!*",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
+        )
 
     elif data == 'user_account':
         u_data = db_get_user(user_id)
@@ -1150,36 +1124,134 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
     if not await check_user_subscription(user_id, context):
         return
 
-    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_deposit':
+    if user_id in admin_state and admin_state[user_id].get('action') in ['waiting_for_jaib_deposit', 'waiting_for_kreemi_deposit']:
+        action_type = admin_state[user_id].get('action')
         admin_state.pop(user_id, None)
         
-        receipt_caption = update.message.caption or "إيصال شحن بدون تعليق"
-        processing_msg = await update.message.reply_text("🔄 **جاري فحص إيصال التحويل وحساب الصرف (550 ريال = 1$)...** انتظر لحظة ⏳", parse_mode='Markdown')
+        processing_msg = await update.message.reply_text("🤖 **جاري فحص الإيصال وقراءة النصوص بالذكاء الاصطناعي (OCR)...**\n⏳ يرجى الانتظار ثوانٍ للتحقق من الحساب، رقم العملية، والمبلغ...", parse_mode='Markdown')
         
-        admin_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("➕ اعتماد 1,100 ر.ي ($2)", callback_data=f"approve_deposit_{user_id}_1100"), InlineKeyboardButton("➕ اعتماد 2,750 ر.ي ($5)", callback_data=f"approve_deposit_{user_id}_2750")],
-            [InlineKeyboardButton("➕ اعتماد 5,500 ر.ي ($10)", callback_data=f"approve_deposit_{user_id}_5500"), InlineKeyboardButton("➕ اعتماد مبلغ مخصص (يدوي)", callback_data=f"approve_custom_yer_{user_id}")],
-            [InlineKeyboardButton("❌ رفض (صورة معدلة)", callback_data=f"reject_deposit_{user_id}")]
-        ])
-        
-        for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
-            try:
-                await context.bot.send_photo(
-                    chat_id=adm_id,
-                    photo=update.message.photo[-1].file_id,
-                    caption=f"📥 **إيصال شحن جديد (صورة)!**\n🆔 الآيدي: `{user_id}`\n💬 الوصف: {receipt_caption}\n\n💱 *اختر المبلغ بالريال اليمني ليقوم البوت بصرفه آلياً بالدولار ($):*",
+        try:
+            photo_file = await update.message.photo[-1].get_file()
+            photo_bytes = await photo_file.download_as_bytearray()
+            image = Image.open(BytesIO(photo_bytes))
+            
+            extracted_text = pytesseract.image_to_string(image)
+            print(f"OCR Extracted Text for User {user_id}:\n{extracted_text}")
+            
+            numbers_found = re.findall(r'\d+', extracted_text)
+            
+            # التحقق الآلي من رقم الحساب المستلم
+            account_matched = False
+            if action_type == 'waiting_for_jaib_deposit':
+                if JAIB_ACCOUNT in extracted_text or any(JAIB_ACCOUNT in n for n in numbers_found):
+                    account_matched = True
+            else: # بنك الكريمي (يبدأ بـ 3)
+                for text_block in extracted_text.split():
+                    if text_block.startswith('3') and len(text_block) >= 6:
+                        account_matched = True
+                        break
+                if not account_matched:
+                    for n in numbers_found:
+                        if n.startswith('3') and len(n) >= 6:
+                            account_matched = True
+                            break
+
+            potential_tx_ids = [n for n in numbers_found if len(n) >= 6 and n != JAIB_ACCOUNT]
+            tx_id = potential_tx_ids[0] if potential_tx_ids else f"TX_{user_id}_{int(asyncio.get_event_loop().time())}"
+
+            # فحص عدم تكرار رقم العملية لمنع النصب تماماً
+            from database import supabase
+            existing_tx = supabase.table("transactions").select("*").eq("tx_id", tx_id).execute()
+            if existing_tx.data:
+                await processing_msg.edit_text(
+                    "❌ **عذراً، هذا الإيصال تم استخدامة مسبقاً!**\n"
+                    f"🔍 رقم العملية المكتشف (`{tx_id}`) مسجل مسبقاً في النظام.\n"
+                    "⚠️ لا يمكن استخدام نفس الإيصال أكثر من مرة.",
                     parse_mode='Markdown',
-                    reply_markup=admin_markup
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            # استخراج المبلغ اليمني آلياً
+            amount_yer = 0.0
+            for n in numbers_found:
+                val = float(n)
+                if 500 <= val <= 5000000 and n != JAIB_ACCOUNT and len(n) <= 8:
+                    amount_yer = val
+                    break
+            
+            if amount_yer == 0.0:
+                await processing_msg.edit_text(
+                    "⚠️ **عذراً، تعذر قراءة المبلغ بدقة تامة من الصورة.**\n"
+                    "تم تحويل الإيصال فوراً إلى طاقم الإدارة للمراجعة اليدوية الفورية.",
+                    parse_mode='Markdown'
+                )
+                for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
+                    try:
+                        await context.bot.send_photo(
+                            chat_id=adm_id,
+                            photo=update.message.photo[-1].file_id,
+                            caption=f"🚨 **إيصال بحاجة لمراجعة (فشل قراءة المبلغ الآلية)!**\n🆔 الآيدي: `{user_id}`\n🔍 النص المستخرج:\n`{extracted_text[:300]}`",
+                            parse_mode='Markdown'
+                        )
+                    except Exception:
+                        pass
+                return
+
+            # حساب الصرف الآلي (ريال يمني إلى دولار بناءً على 550)
+            usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
+
+            # حفظ المعاملة بقاعدة البيانات
+            try:
+                supabase.table("transactions").insert({"user_id": user_id, "tx_id": tx_id, "amount_yer": amount_yer, "usd_amount": usd_amount}).execute()
+            except Exception:
+                pass
+
+            # إضافة الرصيد للمستخدم فوراً وبشكل آلي بالكامل
+            db_update_balance(user_id, usd_amount, mode="add")
+            u_data = db_get_user(user_id)
+
+            wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
+            success_text = (
+                f"🎉 **تم التحقق من الإيصال وإضافـة الرصيد بنجاح تام!** 🤖✨\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💳 **طريقة الشحن:** `{wallet_name}`\n"
+                f"🔢 **رقم العملية:** `{tx_id}`\n"
+                f"💵 **المبلغ المحول:** `{amount_yer:,.0f} ريال يمني`\n"
+                f"💱 **سعر الصرف:** `1$ = 550 ر.ي`\n"
+                f"⭐ **الرصيد المضاف:** `${usd_amount:.2f}`\n"
+                f"💰 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
+                f"🚀 *تم شحن حسابك آلياً وبدون أي تدخل بشري!*"
+            )
+            await processing_msg.edit_text(success_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+            )
+
+            # إشعار صامت للمالك فقط
+            try:
+                await context.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=(
+                        f"🤖 **[شحن آلي ناجح عبر الذكاء الاصطناعي]** ✅\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"👤 **المستخدم:** `{user_id}`\n"
+                        f"💳 **الطريقة:** `{wallet_name}`\n"
+                        f"🔢 **رقم العملية:** `{tx_id}`\n"
+                        f"💵 **المبلغ:** `{amount_yer:,.0f} ر.ي`\n"
+                        f"⭐ **الدولار المضاف:** `${usd_amount:.2f}`"
+                    ),
+                    parse_mode='Markdown'
                 )
             except Exception:
                 pass
-        
-        await processing_msg.edit_text(
-            "✅ **تم استلام صورة الإيصال بنجاح!**\n"
-            "جاري مراجعة الحوالة بواسطة الآلة الحاسبة الذكية للبوت واعتمادها بالدولار ($)، انتظر لحظات.", 
-            parse_mode='Markdown', 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-        )
+
+        except Exception as e:
+            print(f"OCR Error: {e}")
+            await processing_msg.edit_text(
+                "❌ **عذراً، حدث خطأ أثناء معالجة وقراءة الصورة الآلية!**\n"
+                "يرجى التأكد من وضوح إيصال الشحن وإعادة إرساله مجدداً.",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+            )
         return
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1196,37 +1268,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     await process_successful_join_reward(update.effective_user, context, u_data)
 
     text_content = update.message.text.strip() if update.message.text else ""
-
-    if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_yer_amount_input':
-        try:
-            yer_val = float(text_content)
-            st_data = admin_state.pop(user_id)
-            target_id = st_data['target_user_id']
-            
-            usd_val = round(yer_val / EXCHANGE_RATE, 2)
-            db_update_balance(target_id, usd_val, mode="add")
-            
-            admin_markup = get_admin_keyboard() if user_id == ADMIN_ID else get_subadmin_keyboard()
-            await update.message.reply_text(
-                f"✅ **تمت عملية الصرف والحساب الآلي بنجاح!**\n"
-                f"👤 المستخدم: `{target_id}`\n"
-                f"💵 المبلغ اليمني: `{yer_val:,.0f} ريال`\n"
-                f"⭐ الرصيد المضاف: `${usd_val:.2f}` (حسب سعر 550)",
-                parse_mode='Markdown',
-                reply_markup=admin_markup
-            )
-            try:
-                await context.bot.send_message(
-                    chat_id=target_id, 
-                    text=f"🎉 **مبروك! تمت إضافة الرصيد بنجاح:**\n💵 المبلغ: `{yer_val:,.0f} ريال يمني`\n⭐ رصيدك المضاف: `${usd_val:.2f}`",
-                    parse_mode='Markdown'
-                )
-            except Exception:
-                pass
-            return
-        except ValueError:
-            await update.message.reply_text("❌ مبلغ غير صالح! أرسل أرقاماً صحيحة فقط للمبلغ اليمني:")
-            return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
         admin_state[user_id]['link'] = text_content
@@ -1394,15 +1435,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             try:
                 await context.bot.send_message(chat_id=target_id, text=f"💬 **رد من الإدارة:**\n\n{text_content}", parse_mode='Markdown')
                 await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!", reply_markup=admin_markup)
-                
-                if user_id != ADMIN_ID:
-                    try:
-                        await context.bot.send_message(
-                            chat_id=ADMIN_ID,
-                            text=f"🔔 **تنبيه إداري:** قام المشرف (`{user_id}`) بالرد على المستخدم (`{target_id}`).\n💬 **النص:** {text_content}"
-                        )
-                    except Exception:
-                        pass
                 return
             except Exception as e:
                 await update.message.reply_text(f"❌ تعذر إرسال الرد للمستخدم: {e}", reply_markup=admin_markup)
@@ -1429,15 +1461,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     await context.bot.send_message(chat_id=target_id, text=f"🎁 **مبروك! وصلت لك هدية مالية من الإدارة بقيمة:** `${gift_amt:.2f}`", parse_mode='Markdown')
                 except Exception:
                     pass
-                
-                if user_id != ADMIN_ID:
-                    try:
-                        await context.bot.send_message(
-                            chat_id=ADMIN_ID,
-                            text=f"🔔 **تنبيه إداري:** قام المشرف (`{user_id}`) بإرسال هدية مالية بقيمة `${gift_amt:.2f}` للمستخدم (`{target_id}`)."
-                        )
-                    except Exception:
-                        pass
                 return
             except ValueError:
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
@@ -1464,15 +1487,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     await context.bot.send_message(chat_id=target_id, text=f"💳 **تمت إضافة رصيد لحسابك بواسطة الإدارة بقيمة:** `${bal_amt:.2f}`", parse_mode='Markdown')
                 except Exception:
                     pass
-                
-                if user_id != ADMIN_ID:
-                    try:
-                        await context.bot.send_message(
-                            chat_id=ADMIN_ID,
-                            text=f"🔔 **تنبيه إداري:** قام المشرف (`{user_id}`) بإضافة رصيد بقيمة `${bal_amt:.2f}` للمستخدم (`{target_id}`)."
-                        )
-                    except Exception:
-                        pass
                 return
             except ValueError:
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
@@ -1495,15 +1509,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 target_id = st_data['target_id']
                 db_update_balance(target_id, bal_amt, mode="deduct")
                 await update.message.reply_text(f"✅ تم خصم `${bal_amt:.2f}` من حساب المستخدم `{target_id}` بنجاح!", reply_markup=admin_markup)
-                
-                if user_id != ADMIN_ID:
-                    try:
-                        await context.bot.send_message(
-                            chat_id=ADMIN_ID,
-                            text=f"🔔 **تنبيه إداري:** قام المشرف (`{user_id}`) بخصم رصيد بقيمة `${bal_amt:.2f}` من المستخدم (`{target_id}`)."
-                        )
-                    except Exception:
-                        pass
                 return
             except ValueError:
                 await update.message.reply_text("❌ مبلغ غير صالح! أرسل رقماً صحيحاً:")
@@ -1516,7 +1521,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 if not clean_text.isdigit():
                     await update.message.reply_text("❌ الآيدي غير صالح! يرجى إرسال أرقام صحيحة فقط للآيدي:")
                     return
-                
                 new_sub_id = int(clean_text)
                 from database import supabase
                 supabase.table("sub_admins").upsert({"admin_id": new_sub_id}).execute()
@@ -1577,18 +1581,3 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             except Exception:
                 await update.message.reply_text("❌ الآيدي غير صالح!")
                 return
-
-    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_deposit':
-        admin_state.pop(user_id, None)
-        admin_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("➕ اعتماد 1,100 ر.ي ($2)", callback_data=f"approve_deposit_{user_id}_1100"), InlineKeyboardButton("➕ اعتماد 2,750 ر.ي ($5)", callback_data=f"approve_deposit_{user_id}_2750")],
-            [InlineKeyboardButton("➕ اعتماد مبلغ مخصص", callback_data=f"approve_custom_yer_{user_id}")],
-            [InlineKeyboardButton("❌ رفض (صورة معدلة)", callback_data=f"reject_deposit_{user_id}")]
-        ])
-        for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
-            try:
-                await context.bot.send_message(chat_id=adm_id, text=f"📥 **طلب شحن جديد!**\n🆔 الآيدي: `{user_id}`\nالتفاصيل: `{text_content}`", parse_mode='Markdown', reply_markup=admin_markup)
-            except Exception:
-                pass
-        await update.message.reply_text("✅ تم إرسال إيصالك للإدارة بنجاح، انتظر المراجعة وحساب الصرف الآلي.")
-        return
