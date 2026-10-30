@@ -1129,7 +1129,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         admin_state.pop(user_id, None)
         
         processing_msg = await update.message.reply_text(
-            "🤖 **جاري فحص الإيصال والتأكد تلقائيا من رقم العملية والمبلغ  (OCR)...**\n"
+            "🤖 **جاري فحص الإيصال والتأكد تلقائيا من رقم العملية والمبلغ (OCR)...**\n"
             "⏳ **يرجى الانتظار ثوانٍ...**",
             parse_mode='Markdown'
         )
@@ -1138,11 +1138,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
             
-            # فتح الصورة وتصغيرها لتفادي أي وقت انتظار طويل أو Timeout
+            # معالجة فائقة السرعة والخفة للصورة لتجنب أي Timeout وقراءة واضحة
             image = Image.open(BytesIO(photo_bytes))
-            image.thumbnail((1200, 1200))
+            image = image.convert('L')
+            image.thumbnail((800, 800))
             
-            extracted_text = pytesseract.image_to_string(image, timeout=10)
+            extracted_text = pytesseract.image_to_string(image, timeout=15)
             print(f"OCR Extracted Text for User {user_id}:\n{extracted_text}")
             
             numbers_found = re.findall(r'\d+', extracted_text)
@@ -1166,10 +1167,11 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                                 account_matched = True
                                 break
 
+            # استخراج رقم المرجع أو العملية بدقة
             potential_tx_ids = [n for n in numbers_found if len(n) >= 6 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT]
             tx_id = potential_tx_ids[0] if potential_tx_ids else f"TX_{user_id}_{int(asyncio.get_event_loop().time())}"
 
-            # فحص عدم تكرار رقم العملية لمنع النصب تماماً
+            # فحص عدم تكرار رقم العملية لمنع التلاعب تماماً
             from database import supabase
             existing_tx = supabase.table("transactions").select("*").eq("tx_id", tx_id).execute()
             if existing_tx.data:
@@ -1182,7 +1184,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # استخراج المبلغ اليمني آلياً (قبول أي مبلغ محول بدءاً من 10 ريال فما فوق)
+            # استخراج المبلغ اليمني آلياً (قبول أي مبلغ بدءاً من 10 ريال فما فوق)
             amount_yer = 0.0
             for n in numbers_found:
                 val = float(n)
@@ -1211,7 +1213,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             # حساب الصرف الآلي (ريال يمني إلى دولار بناءً على 550)
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
 
-            # حفظ المعاملة بقاعدة البيانات
+            # حفظ المعاملة بقاعدة البيانات لمنع التكرار
             try:
                 supabase.table("transactions").insert({"user_id": user_id, "tx_id": tx_id, "amount_yer": amount_yer, "usd_amount": usd_amount}).execute()
             except Exception:
@@ -1222,20 +1224,29 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             u_data = db_get_user(user_id)
 
             wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
+            
+            # صياغة رسالة تفصيلية شاملة تعرض كل ما في الإيصال والمبلغ بالريال وما يعادله بالدولار
             success_text = (
-                f"🎉 **تم التحقق من الإيصال وإضافـة الرصيد بنجاح تام!** 🤖✨\n"
+                f"🎉 **تم التحقق من الإيصال بنجاح وشحن رصيدك تلقائياً!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **طريقة الشحن:** `{wallet_name}`\n"
-                f"🔢 **رقم العملية:** `{tx_id}`\n"
-                f"💵 **المبلغ المحول:** `{amount_yer:,.0f} ريال يمني`\n"
-                f"💱 **سعر الصرف:** `1$ = 550 ر.ي`\n"
-                f"⭐ **الرصيد المضاف:** `${usd_amount:.2f}`\n"
-                f"💰 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
-                f"🚀 *تم شحن حسابك آلياً وبدون أي تدخل بشري!*"
+                f"🔢 **رقم مرجع العملية:** `{tx_id}`\n"
+                f"💵 **المبلغ الموجود في الصورة:** `{amount_yer:,.0f} ريال يمني`\n"
+                f"💱 **سعر الصرف المعتمد:** `1$ = {EXCHANGE_RATE:,.0f} ر.ي`\n"
+                f"⭐ **المبلغ المضاف بالدولار:** `${usd_amount:.2f}`\n"
+                f"💰 **رصيدك الحالي الجديد:** `${u_data['balance']:.2f}`\n\n"
+                f"📋 **ملخص تفاصيل الإيصال المكتشفة:**\n"
+                f"`{extracted_text[:250]}`...\n\n"
+                f"🚀 *تمت إضافة الأموال إلى حسابك آلياً وبدون أي تدخل بشري!*"
             )
-            await processing_msg.edit_text(success_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+            
+            await processing_msg.edit_text(
+                success_text, 
+                parse_mode='Markdown', 
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+            )
 
-            # إشعار صامت للمالك فقط
+            # إشعار صامت للمالك
             try:
                 await context.bot.send_message(
                     chat_id=ADMIN_ID,
