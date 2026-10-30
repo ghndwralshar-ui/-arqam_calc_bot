@@ -11,8 +11,7 @@ from config import (
 )
 from database import (
     db_get_user, db_update_balance, db_get_advanced_stats, 
-    db_get_all_users, is_admin_or_sub, get_all_sub_admins,
-    db_check_transaction_exists, db_save_transaction
+    db_get_all_users, is_admin_or_sub, get_all_sub_admins
 )
 from keyboards import (
     get_main_keyboard, get_virtual_services_keyboard, sections_menu_keyboard,
@@ -981,8 +980,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith('approve_deposit_'):
         if not is_admin_or_sub(user_id, ADMIN_ID): return
-        # الصيغة عند الاعتماد: approve_deposit_USERID_YERAMOUNT
-        # مثال: اعتماد 5500 ريال يمني (أي ما يعادل 10 دولار)
         _, _, target_user_id, yer_amount = data.split('_', 3)
         target_user_id, yer_amount = int(target_user_id), float(yer_amount)
         
@@ -1002,7 +999,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(f"✅ تم الاعتماد بنجاح للمستخدم `{target_user_id}` بمبلغ `${usd_amount:.2f}` (يعادل {yer_amount:,.0f} ريال)", parse_mode='Markdown')
 
     elif data.startswith('approve_custom_yer_'):
-        # دالة لطلب إدخال المبلغ اليمني يدوياً من الأدمن ليقوم البوت بحسابه آلياً وصرفه
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         _, _, _, target_user_id = data.split('_', 3)
         admin_state[user_id] = {'action': 'waiting_for_yer_amount_input', 'target_user_id': int(target_user_id)}
@@ -1149,7 +1145,6 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دالة معالجة صور الإيصالات وإرسالها للأدمن مع خيارات حاسبة الصرف الآلي"""
     user_id = update.effective_user.id
     
     if not await check_user_subscription(user_id, context):
@@ -1161,7 +1156,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         receipt_caption = update.message.caption or "إيصال شحن بدون تعليق"
         processing_msg = await update.message.reply_text("🔄 **جاري فحص إيصال التحويل وحساب الصرف (550 ريال = 1$)...** انتظر لحظة ⏳", parse_mode='Markdown')
         
-        # أزرار الأدمن لاعتماد مبالغ جاهزة أو إدخال المبلغ اليمني يدوياً ليقوم البوت بحسابه وصرفه
         admin_markup = InlineKeyboardMarkup([
             [InlineKeyboardButton("➕ اعتماد 1,100 ر.ي ($2)", callback_data=f"approve_deposit_{user_id}_1100"), InlineKeyboardButton("➕ اعتماد 2,750 ر.ي ($5)", callback_data=f"approve_deposit_{user_id}_2750")],
             [InlineKeyboardButton("➕ اعتماد 5,500 ر.ي ($10)", callback_data=f"approve_deposit_{user_id}_5500"), InlineKeyboardButton("➕ اعتماد مبلغ مخصص (يدوي)", callback_data=f"approve_custom_yer_{user_id}")],
@@ -1203,14 +1197,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # معالجة إدخال المبلغ اليمني اليدوي من قبل الأدمن لتحويله آلياً بالدولار للمستخدم
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_yer_amount_input':
         try:
             yer_val = float(text_content)
             st_data = admin_state.pop(user_id)
             target_id = st_data['target_user_id']
             
-            # حساب الصرف الآلي
             usd_val = round(yer_val / EXCHANGE_RATE, 2)
             db_update_balance(target_id, usd_val, mode="add")
             
