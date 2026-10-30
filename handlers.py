@@ -1134,145 +1134,144 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             parse_mode='Markdown'
         )
         
-        try:
-            photo_file = await update.message.photo[-1].get_file()
-            photo_bytes = await photo_file.download_as_bytearray()
-            
-            # معالجة فائقة السرعة والخفة للصورة لتجنب أي Timeout وقراءة واضحة
-            image = Image.open(BytesIO(photo_bytes))
-            image = image.convert('L')
-            image.thumbnail((800, 800))
-            
-            extracted_text = pytesseract.image_to_string(image, timeout=15)
-            print(f"OCR Extracted Text for User {user_id}:\n{extracted_text}")
-            
-            numbers_found = re.findall(r'\d+', extracted_text)
-            
-            # التحقق الآلي من رقم الحساب
-            account_matched = False
-            if action_type == 'waiting_for_jaib_deposit':
-                if JAIB_ACCOUNT in extracted_text or any(JAIB_ACCOUNT in n for n in numbers_found):
-                    account_matched = True
-            else: # بنك الكريمي
-                if KREEMI_ACCOUNT in extracted_text or any(KREEMI_ACCOUNT in n for n in numbers_found):
-                    account_matched = True
-                else:
-                    for text_block in extracted_text.split():
-                        if text_block.startswith('3') and len(text_block) >= 6:
+        # تشغيل المعالجة في الخلفية لتجنب خطأ TimedOut تماماً
+        context.application.create_task(
+            process_receipt_background(update, context, processing_msg, action_type, user_id)
+        )
+        return
+
+async def process_receipt_background(update, context, processing_msg, action_type, user_id):
+    try:
+        photo_file = await update.message.photo[-1].get_file()
+        photo_bytes = await photo_file.download_as_bytearray()
+        
+        image = Image.open(BytesIO(photo_bytes))
+        image = image.convert('L')
+        image.thumbnail((800, 800))
+        
+        extracted_text = pytesseract.image_to_string(image, timeout=15)
+        print(f"OCR Extracted Text for User {user_id}:\n{extracted_text}")
+        
+        numbers_found = re.findall(r'\d+', extracted_text)
+        
+        account_matched = False
+        if action_type == 'waiting_for_jaib_deposit':
+            if JAIB_ACCOUNT in extracted_text or any(JAIB_ACCOUNT in n for n in numbers_found):
+                account_matched = True
+        else:
+            if KREEMI_ACCOUNT in extracted_text or any(KREEMI_ACCOUNT in n for n in numbers_found):
+                account_matched = True
+            else:
+                for text_block in extracted_text.split():
+                    if text_block.startswith('3') and len(text_block) >= 6:
+                        account_matched = True
+                        break
+                if not account_matched:
+                    for n in numbers_found:
+                        if n.startswith('3') and len(n) >= 6:
                             account_matched = True
                             break
-                    if not account_matched:
-                        for n in numbers_found:
-                            if n.startswith('3') and len(n) >= 6:
-                                account_matched = True
-                                break
 
-            # استخراج رقم المرجع أو العملية بدقة
-            potential_tx_ids = [n for n in numbers_found if len(n) >= 6 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT]
-            tx_id = potential_tx_ids[0] if potential_tx_ids else f"TX_{user_id}_{int(asyncio.get_event_loop().time())}"
+        potential_tx_ids = [n for n in numbers_found if len(n) >= 6 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT]
+        tx_id = potential_tx_ids[0] if potential_tx_ids else f"TX_{user_id}_{int(asyncio.get_event_loop().time())}"
 
-            # فحص عدم تكرار رقم العملية لمنع التلاعب تماماً
-            from database import supabase
-            existing_tx = supabase.table("transactions").select("*").eq("tx_id", tx_id).execute()
-            if existing_tx.data:
-                await processing_msg.edit_text(
-                    "❌ **عذراً، هذا الإيصال تم استخدامة مسبقاً!**\n"
-                    f"🔍 رقم العملية المكتشف (`{tx_id}`) مسجل مسبقاً في النظام.\n"
-                    "⚠️ لا يمكن استخدام نفس الإيصال أكثر من مرة.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-                return
-
-            # استخراج المبلغ اليمني آلياً (قبول أي مبلغ بدءاً من 10 ريال فما فوق)
-            amount_yer = 0.0
-            for n in numbers_found:
-                val = float(n)
-                if 10 <= val <= 5000000 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT and len(n) <= 8:
-                    amount_yer = val
-                    break
-            
-            if amount_yer == 0.0:
-                await processing_msg.edit_text(
-                    "⚠️ **عذراً، تعذر قراءة المبلغ بدقة تامة من الصورة.**\n"
-                    "تم تحويل الإيصال فوراً إلى طاقم الإدارة للمراجعة اليدوية الفورية.",
-                    parse_mode='Markdown'
-                )
-                for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
-                    try:
-                        await context.bot.send_photo(
-                            chat_id=adm_id,
-                            photo=update.message.photo[-1].file_id,
-                            caption=f"🚨 **إيصال بحاجة لمراجعة (فشل قراءة المبلغ الآلية)!**\n🆔 الآيدي: `{user_id}`\n🔍 النص المستخرج:\n`{extracted_text[:300]}`",
-                            parse_mode='Markdown'
-                        )
-                    except Exception:
-                        pass
-                return
-
-            # حساب الصرف الآلي (ريال يمني إلى دولار بناءً على 550)
-            usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
-
-            # حفظ المعاملة بقاعدة البيانات لمنع التكرار
-            try:
-                supabase.table("transactions").insert({"user_id": user_id, "tx_id": tx_id, "amount_yer": amount_yer, "usd_amount": usd_amount}).execute()
-            except Exception:
-                pass
-
-            # إضافة الرصيد للمستخدم فوراً وبشكل آلي بالكامل
-            db_update_balance(user_id, usd_amount, mode="add")
-            u_data = db_get_user(user_id)
-
-            wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
-            
-            # صياغة رسالة تفصيلية شاملة تعرض كل ما في الإيصال والمبلغ بالريال وما يعادله بالدولار
-            success_text = (
-                f"🎉 **تم التحقق من الإيصال بنجاح وشحن رصيدك تلقائياً!** 🤖✨\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"💳 **طريقة الشحن:** `{wallet_name}`\n"
-                f"🔢 **رقم مرجع العملية:** `{tx_id}`\n"
-                f"💵 **المبلغ الموجود في الصورة:** `{amount_yer:,.0f} ريال يمني`\n"
-                f"💱 **سعر الصرف المعتمد:** `1$ = {EXCHANGE_RATE:,.0f} ر.ي`\n"
-                f"⭐ **المبلغ المضاف بالدولار:** `${usd_amount:.2f}`\n"
-                f"💰 **رصيدك الحالي الجديد:** `${u_data['balance']:.2f}`\n\n"
-                f"📋 **ملخص تفاصيل الإيصال المكتشفة:**\n"
-                f"`{extracted_text[:250]}`...\n\n"
-                f"🚀 *تمت إضافة الأموال إلى حسابك آلياً وبدون أي تدخل بشري!*"
-            )
-            
+        from database import supabase
+        existing_tx = supabase.table("transactions").select("*").eq("tx_id", tx_id).execute()
+        if existing_tx.data:
             await processing_msg.edit_text(
-                success_text, 
-                parse_mode='Markdown', 
+                "❌ **عذراً، هذا الإيصال تم استخدامة مسبقاً!**\n"
+                f"🔍 رقم العملية المكتشف (`{tx_id}`) مسجل مسبقاً في النظام.\n"
+                "⚠️ لا يمكن استخدام نفس الإيصال أكثر من مرة.",
+                parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
+            return
 
-            # إشعار صامت للمالك
-            try:
-                await context.bot.send_message(
-                    chat_id=ADMIN_ID,
-                    text=(
-                        f"🤖 **[شحن آلي ناجح عبر الذكاء الاصطناعي]** ✅\n"
-                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"👤 **المستخدم:** `{user_id}`\n"
-                        f"💳 **الطريقة:** `{wallet_name}`\n"
-                        f"🔢 **رقم العملية:** `{tx_id}`\n"
-                        f"💵 **المبلغ:** `{amount_yer:,.0f} ر.ي`\n"
-                        f"⭐ **الدولار المضاف:** `${usd_amount:.2f}`"
-                    ),
-                    parse_mode='Markdown'
-                )
-            except Exception:
-                pass
+        amount_yer = 0.0
+        for n in numbers_found:
+            val = float(n)
+            if 10 <= val <= 5000000 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT and len(n) <= 8:
+                amount_yer = val
+                break
+        
+        if amount_yer == 0.0:
+            await processing_msg.edit_text(
+                "⚠️ **عذراً، تعذر قراءة المبلغ بدقة تامة من الصورة.**\n"
+                "تم تحويل الإيصال فوراً إلى طاقم الإدارة للمراجعة اليدوية الفورية.",
+                parse_mode='Markdown'
+            )
+            for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
+                try:
+                    await context.bot.send_photo(
+                        chat_id=adm_id,
+                        photo=update.message.photo[-1].file_id,
+                        caption=f"🚨 **إيصال بحاجة لمراجعة (فشل قراءة المبلغ الآلية)!**\n🆔 الآيدي: `{user_id}`\n🔍 النص المستخرج:\n`{extracted_text[:300]}`",
+                        parse_mode='Markdown'
+                    )
+                except Exception:
+                    pass
+            return
 
-        except Exception as e:
-            print(f"OCR Error: {e}")
+        usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
+
+        try:
+            supabase.table("transactions").insert({"user_id": user_id, "tx_id": tx_id, "amount_yer": amount_yer, "usd_amount": usd_amount}).execute()
+        except Exception:
+            pass
+
+        db_update_balance(user_id, usd_amount, mode="add")
+        u_data = db_get_user(user_id)
+
+        wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
+        
+        success_text = (
+            f"🎉 **تم التحقق من الإيصال بنجاح وشحن رصيدك تلقائياً!** 🤖✨\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"💳 **طريقة الشحن:** `{wallet_name}`\n"
+            f"🔢 **رقم مرجع العملية:** `{tx_id}`\n"
+            f"💵 **المبلغ الموجود في الصورة:** `{amount_yer:,.0f} ريال يمني`\n"
+            f"💱 **سعر الصرف المعتمد:** `1$ = {EXCHANGE_RATE:,.0f} ر.ي`\n"
+            f"⭐ **المبلغ المضاف بالدولار:** `${usd_amount:.2f}`\n"
+            f"💰 **رصيدك الحالي الجديد:** `${u_data['balance']:.2f}`\n\n"
+            f"📋 **ملخص تفاصيل الإيصال المكتشفة:**\n"
+            f"`{extracted_text[:250]}`...\n\n"
+            f"🚀 *تمت إضافة الأموال إلى حسابك آلياً وبدون أي تدخل بشري!*"
+        )
+        
+        await processing_msg.edit_text(
+            success_text, 
+            parse_mode='Markdown', 
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+        )
+
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=(
+                    f"🤖 **[شحن آلي ناجح عبر الذكاء الاصطناعي]** ✅\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 **المستخدم:** `{user_id}`\n"
+                    f"💳 **الطريقة:** `{wallet_name}`\n"
+                    f"🔢 **رقم العملية:** `{tx_id}`\n"
+                    f"💵 **المبلغ:** `{amount_yer:,.0f} ر.ي`\n"
+                    f"⭐ **الدولار المضاف:** `${usd_amount:.2f}`"
+                ),
+                parse_mode='Markdown'
+            )
+        except Exception:
+            pass
+
+    except Exception as e:
+        print(f"Background OCR Error: {e}")
+        try:
             await processing_msg.edit_text(
                 "❌ **عذراً، حدث خطأ أثناء معالجة وقراءة الصورة الآلية!**\n"
                 "يرجى التأكد من وضوح إيصال الشحن وإعادة إرساله مجدداً.",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
-        return
+        except Exception:
+            pass
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
