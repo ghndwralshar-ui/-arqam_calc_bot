@@ -1,8 +1,5 @@
-python-telegram-bot[webhooks]
+python-telegram-bot==20.8
+httpx==0.26.0
 supabase
-httpx
-Pillow>=10.0.0
-pytesseract>=0.3.10
-httpx>=0.24.0
-python-telegram-bot>=20.0
-supabase>=2.0.0
+pillow
+pydantic
