@@ -8,7 +8,7 @@ SUPPORT_USERNAME = "benti"
 
 FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"
 FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"
-LOG_CHANNEL_ID = "@DigitalHubOrders"
+LOG_CHANNEL_ID = -1004374640175
 
 HMCARD_API_URL = "https://hmcard.online/api/v2"
 HMCARD_API_KEY = "0c13f3ad91dc8c152e7cb01f87f1a271"
@@ -56,4 +56,4 @@ COUNTRY_INFO = {
     "yemen": {"name_ar": "اليمن", "flag": "🇾🇪", "dial": "+967"}
 }
 
-STATIC_COUNTRIES = [{"code": k, **v} for k, v in COUNTRY_INFO
+STATIC_COUNTRIES = [{"code": k, **v} for k, v in COUNTRY_INFO.items()]
