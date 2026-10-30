@@ -1134,9 +1134,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         
         try:
-            # نظام معالجة آمن بالكامل بدون أخطاء خارجية
             tx_id = f"TX_{user_id}_{int(asyncio.get_event_loop().time())}"
-            amount_yer = 1000.0 # مبلغ افتراضي يتم شحنه للعميل وإشعاره وإشعار الإدارة فوراً
+            amount_yer = 1000.0
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
 
             from database import supabase
@@ -1167,7 +1166,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
-            # إرسال صورة الإيصال للإدارة والمشرفين للمراجعة والتأكيد
             for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
                 try:
                     await context.bot.send_photo(
@@ -1481,7 +1479,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     await update.message.reply_text("❌ الآيدي غير صالح! أرسل أرقاماً صحيحة فقط:")
                     return
                 del_sub_id = int(clean_text)
-                from database::supabase... # اصلاح داخلي آمن
                 from database import supabase
                 supabase.table("sub_admins").delete().eq("admin_id", del_sub_id).execute()
                 admin_state.pop(user_id, None)
