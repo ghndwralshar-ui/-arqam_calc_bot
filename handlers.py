@@ -1128,7 +1128,11 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         action_type = admin_state[user_id].get('action')
         admin_state.pop(user_id, None)
         
-        processing_msg = await update.message.reply_text("🤖 **جاري فحص الإيصال وقراءة النصوص بالذكاء الاصطناعي (OCR)...**\n⏳ يرجى الانتظار ثوانٍ...", parse_mode='Markdown')
+        processing_msg = await update.message.reply_text(
+            "🤖 **جاري فحص الإيصال والتأكد تلقائيا من رقم العملية والمبلغ  (OCR)...**\n"
+            "⏳ **يرجى الانتظار ثوانٍ...**",
+            parse_mode='Markdown'
+        )
         
         try:
             photo_file = await update.message.photo[-1].get_file()
@@ -1178,11 +1182,11 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # استخراج المبلغ اليمني آلياً
+            # استخراج المبلغ اليمني آلياً (قبول أي مبلغ محول بدءاً من 10 ريال فما فوق)
             amount_yer = 0.0
             for n in numbers_found:
                 val = float(n)
-                if 500 <= val <= 5000000 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT and len(n) <= 8:
+                if 10 <= val <= 5000000 and n != JAIB_ACCOUNT and n != KREEMI_ACCOUNT and len(n) <= 8:
                     amount_yer = val
                     break
             
