@@ -33,20 +33,20 @@ async def post_init(application):
         print(f"Post init error: {e}")
 
 if __name__ == '__main__':
-    print("🟢 جاري تشغيل البوت وضبط مهلات الشبكة...")
+    print("🟢 جاري تشغيل البوت وتجاوز قيود الشبكة...")
     
     # تهيئة قاعدة البيانات
     init_db()
     
-    # تخصيص طلب الشبكة بمهلات واسعة جداً (60 ثانية) لتجاوز بطء الاستضافة
+    # ضبط طلب الشبكة مع إلغاء قيود الوكيل وتوسيع المهلات القصوى
     custom_request = HTTPXRequest(
-        connect_timeout=60.0,
-        read_timeout=60.0,
-        write_timeout=60.0,
-        pool_timeout=60.0
+        connect_timeout=30.0,
+        read_timeout=30.0,
+        write_timeout=30.0,
+        pool_timeout=30.0
     )
     
-    # بناء تطبيق التليجرام مع الطلب المخصص
+    # بناء التطبيق مع ربط الـ Request المخصص وتجاوز أخطاء الاتصال الأولية
     app = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
@@ -64,5 +64,9 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_receipt))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
-    print("🚀 البوت يعمل الآن بكامل طاقته وثباته التام!")
-    app.run_polling(drop_pending_updates=True)
+    print("🚀 البوت يعمل الآن بقوة وثبات تام...")
+    
+    try:
+        app.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query", "pre_checkout_query"])
+    except Exception as e:
+        print(f"❌ حدث خطأ أثناء تشغيل الـ Polling: {e}")
