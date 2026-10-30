@@ -42,7 +42,7 @@ EXCHANGE_RATE = 550.0
 
 # أرقام الحافظات المعتمدة
 JAIB_ACCOUNT = "772074924"
-KREEMI_ACCOUNT = "3105004949" # رقم حساب الكريمي المعتمد
+KREEMI_ACCOUNT = "3105004949"
 
 def get_subadmin_keyboard():
     return InlineKeyboardMarkup([
@@ -1128,24 +1128,27 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         action_type = admin_state[user_id].get('action')
         admin_state.pop(user_id, None)
         
-        processing_msg = await update.message.reply_text("🤖 **جاري فحص الإيصال وقراءة النصوص بالذكاء الاصطناعي (OCR)...**\n⏳ يرجى الانتظار ثوانٍ للتحقق من الحساب، رقم العملية، والمبلغ...", parse_mode='Markdown')
+        processing_msg = await update.message.reply_text("🤖 **جاري فحص الإيصال وقراءة النصوص بالذكاء الاصطناعي (OCR)...**\n⏳ يرجى الانتظار ثوانٍ...", parse_mode='Markdown')
         
         try:
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
-            image = Image.open(BytesIO(photo_bytes))
             
-            extracted_text = pytesseract.image_to_string(image)
+            # فتح الصورة وتصغيرها لتفادي أي وقت انتظار طويل أو Timeout
+            image = Image.open(BytesIO(photo_bytes))
+            image.thumbnail((1200, 1200))
+            
+            extracted_text = pytesseract.image_to_string(image, timeout=10)
             print(f"OCR Extracted Text for User {user_id}:\n{extracted_text}")
             
             numbers_found = re.findall(r'\d+', extracted_text)
             
-            # التحقق الآلي من رقم الحساب المستلم
+            # التحقق الآلي من رقم الحساب
             account_matched = False
             if action_type == 'waiting_for_jaib_deposit':
                 if JAIB_ACCOUNT in extracted_text or any(JAIB_ACCOUNT in n for n in numbers_found):
                     account_matched = True
-            else: # بنك الكريمي (التحقق من رقم الحساب 3105004949 أو أي رقم يبدأ بـ 3)
+            else: # بنك الكريمي
                 if KREEMI_ACCOUNT in extracted_text or any(KREEMI_ACCOUNT in n for n in numbers_found):
                     account_matched = True
                 else:
