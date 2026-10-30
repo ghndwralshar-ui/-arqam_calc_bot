@@ -839,6 +839,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 parse_mode='Markdown',
                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                             )
+                            
+                            # إرسال إشعار تلقائي إلى قناة الإكتمالات والسجلات (LOG_CHANNEL_ID)
+                            try:
+                                service_name = service.get('name', 'خدمة رقمية')
+                                await context.bot.send_message(
+                                    chat_id=LOG_CHANNEL_ID,
+                                    text=(
+                                        "🔥 **تم تنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                                        "━━━━━━━━━━━━━━━━━━━━━━\n"
+                                        f"👤 **آيدي العميل:** `{user_id}`\n"
+                                        f"🛍️ **الخدمة:** `{service_name}`\n"
+                                        f"🔗 **الرابط/الآيدي:** `{mask_link(order['link'])}`\n"
+                                        f"📊 **الكمية:** `{qty:,}`\n"
+                                        f"🆔 **رقم الطلب:** `{order_id}`\n"
+                                        f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
+                                        f"⭐ **الحالة:** تم الإرسال للمنصة بنجاح 🚀"
+                                    ),
+                                    parse_mode='Markdown'
+                                )
+                            except Exception as log_err:
+                                print(f"❌ خطأ إرسال لوج الرشق للقناة: {log_err}")
                             return
                         else:
                             api_error = resp_data.get("error", resp_data.get("message", "خطأ غير معروف"))
