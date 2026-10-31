@@ -1145,7 +1145,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             # 2️⃣ التحقق الصارم من الشروط الثلاثة:
             
-            # 📌 شرط ثالثاً: التحقق من رقم المستفيد (772074924)
+            # 📌 شرط ثالثاً: التحقق من رقم المستفيد (772074924)[span_3](start_span)[span_3](end_span)
             expected_account = JAIB_ACCOUNT if action_type == 'waiting_for_jaib_deposit' else KREEMI_ACCOUNT
             if expected_account not in extracted_text:
                 await processing_msg.edit_text(
@@ -1156,7 +1156,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # 📌 شرط ثانياً: استخراج رقم مرجع العملية ومنع التكرار
+            # 📌 شرط ثانياً: استخراج رقم مرجع العملية ومنع التكرار[span_4](start_span)[span_4](end_span)
             tx_match = re.search(r'\b\d{10,16}\b', extracted_text)
             if not tx_match:
                 await processing_msg.edit_text(
@@ -1181,7 +1181,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # 📌 شرط أولاً: استخراج السعر بجانب ريال يمني
+            # 📌 شرط أولاً: استخراج السعر بجانب ريال يمني[span_5](start_span)[span_5](end_span)
             amount_match = re.search(r'(\d+[\.,]?\d*)\s*(?:ريال\s*يمني|ريال|ر\.ي)', extracted_text)
             if not amount_match:
                 amount_match = re.search(r'(\d+)\s*(?:ريال)', extracted_text)
@@ -1199,7 +1199,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
 
-            # 3️⃣ حفظ المعاملة في قاعدة البيانات وتحديث رصيد العميل
+            # 3️⃣ حفظ المعاملة في قاعدة البيانات وتحديث رصيد العميل[span_6](start_span)[span_6](end_span)
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "tx_id": tx_id, 
