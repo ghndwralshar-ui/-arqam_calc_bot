@@ -1099,7 +1099,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """إرسال الصورة إلى API OCR مع تفعيل معالجة الأرقام والنصوص المتداخلة"""
+    """إرسال الصورة إلى API OCR مع تفعيل المحرك الثاني لقراءة الخطوط المصرفية والأرقام بدقة"""
     try:
         url = "https://api.ocr.space/parse/image"
         payload = {
@@ -1149,11 +1149,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             # قراءة النص الأصلي من الصورة
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
             
-            # 💡 [ملاحظة توضيحية]: استخراج الأرقام فقط وتجاوز الرموز، النجوم، والأقواس (لأن رقم المستفيد يقع تحت الرموز المكتوبة في الإيصال)
+            # 💡 [معلومة برمجية هامة]: رقم المستفيد يقع تحت الرموز المكتوبة (النجوم والأقواس)، 
+            # لذلك نقوم بتصفية كافة الحروف والرموز واستخراج مصفوفة الأرقام الصرفة حصرياً للمقارنة الآلية التامة.
             digits_only = re.sub(r'\D', '', extracted_text)
             clean_expected = re.sub(r'\D', '', expected_account)
 
-            # 1️⃣ التحقق الفائق والمرن من وجود رقم المستفيد ضمن الأرقام المستخرجة من الصورة
+            # 1️⃣ التحقق الآلي الفائق من وجود رقم المستفيد ضمن الأرقام الصرفة المستخرجة
             if clean_expected not in digits_only:
                 await processing_msg.edit_text(
                     f"❌ **تم رفض الإيصال!**\n\n"
@@ -1166,7 +1167,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             extracted_text_clean = re.sub(r'\s+', ' ', extracted_text)
 
-            # 2️⃣ استخراج رقم مرجع العملية (يبحث عن تسلسل أرقام طواله من 10 إلى 15 رقم لا يساوي رقم الحساب)
+            # 2️⃣ استخراج رقم مرجع العملية (تسلسل أرقام طواله من 10 إلى 16 رقم لا يساوي رقم الحساب)
             all_long_numbers = re.findall(r'\b([0-9]{10,16})\b', digits_only)
             valid_tx_nums = [n for n in all_long_numbers if n != clean_expected]
             
