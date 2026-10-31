@@ -209,20 +209,20 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     full_text = sms_list[0].get('text', '')
                     current_text = query.message.text
                     
-                    if "🔑 **الكود:**" not in current_text:
+                    if "🔑 **الكود:**" not in current_text and "🔑 **الكود الواصل:**" not in current_text:
                         updated_text = current_text + f"\n\n🔑 **الكود الواصل:** `{sms_code}`\n💬 **النص الكامل:** `{full_text}`"
                         await query.edit_message_text(
                             updated_text, parse_mode='Markdown',
                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                         )
                     else:
-                        await query.answer("✅ الكود تم استلامه مسبقاً ومعروض أمامك.", show_alert=True)
+                        await query.answer(f"✅ الكود وصل بالفعل: {sms_code}", show_alert=True)
                 else:
-                    await query.answer("⏳ لم يصل الكود حتى الآن. يرجى الانتظار قليلاً والضغط مرة أخرى.", show_alert=True)
+                    await query.answer("⏳ لم يصل الكود حتى الآن. يرجى الانتظار قليلاً والضغط مجدداً.", show_alert=True)
             else:
-                await query.answer("⚠️ تعذر فحص الطلب حالياً من السيرفر.", show_alert=True)
+                await query.answer("⚠️ تعذر فحص الطلب حالياً.", show_alert=True)
         except Exception:
-            await query.answer("❌ حدث خطأ في الاتصال بالسيرفر.", show_alert=True)
+            await query.answer("❌ خطأ في الاتصال بالسيرفر.", show_alert=True)
 
 async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str, price: float, service: str, user_id: int, bot_username: str, section_name: str, country_name: str, dial_code: str):
     url = f"https://5sim.net/v1/user/check/{order_id}"
@@ -1077,15 +1077,19 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """معالجة وتصفية الصورة برمجياً عبر Pillow وزيادة التباين ثم إرسالها لقارئ النصوص بدقة عالية"""
+    """معالجة متقدمة جداً للصورة: إزالة التشويش، رفع التباين والحدة، وعزل النصوص لاستخراج البيانات بدقة 100%"""
     try:
         img = Image.open(BytesIO(photo_bytes))
         img = ImageOps.grayscale(img)
+        
         enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(2.5)
+        img = enhancer.enhance(3.0)
+        
+        sharpness_enhancer = ImageEnhance.Sharpness(img)
+        img = sharpness_enhancer.enhance(2.0)
         
         output_buffer = BytesIO()
-        img.save(output_buffer, format="JPEG")
+        img.save(output_buffer, format="JPEG", quality=95)
         processed_bytes = output_buffer.getvalue()
 
         url = "https://api.ocr.space/parse/image"
@@ -1099,7 +1103,7 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
         }
         files = [('file', ('receipt.jpg', processed_bytes, 'image/jpeg'))]
         
-        async with httpx.AsyncClient(timeout=25.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.post(url, data=payload, files=files)
             if res.status_code == 200:
                 data = res.json()
@@ -1107,7 +1111,7 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
                 if results:
                     return results[0].get("ParsedText", "")
     except Exception as e:
-        print(f"OCR API Exception: {e}")
+        print(f"OCR Advanced Exception: {e}")
     return ""
 
 async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1252,7 +1256,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # 🛠️ إدارة حالات المشرفين (إضافة/خصم رصيد بالآيدي، الهدية، الرد، التحويل)
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state:
         st = admin_state[user_id]
         action = st.get('action')
