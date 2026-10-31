@@ -192,7 +192,7 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
 
 async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🔄 جاري فحص وصول الكود...", show_alert=False)
+    await query.answer("🔄 جاري فحص وصول الكود من السيرفر...", show_alert=False)
     
     parts = query.data.split('_')
     order_id = parts[2]
@@ -209,17 +209,20 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     full_text = sms_list[0].get('text', '')
                     current_text = query.message.text
                     
-                    updated_text = current_text + f"\n\n🔑 **الكود:** `{sms_code}`\n💬 **النص:** `{full_text}`"
-                    await query.edit_message_text(
-                        updated_text, parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                    )
+                    if "🔑 **الكود:**" not in current_text:
+                        updated_text = current_text + f"\n\n🔑 **الكود الواصل:** `{sms_code}`\n💬 **النص الكامل:** `{full_text}`"
+                        await query.edit_message_text(
+                            updated_text, parse_mode='Markdown',
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                        )
+                    else:
+                        await query.answer("✅ الكود تم استلامه مسبقاً ومعروض أمامك.", show_alert=True)
                 else:
-                    await query.answer("⏳ لم يتم استلام الكود بعد، انتظر قليلاً واضغط مجدداً.", show_alert=True)
+                    await query.answer("⏳ لم يصل الكود حتى الآن. يرجى الانتظار قليلاً والضغط مرة أخرى.", show_alert=True)
             else:
-                await query.answer("⚠️ تعذر فحص الطلب حالياً.", show_alert=True)
+                await query.answer("⚠️ تعذر فحص الطلب حالياً من السيرفر.", show_alert=True)
         except Exception:
-            await query.answer("❌ خطأ في الاتصال بالسيرفر.", show_alert=True)
+            await query.answer("❌ حدث خطأ في الاتصال بالسيرفر.", show_alert=True)
 
 async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str, price: float, service: str, user_id: int, bot_username: str, section_name: str, country_name: str, dial_code: str):
     url = f"https://5sim.net/v1/user/check/{order_id}"
@@ -256,31 +259,6 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                             )
                         except Exception:
                             pass
-                        
-                        try:
-                            masked_ph = phone[:4] + "***" + phone[-3:]
-                            service_deeplink = f"https://t.me/{bot_username}?start=buy_virtual_number"
-                            channel_buttons = InlineKeyboardMarkup([
-                                [
-                                    InlineKeyboardButton("🛒 شراء من نفس الخدمة", url=service_deeplink),
-                                    InlineKeyboardButton("🤖 الدخول إلى البوت", url=f"https://t.me/{bot_username}?start=main_menu")
-                                ]
-                            ])
-                            await context.bot.send_message(
-                                chat_id=LOG_CHANNEL_ID,
-                                text=(
-                                    "🔥 **تم اكتمال تفعيل رقم جديد بنجاح!** ✅\n"
-                                    "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                    f"👤 **آيدي الشخص:** `{user_id}`\n"
-                                    f"🛍️ **القسم:** `{section_name}`\n"
-                                    f"📱 **الرقم:** `{masked_ph}`\n"
-                                    f"🔑 **الكود:** `{sms_code}`\n"
-                                    f"⭐ **الحالة:** مكتمل ومنجز بنجاح 🚀"
-                                ),
-                                parse_mode='Markdown', reply_markup=channel_buttons
-                            )
-                        except Exception as log_err:
-                            print(f"Log error: {log_err}")
                         return
                     if data.get('status') in ['canceled', 'banned', 'finish']:
                         return
@@ -1104,7 +1082,7 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
         img = Image.open(BytesIO(photo_bytes))
         img = ImageOps.grayscale(img)
         enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(2.5) # رفع التباين لتوضيح الأرقام وتجاوز الخلفيات والزخارف
+        img = enhancer.enhance(2.5)
         
         output_buffer = BytesIO()
         img.save(output_buffer, format="JPEG")
@@ -1138,7 +1116,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
     if not await check_user_subscription(user_id, context):
         return
 
-    # التحقق المباشر عند إرسال أي صورة إذا كان المستخدم في وضع انتظار إيداع جيب أو الكريمي
     if user_id in admin_state and admin_state[user_id].get('action') in ['waiting_for_jaib_deposit', 'waiting_for_kreemi_deposit']:
         action_type = admin_state[user_id].get('action')
         admin_state.pop(user_id, None)
@@ -1155,12 +1132,10 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            # استخراج النصوص وتحليلها
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
             digits_only = re.sub(r'\D', '', extracted_text)
             extracted_text_clean = re.sub(r'\s+', ' ', extracted_text)
 
-            # 1️⃣ استخراج رقم مرجع العملية (تسلسل أرقام طوله من 10 إلى 16 رقم)
             all_long_numbers = re.findall(r'\b([0-9]{10,16})\b', digits_only)
             transaction_id = None
             if all_long_numbers:
@@ -1170,19 +1145,16 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 if tx_match:
                     transaction_id = tx_match.group(1)
 
-            # 2️⃣ استخراج المبلغ (المرتبط بكلمة ريال يمني أو ر.ي أو ريال)
             amount_match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*(?:ريال\s*يمني|ر\.ي|YER|ريال)', extracted_text_clean, re.IGNORECASE)
             amount_yer = None
             if amount_match:
                 amount_yer = float(amount_match.group(1))
             else:
-                # طريقة بديلة لاسترشاد الأرقام المعقولة للمبلغ
                 amounts_found = re.findall(r'\b([0-9]{1,6}(?:\.[0-9]+)?)\b', extracted_text_clean)
                 valid_amounts = [float(a) for a in amounts_found if (not transaction_id or a != transaction_id) and float(a) < 500000]
                 if valid_amounts:
                     amount_yer = valid_amounts[0]
 
-            # ❌ التحقق التلقائي الحازم: إذا عجز المحرك عن قراءة المبلغ أو رقم العملية
             if not transaction_id or not amount_yer:
                 await processing_msg.edit_text(
                     "❌ **عذراً، تعذر قراءة (المبلغ) أو (رقم العملية) من الصورة تلقائياً!**\n\n"
@@ -1198,7 +1170,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             from database import supabase
             
-            # 3️⃣ التحقق التلقائي من عدم تكرار رقم العملية لمنع الاحتيال
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
             rows = existing_tx.data if hasattr(existing_tx, 'data') else []
             
@@ -1211,7 +1182,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # 4️⃣ التنفيذ التلقائي الكامل: حفظ العملية، إضافة الرصيد، وإخطار العميل فوراً
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
@@ -1239,7 +1209,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
-            # 5️⃣ إرسال إشعار تلقائي لقناة السجلات والأدمن للإحاطة
             for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
                 try:
                     await context.bot.send_photo(
@@ -1282,6 +1251,102 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     await process_successful_join_reward(update.effective_user, context, u_data)
 
     text_content = update.message.text.strip() if update.message.text else ""
+
+    # 🛠️ إدارة حالات المشرفين (إضافة/خصم رصيد بالآيدي، الهدية، الرد، التحويل)
+    if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state:
+        st = admin_state[user_id]
+        action = st.get('action')
+
+        if action == 'waiting_for_add_bal_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح (أرقام فقط):")
+                return
+            st['target_id'] = int(text_content)
+            st['action'] = 'waiting_for_add_bal_amount'
+            await update.message.reply_text("💰 أرسل الآن **المبلغ المراد إضافته** (بالدولار، مثال: `5` أو `2.5`):", parse_mode='Markdown')
+            return
+
+        elif action == 'waiting_for_add_bal_amount':
+            try:
+                amount = float(text_content)
+                target_id = st['target_id']
+                db_update_balance(target_id, amount, mode="add")
+                admin_state.pop(user_id, None)
+                await update.message.reply_text(f"✅ تم إضافة `${amount:.2f}` بنجاح للمستخدم `{target_id}`", parse_mode='Markdown')
+                try:
+                    await context.bot.send_message(chat_id=target_id, text=f"🎉 **تمت إضافة رصيد لحسابك من الإدارة!**\n⭐ المبلغ المضاف: `${amount:.2f}`", parse_mode='Markdown')
+                except Exception:
+                    pass
+            except ValueError:
+                await update.message.reply_text("⚠️ يرجى إرسال رقم صحيح للمبلغ:")
+            return
+
+        elif action == 'waiting_for_deduct_bal_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح (أرقام فقط):")
+                return
+            st['target_id'] = int(text_content)
+            st['action'] = 'waiting_for_deduct_bal_amount'
+            await update.message.reply_text("💰 أرسل الآن **المبلغ المراد خصمه** (بالدولار، مثال: `5`):", parse_mode='Markdown')
+            return
+
+        elif action == 'waiting_for_deduct_bal_amount':
+            try:
+                amount = float(text_content)
+                target_id = st['target_id']
+                db_update_balance(target_id, amount, mode="deduct")
+                admin_state.pop(user_id, None)
+                await update.message.reply_text(f"✅ تم خصم `${amount:.2f}` بنجاح من المستخدم `{target_id}`", parse_mode='Markdown')
+                try:
+                    await context.bot.send_message(chat_id=target_id, text=f"⚠️ **تم خصم مبلغ من رصيدك بواسطة الإدارة.**\n⭐ المبلغ المخصوم: `${amount:.2f}`", parse_mode='Markdown')
+                except Exception:
+                    pass
+            except ValueError:
+                await update.message.reply_text("⚠️ يرجى إرسال رقم صحيح للمبلغ:")
+            return
+
+        elif action == 'waiting_for_gift_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح:")
+                return
+            st['target_id'] = int(text_content)
+            st['action'] = 'waiting_for_gift_amount'
+            await update.message.reply_text("🎁 أرسل قيمة الهدية المالية (بالدولار):", parse_mode='Markdown')
+            return
+
+        elif action == 'waiting_for_gift_amount':
+            try:
+                amount = float(text_content)
+                target_id = st['target_id']
+                db_update_balance(target_id, amount, mode="add")
+                admin_state.pop(user_id, None)
+                await update.message.reply_text(f"✅ تم إرسال هدية بقيمة `${amount:.2f}` للمستخدم `{target_id}` بنجاح!", parse_mode='Markdown')
+                try:
+                    await context.bot.send_message(chat_id=target_id, text=f"🎁 **مبروك! لقد تلقيت هدية مالية من الإدارة.**\n⭐ القيمة: `${amount:.2f}`", parse_mode='Markdown')
+                except Exception:
+                    pass
+            except ValueError:
+                await update.message.reply_text("⚠️ يرجى إرسال مبلغ صحيح:")
+            return
+
+        elif action == 'waiting_for_reply_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح:")
+                return
+            st['target_id'] = int(text_content)
+            st['action'] = 'waiting_for_reply_text'
+            await update.message.reply_text("💬 أرسل نص الرد الآن للإرسال للمستخدم:", parse_mode='Markdown')
+            return
+
+        elif action == 'waiting_for_reply_text':
+            target_id = st['target_id']
+            admin_state.pop(user_id, None)
+            try:
+                await context.bot.send_message(chat_id=target_id, text=f"💬 **رد الإدارة:**\n{text_content}", parse_mode='Markdown')
+                await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!")
+            except Exception as e:
+                await update.message.reply_text(f"❌ تعذر إرسال الرد: {e}")
+            return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
         admin_state[user_id]['link'] = text_content
