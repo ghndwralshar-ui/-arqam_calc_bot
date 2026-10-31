@@ -1129,13 +1129,13 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         admin_state.pop(user_id, None)
         
         processing_msg = await update.message.reply_text(
-            "🤖 **جاري فحص الإيصال والتحقق من الشروط الثلاثة...**\n"
-            "⏳ **يرجى الانتظار ثوانٍ...**",
+            "🤖 **جاري فحص الإيصال والتحقق من البيانات بدقة...**\n"
+            "⏳ **يرجى الانتظار ثوانٍ معدودة...**",
             parse_mode='Markdown'
         )
         
         try:
-            # 1️⃣ تنزيل الصورة وقراءتها عبر OCR
+            # 1️⃣ تنزيل الصورة وقراءتها عبر OCR بأعلى دقة
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
             image = Image.open(BytesIO(photo_bytes))
@@ -1143,25 +1143,29 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             extracted_text = pytesseract.image_to_string(image, lang='ara+eng')
             print(f"--- OCR TEXT ---\n{extracted_text}\n-----------------")
 
-            # 2️⃣ التحقق الصارم من الشروط الثلاثة:
-            
-            # 📌 شرط ثالثاً: التحقق من رقم المستفيد (772074924)[span_3](start_span)[span_3](end_span)
+            clean_text = extracted_text.replace('\n', ' ')
+
+            # 2️⃣ الفحص الأول: التحقق من رقم المستفيد بدقة
             expected_account = JAIB_ACCOUNT if action_type == 'waiting_for_jaib_deposit' else KREEMI_ACCOUNT
-            if expected_account not in extracted_text:
+            if expected_account not in clean_text:
+                wallet_title = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
                 await processing_msg.edit_text(
-                    f"❌ **عذراً، لم يتم العثور على رقم المستفيد الصحيح (`{expected_account}`) في الإيصال!**\n"
-                    "⚠️ لا يتم احتساب أي عملية إلا إذا كان رقم المستفيد مطابقاً تماماً.",
+                    f"❌ **عذراً، فشل التحقق من الإيصال!**\n\n"
+                    f"📌 **السبب الرئيسي:** رقم المستفيد غير مطابق أو غير موجود في الإيصال.\n"
+                    f"💡 يرجى التأكد من التحويل إلى الحساب الصحيح لـ ({wallet_title}):\n"
+                    f"👉 `{expected_account}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # 📌 شرط ثانياً: استخراج رقم مرجع العملية ومنع التكرار[span_4](start_span)[span_4](end_span)
-            tx_match = re.search(r'\b\d{10,16}\b', extracted_text)
+            # 3️⃣ الفحص الثاني: استخراج رقم مرجع العملية ومنع التكرار
+            tx_match = re.search(r'\b\d{10,16}\b', clean_text)
             if not tx_match:
                 await processing_msg.edit_text(
-                    "❌ **عذراً، لم نتمكن من قراءة رقم مرجع العملية من الصورة بوضوح!**\n"
-                    "يرجى التأكد من وضوح الإيصال وإعادة إرساله.",
+                    "❌ **عذراً، لم نتمكن من قراءة رقم مرجع العملية من الصورة!**\n\n"
+                    "📌 **السبب الرئيسي:** الصورة غير واضحة أو رداءة الإضاءة ولم يظهر رقم المرجع.\n"
+                    "💡 يرجى التأكد من إرسال لقطة شاشة (Screenshot) أصلية وواضحة للإيصال وإعادة المحاولة.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1175,23 +1179,26 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             
             if rows:
                 await processing_msg.edit_text(
-                    "❌ **تم استخدام رقم العملية هذا من قبل! يرجى إرسال صورة لعملية جديدة.**",
+                    f"❌ **عذراً، تم رفض العملية!**\n\n"
+                    f"📌 **السبب الرئيسي:** تم استخدام رقم مرجع العملية (`{tx_id}`) من قبل في شحن سابق.\n"
+                    "💡 لا يمكن استخدام نفس الإيصال أكثر من مرة.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # 📌 شرط أولاً: استخراج السعر بجانب ريال يمني[span_5](start_span)[span_5](end_span)
-            amount_match = re.search(r'(\d+[\.,]?\d*)\s*(?:ريال\s*يمني|ريال|ر\.ي)', extracted_text)
+            # 4️⃣ الفحص الثالث: استخراج المبلغ المالي بجانب كلمة ريال يمني
+            amount_match = re.search(r'(\d+[\.,]?\d*)\s*(?:ريال\s*يمني|ريال|ر\.ي)', clean_text)
             if not amount_match:
-                amount_match = re.search(r'(\d+)\s*(?:ريال)', extracted_text)
+                amount_match = re.search(r'(\d+)\s*(?:ريال)', clean_text)
                 
             if amount_match:
                 amount_yer = float(amount_match.group(1).replace(',', ''))
             else:
                 await processing_msg.edit_text(
-                    "❌ **عذراً، لم نتمكن من قراءة المبلغ المالي بجانب (ريال يمني) بدقة!**\n"
-                    "يرجى إرسال صورة واضحة للإيصال.",
+                    "❌ **عذراً، تعذر قراءة المبلغ المالي من الإيصال!**\n\n"
+                    "📌 **السبب الرئيسي:** لم يتم التعرف على حقل المبلغ بجانب (ريال يمني).\n"
+                    "💡 يرجى إرسال صورة واضحة ومباشرة للإيصال.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1199,7 +1206,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
 
-            # 3️⃣ حفظ المعاملة في قاعدة البيانات وتحديث رصيد العميل[span_6](start_span)[span_6](end_span)
+            # 5️⃣ اعتماد العملية بنجاح وشحن الرصيد
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "tx_id": tx_id, 
@@ -1213,14 +1220,14 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
             
             success_text = (
-                f"🎉 **تم التحقق من الشروط الثلاثة وشحن رصيدك بنجاح!** 🤖✨\n"
+                f"🎉 **تم التحقق من الإيصال بنجاح وتم شحن رصيدك!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **طريقة الشحن:** `{wallet_name}`\n"
                 f"🔢 **رقم مرجع العملية:** `{tx_id}`\n"
-                f"💵 **المبلغ المقروء (ريال يمني):** `{amount_yer:,.0f} ر.ي`\n"
-                f"⭐ **المبلغ المضاف (دولار):** `${usd_amount:.2f}`\n"
+                f"💵 **المبلغ المدفوع:** `{amount_yer:,.0f} ر.ي`\n"
+                f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}`\n"
                 f"💰 **رصيدك الحالي الجديد:** `${u_data['balance']:.2f}`\n\n"
-                f"🚀 *تم التحقق من رقم المستفيد والمرجع والمبلغ بنجاح تام.*"
+                f"🚀 *تم فحص رقم المستفيد والمرجع والمبلغ وتأكيدها بنجاح تام.*"
             )
             
             await processing_msg.edit_text(
@@ -1229,14 +1236,14 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
-            # 4️⃣ إرسال إشعار للإدارة بالإيصال المقروء
+            # إرسال إشعار للإدارة
             for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
                 try:
                     await context.bot.send_photo(
                         chat_id=adm_id,
                         photo=update.message.photo[-1].file_id,
                         caption=(
-                            f"🚨 **[إيصال شحن تم فحصه وقبوله آلياً]** 💳\n"
+                            f"🚨 **[إيصال شحن تم قبوله وتشغيله آلياً]** 💳\n"
                             f"━━━━━━━━━━━━━━━━━━━━━━\n"
                             f"👤 **آيدي العميل:** `{user_id}`\n"
                             f"💳 **الطريقة:** `{wallet_name}`\n"
@@ -1251,8 +1258,9 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception as e:
             print(f"Receipt Processing Error: {e}")
             await processing_msg.edit_text(
-                "❌ **عذراً، حدث خطأ أثناء فحص الإيصال الآلي!**\n"
-                "يرجى التأكد من وضوح الصورة وإعادة المحاولة.",
+                f"❌ **عذراً، حدث خطأ تقني غير متوقع أثناء معالجة الصورة!**\n\n"
+                f"📌 **التفاصيل:** `{str(e)[:100]}`\n"
+                "💡 يرجى التأكد من وضوح الصورة وإعادة المحاولة لاحقاً.",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
