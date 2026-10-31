@@ -1099,7 +1099,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """إرسال الصورة إلى API OCR مع تفعيل المحرك الثاني لقراءة الخطوط المصرفية والأرقام بدقة"""
+    """إرسال الصورة إلى API OCR مع تفعيل المحرك الثاني لقراءة الخطوط والأرقام المصرفية بدقة"""
     try:
         url = "https://api.ocr.space/parse/image"
         payload = {
@@ -1134,7 +1134,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         admin_state.pop(user_id, None)
         
         processing_msg = await update.message.reply_text(
-            "🔎 **جاري قراءة نص الصورة وتحليل الأرقام بدقة...**\n"
+            "🔎 **جاري قراءة نص الصورة وتحليل الأرقام بدقة فائقة...**\n"
             "⏳ **يرجى الانتظار لحظات...**",
             parse_mode='Markdown'
         )
@@ -1146,16 +1146,23 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             expected_account = JAIB_ACCOUNT if action_type == 'waiting_for_jaib_deposit' else KREEMI_ACCOUNT
             wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
 
-            # قراءة النص الأصلي من الصورة
+            # قراءة النص بالكامل من الصورة
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
             
             # 💡 [معلومة برمجية هامة]: رقم المستفيد يقع تحت الرموز المكتوبة (النجوم والأقواس)، 
-            # لذلك نقوم بتصفية كافة الحروف والرموز واستخراج مصفوفة الأرقام الصرفة حصرياً للمقارنة الآلية التامة.
+            # لذلك نقوم باستخراج كافة الأرقام الصرفة حصرياً وتجاوز أي رموز متداخلة للتحقق الآلي التام.
             digits_only = re.sub(r'\D', '', extracted_text)
             clean_expected = re.sub(r'\D', '', expected_account)
 
-            # 1️⃣ التحقق الآلي الفائق من وجود رقم المستفيد ضمن الأرقام الصرفة المستخرجة
-            if clean_expected not in digits_only:
+            # التحقق المرن لدعم الأرقام المتصلة أو المتقطعة بمسافات في الإيصال
+            account_found = clean_expected in digits_only
+            if not account_found:
+                first_part = clean_expected[:4]
+                last_part = clean_expected[-4:]
+                if first_part in digits_only and last_part in digits_only:
+                    account_found = True
+
+            if not account_found:
                 await processing_msg.edit_text(
                     f"❌ **تم رفض الإيصال!**\n\n"
                     f"📌 **السبب:** لم نجد رقم حساب المستفيد المطلوب (`{expected_account}`) في الصورة.\n"
@@ -1167,37 +1174,37 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             extracted_text_clean = re.sub(r'\s+', ' ', extracted_text)
 
-            # 2️⃣ استخراج رقم مرجع العملية (تسلسل أرقام طواله من 10 إلى 16 رقم لا يساوي رقم الحساب)
+            # استخراج رقم مرجع العملية (تسلسل أرقام طوله من 10 إلى 16 رقم)
             all_long_numbers = re.findall(r'\b([0-9]{10,16})\b', digits_only)
-            valid_tx_nums = [n for n in all_long_numbers if n != clean_expected]
+            valid_tx_nums = [n for n in all_long_numbers if n not in clean_expected]
             
             if valid_tx_nums:
                 transaction_id = valid_tx_nums[0]
             else:
                 tx_match = re.search(r'([0-9]{10,16})', extracted_text_clean)
-                if tx_match and tx_match.group(1) != clean_expected:
+                if tx_match and tx_match.group(1) not in clean_expected:
                     transaction_id = tx_match.group(1)
                 else:
                     await processing_msg.edit_text(
-                        "❌ **لم نتمكن من قراءة (رقم مرجع العملية) من الإيصال!**\n\n"
-                        "💡 يرجى التأكد من وضوح الصورة وإعادة المحاولة.",
+                        "❌ **لم نتمكن من قراءة (رقم مرجع العملية) من الإيصال آلياً!**\n\n"
+                        "💡 يرجى التأكد من وضوح صورة الإيصال وإعادة المحاولة.",
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                     )
                     return
 
-            # 3️⃣ استخراج المبلغ الحقيقي بالريال اليمني
+            # استخراج المبلغ الحقيقي بالريال اليمني
             amount_match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*(?:ريال\s*يمني|ر\.ي|YER|ريال)', extracted_text_clean, re.IGNORECASE)
             if amount_match:
                 amount_yer = float(amount_match.group(1))
             else:
                 amounts_found = re.findall(r'\b([0-9]{1,6}(?:\.[0-9]+)?)\b', extracted_text_clean)
-                valid_amounts = [float(a) for a in amounts_found if a != clean_expected and a != transaction_id and float(a) < 500000]
+                valid_amounts = [float(a) for a in amounts_found if a not in clean_expected and a != transaction_id and float(a) < 500000]
                 if valid_amounts:
                     amount_yer = valid_amounts[0]
                 else:
                     await processing_msg.edit_text(
-                        "❌ **لم نتمكن من استخراج مبلغ التحويل من الإيصال!**\n\n"
+                        "❌ **لم نتمكن من استخراج مبلغ التحويل من الإيصال آلياً!**\n\n"
                         "💡 يرجى التأكد من وضوح قيمة المبلغ في الصورة.",
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
@@ -1209,7 +1216,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             from database import supabase
             
-            # 4️⃣ التحقق من عدم تكرار رقم العملية في قاعدة البيانات
+            # التحقق من عدم تكرار رقم العملية في قاعدة البيانات
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
             rows = existing_tx.data if hasattr(existing_tx, 'data') else []
             
@@ -1223,7 +1230,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # 5️⃣ حفظ العملية في قاعدة البيانات وإضافة الرصيد للمستخدم
+            # حفظ العملية في قاعدة البيانات وإضافة الرصيد للمستخدم آلياً
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
