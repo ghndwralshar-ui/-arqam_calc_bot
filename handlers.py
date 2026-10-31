@@ -936,7 +936,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🌟 **بوابة شحن الرصيد الفوري والآمن** 🌟\n\n"
-            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($), يرجى اختيار محفظة التحويل المناسبة:\n\n"
+            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($)، يرجى اختيار محفظة التحويل المناسبة:\n\n"
             "💱 **سعر الصرف المعتمد (بالعملة القديمة):**\n"
             "• **كل 1 دولار ($) = 550 ريال يمني**\n"
             "  *(البوت يتحقق من الإيصال ويضيف الرصيد آلياً فوراً)*\n\n"
@@ -1140,7 +1140,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_bytes = await photo_file.download_as_bytearray()
             image = Image.open(BytesIO(photo_bytes))
             
-            # تحديد رقم الحساب المستهدف للتأكد من أنه المطابق لـ 772074924 أو الكريمي
+            # تحديد رقم الحساب المستهدف للتأكد من مطبقته الحصرية
             expected_account = JAIB_ACCOUNT if action_type == 'waiting_for_jaib_deposit' else KREEMI_ACCOUNT
             
             # 2️⃣ توليد رقم عملية فريد ومتوافق مع جدول transactions
@@ -1160,14 +1160,16 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # تحديد المبلغ الافتراضي أو المقروء من الإيصال
+            # تحديد القيم المالية وتغطية جميع أعمدة الجدول (amount, amount_yer, usd_amount)
             amount_yer = 500.0
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
+            amount_val = usd_amount
 
-            # 3️⃣ حفظ المعاملة في قاعدة البيانات باستخدام transaction_id وتحديث رصيد العميل
+            # 3️⃣ حفظ المعاملة في قاعدة البيانات وتحديث رصيد العميل
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
+                "amount": amount_val,
                 "amount_yer": amount_yer, 
                 "usd_amount": usd_amount
             }).execute()
