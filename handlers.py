@@ -2,7 +2,7 @@ import logging
 import asyncio
 import re
 import httpx
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageOps
 from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
@@ -956,8 +956,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💳 **تعليمات الشحن عبر محفظة جيب:**\n\n"
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
-            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) الأصلية** هنا في المحادثة.\n"
-            "🤖 *البوت سيقوم فوراً بقراءة (المبلغ ورقم العملية) ومعالجة الشحن آلياً!*",
+            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
+            "🤖 *سيقوم البوت بقراءة الصورة وفحص النص واستخراج (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -968,8 +968,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🏦 **تعليمات الشحن عبر بنك الكريمي:**\n\n"
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
-            "2️⃣ قم بإرسال صورة إيصال التحويل (Screenshot) الأصلية هنا في المحادثة.\n"
-            "🤖 *البوت سيقوم فوراً بقراءة (المبلغ ورقم العملية) ومعالجة الشحن آلياً!*",
+            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
+            "🤖 *سيقوم البوت بقراءة الصورة وفحص النص واستخراج (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1099,8 +1099,17 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """إرسال الصورة إلى API OCR مع تفعيل المحرك الثاني لقراءة الخطوط والأرقام المصرفية بدقة"""
+    """معالجة وتصفية الصورة برمجياً عبر Pillow وزيادة التباين ثم إرسالها لقارئ النصوص بدقة عالية"""
     try:
+        img = Image.open(BytesIO(photo_bytes))
+        img = ImageOps.grayscale(img)
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(2.5) # رفع التباين لتوضيح الأرقام وتجاوز الخلفيات والزخارف
+        
+        output_buffer = BytesIO()
+        img.save(output_buffer, format="JPEG")
+        processed_bytes = output_buffer.getvalue()
+
         url = "https://api.ocr.space/parse/image"
         payload = {
             'apikey': 'helloworld',
@@ -1110,7 +1119,7 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
             'scale': True,
             'OCREngine': 2
         }
-        files = [('file', ('receipt.jpg', photo_bytes, 'image/jpeg'))]
+        files = [('file', ('receipt.jpg', processed_bytes, 'image/jpeg'))]
         
         async with httpx.AsyncClient(timeout=25.0) as client:
             res = await client.post(url, data=payload, files=files)
@@ -1129,28 +1138,29 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
     if not await check_user_subscription(user_id, context):
         return
 
+    # التحقق المباشر عند إرسال أي صورة إذا كان المستخدم في وضع انتظار إيداع جيب أو الكريمي
     if user_id in admin_state and admin_state[user_id].get('action') in ['waiting_for_jaib_deposit', 'waiting_for_kreemi_deposit']:
         action_type = admin_state[user_id].get('action')
         admin_state.pop(user_id, None)
         
+        wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
+        
         processing_msg = await update.message.reply_text(
-            "🔎 **جاري قراءة الإيصال واستخراج المبلغ ورقم العملية...**\n"
-            "⏳ **يرجى الانتظار لحظات...**",
+            "🔎 **جاري قراءة وفحص الإيصال تلقائياً عبر محرك الذكاء الاصطناعي...**\n"
+            "⏳ **يرجى الانتظار ثوانٍ معدودة...**",
             parse_mode='Markdown'
         )
         
         try:
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
-            
-            wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
 
-            # قراءة النص بالكامل من الصورة عبر OCR
+            # استخراج النصوص وتحليلها
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
             digits_only = re.sub(r'\D', '', extracted_text)
             extracted_text_clean = re.sub(r'\s+', ' ', extracted_text)
 
-            # 1️⃣ استخراج رقم مرجع العملية (تسلسل أرقام من 10 إلى 16 رقم)
+            # 1️⃣ استخراج رقم مرجع العملية (تسلسل أرقام طوله من 10 إلى 16 رقم)
             all_long_numbers = re.findall(r'\b([0-9]{10,16})\b', digits_only)
             transaction_id = None
             if all_long_numbers:
@@ -1160,32 +1170,24 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 if tx_match:
                     transaction_id = tx_match.group(1)
 
-            # 2️⃣ استخراج المبلغ الذي يسبق أو يرافق كلمة (ريال يمني، ر.ي، YER، ريال)
+            # 2️⃣ استخراج المبلغ (المرتبط بكلمة ريال يمني أو ر.ي أو ريال)
             amount_match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*(?:ريال\s*يمني|ر\.ي|YER|ريال)', extracted_text_clean, re.IGNORECASE)
             amount_yer = None
             if amount_match:
                 amount_yer = float(amount_match.group(1))
             else:
+                # طريقة بديلة لاسترشاد الأرقام المعقولة للمبلغ
                 amounts_found = re.findall(r'\b([0-9]{1,6}(?:\.[0-9]+)?)\b', extracted_text_clean)
                 valid_amounts = [float(a) for a in amounts_found if (not transaction_id or a != transaction_id) and float(a) < 500000]
                 if valid_amounts:
                     amount_yer = valid_amounts[0]
 
-            # 📊 تقرير الفحص المباشر للمبلغ ورقم العملية
-            debug_info = (
-                "🔍 **تقرير فحص (المبلغ ورقم العملية):**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🆔 **رقم مرجع العملية:** `{transaction_id if transaction_id else '❌ لم يتم قراءته'}`\n"
-                f"💵 **المبلغ المستخرج:** `{f'{amount_yer:,.0f} ريال يمني' if amount_yer else '❌ لم يتم قراءته'}`\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-            )
-
-            # التحقق مما إذا كان قد تم قراءة العنصرين الأساسيين
+            # ❌ التحقق التلقائي الحازم: إذا عجز المحرك عن قراءة المبلغ أو رقم العملية
             if not transaction_id or not amount_yer:
                 await processing_msg.edit_text(
-                    debug_info +
-                    "❌ **عذراً:** لم يستطع البوت قراءة المبلغ أو رقم العملية بوضوح.\n"
-                    "💡 يرجى التأكد من وضوح صورة الإيصال وإعادة المحاولة.",
+                    "❌ **عذراً، تعذر قراءة (المبلغ) أو (رقم العملية) من الصورة تلقائياً!**\n\n"
+                    "💡 **الأسباب المحتملة:** دقة الصورة منخفضة، أو الخطوط متداخلة مع خلفية المحفظة.\n"
+                    "🔄 يرجى التأكد من وضوح لقطة الشاشة وإعادة إرسالها من جديد.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1196,21 +1198,20 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             from database import supabase
             
-            # 3️⃣ التحقق من عدم تكرار رقم العملية
+            # 3️⃣ التحقق التلقائي من عدم تكرار رقم العملية لمنع الاحتيال
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
             rows = existing_tx.data if hasattr(existing_tx, 'data') else []
             
             if rows:
                 await processing_msg.edit_text(
-                    debug_info +
-                    f"❌ **تم رفض الإيصال (عملية مكررة)!**\n"
-                    f"📌 رقم مرجع العملية (`{transaction_id}`) تم استخدامه مسبقاً.",
+                    f"❌ **تم رفض الإيصال (عملية مكررة تلقائياً)!**\n"
+                    f"📌 رقم مرجع العملية (`{transaction_id}`) تم استخدامه مسبقاً في النظام.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # 4️⃣ حفظ العملية وإضافة الرصيد آلياً بناءً على المبلغ ورقم العملية المستخرجين
+            # 4️⃣ التنفيذ التلقائي الكامل: حفظ العملية، إضافة الرصيد، وإخطار العميل فوراً
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
@@ -1223,9 +1224,11 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             u_data = db_get_user(user_id)
             
             success_text = (
-                debug_info +
-                "🎉 **تم قراءة المبلغ ورقم العملية بنجاح تام!** 🤖✨\n"
+                f"🎉 **تم فحص وشحن رصيدك تلقائياً بنجاح تام!** 🤖✨\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **الطريقة:** `{wallet_name}`\n"
+                f"🆔 **رقم العملية المستخرج:** `{transaction_id}`\n"
+                f"💵 **المبلغ المحول:** `{amount_yer:,.0f} ر.ي`\n"
                 f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}`\n"
                 f"💰 **رصيدك الحالي:** `${u_data['balance']:.2f}`"
             )
@@ -1236,19 +1239,19 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
-            # إشعار الإدارة
+            # 5️⃣ إرسال إشعار تلقائي لقناة السجلات والأدمن للإحاطة
             for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
                 try:
                     await context.bot.send_photo(
                         chat_id=adm_id,
                         photo=update.message.photo[-1].file_id,
                         caption=(
-                            f"🚨 **[إيصال شحن تم قراءة مبلغة وعمليته]** 💳\n"
+                            f"🚨 **[إيصال شحن تم تنفيذه تلقائياً 100%]** 💳\n"
                             f"━━━━━━━━━━━━━━━━━━━━━━\n"
                             f"👤 **آيدي العميل:** `{user_id}`\n"
                             f"💳 **الطريقة:** `{wallet_name}`\n"
                             f"🆔 **رقم العملية:** `{transaction_id}`\n"
-                            f"⭐ **المبلغ:** `${usd_amount:.2f}` (`{amount_yer:,.0f} ر.ي`)"
+                            f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}` (`{amount_yer:,.0f} ر.ي`)"
                         ),
                         parse_mode='Markdown'
                     )
@@ -1258,7 +1261,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception as e:
             print(f"Receipt Processing Error: {e}")
             await processing_msg.edit_text(
-                f"❌ **حدث خطأ تقني أثناء معالجة الإيصال!**\n\n"
+                f"❌ **حدث خطأ تقني أثناء معالجة الإيصال تلقائياً!**\n\n"
                 f"📌 **التفاصيل:** `{str(e)[:100]}`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
@@ -1334,7 +1337,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             f"🎮 ملخص طلب الشحن (بالآيدي):\n\n"
             f"🔹 الحزمة: {service_info['name']}\n"
             f"🆔 آيدي اللاعب (Player ID): `{player_id}`\n"
-            f"💰 السعر الإجمالي الصافي: `{fixed_price:.2f}$`"
+            f"💰 السعر الإجمالي الصافي: `${fixed_price:.2f}$`"
         )
         markup = InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ تأكيد الشحن", callback_data="confirm_final_order")],
