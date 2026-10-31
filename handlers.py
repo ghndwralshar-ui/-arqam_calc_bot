@@ -1133,7 +1133,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         admin_state.pop(user_id, None)
         
         processing_msg = await update.message.reply_text(
-            "🔎 **جاري قراءة نص الصورة بواسطة محرك OCR العربي بدقة عالية...**\n"
+            "🔎 **جاري قراءة نص الصورة وتحليل الأرقام بدقة...**\n"
             "⏳ **يرجى الانتظار لحظات...**",
             parse_mode='Markdown'
         )
@@ -1147,10 +1147,13 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             # قراءة النص من الصورة
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
-            extracted_text_clean = re.sub(r'\s+', ' ', extracted_text)
+            
+            # تنظيف النص وإزالة أي رموز أو أقواس لضمان مطابقة دقيقة لرقم الحساب
+            cleaned_text = re.sub(r'[\s\-_\|\(\)\[\]\.\*]+', '', extracted_text)
+            clean_expected = re.sub(r'\D', '', expected_account)
 
-            # 1️⃣ التحقق الصارم من وجود رقم المستفيد في أي موضع بالصورة (بغض النظر عن التشفير أو التداخل)
-            if expected_account not in extracted_text_clean:
+            # 1️⃣ التحقق الصارم والمرن من وجود رقم المستفيد في أي مكان بالصورة (متجاوزاً الرموز والأحرف المتداخلة)
+            if clean_expected not in cleaned_text:
                 await processing_msg.edit_text(
                     f"❌ **تم رفض الإيصال!**\n\n"
                     f"📌 **السبب:** لم نجد رقم حساب المستفيد المطلوب (`{expected_account}`) في النص المستخرج من الصورة.\n"
@@ -1159,6 +1162,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
+
+            extracted_text_clean = re.sub(r'\s+', ' ', extracted_text)
 
             # 2️⃣ استخراج رقم مرجع العملية الحقيقي (رقم مرجع العملية)
             tx_match = re.search(r'(?:رقم\s*مرجع\s*العملية|مرجع\s*العملية|رقم\s*العملية|Ref|ID)[:#\s]*([0-9]{8,16})', extracted_text_clean, re.IGNORECASE)
