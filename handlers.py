@@ -935,7 +935,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت بقراءة الصورة وفحص النص واستخراج (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم البوت بنسخ النص وفحص (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -947,7 +947,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت بقراءة الصورة وفحص النص واستخراج (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم البوت بنسخ النص وفحص (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1077,17 +1077,9 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """معالجة متقدمة جداً للصورة: إزالة التشويش، رفع التباين والحدة، وعزل النصوص لاستخراج البيانات بدقة 100%"""
+    """نسخ وقراءة النص بالكامل من صورة الإيصال"""
     try:
         img = Image.open(BytesIO(photo_bytes))
-        img = ImageOps.grayscale(img)
-        
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(3.0)
-        
-        sharpness_enhancer = ImageEnhance.Sharpness(img)
-        img = sharpness_enhancer.enhance(2.0)
-        
         output_buffer = BytesIO()
         img.save(output_buffer, format="JPEG", quality=95)
         processed_bytes = output_buffer.getvalue()
@@ -1111,7 +1103,7 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
                 if results:
                     return results[0].get("ParsedText", "")
     except Exception as e:
-        print(f"OCR Advanced Exception: {e}")
+        print(f"OCR Exception: {e}")
     return ""
 
 async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1127,7 +1119,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🔎 **جاري قراءة وفحص الإيصال تلقائياً عبر محرك الذكاء الاصطناعي...**\n"
+            "🔎 **جاري نسخ النص وقراءة بيانات الإيصال بدقة...**\n"
             "⏳ **يرجى الانتظار ثوانٍ معدودة...**",
             parse_mode='Markdown'
         )
@@ -1136,64 +1128,85 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
+            # 1. نسخ واستخراج النص الكامل من الصورة
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
-            digits_only = re.sub(r'\D', '', extracted_text)
-            extracted_text_clean = re.sub(r'\s+', ' ', extracted_text)
-
-            all_long_numbers = re.findall(r'\b([0-9]{10,16})\b', digits_only)
-            transaction_id = None
-            if all_long_numbers:
-                transaction_id = all_long_numbers[0]
-            else:
-                tx_match = re.search(r'([0-9]{10,16})', extracted_text_clean)
-                if tx_match:
-                    transaction_id = tx_match.group(1)
-
-            amount_match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*(?:ريال\s*يمني|ر\.ي|YER|ريال)', extracted_text_clean, re.IGNORECASE)
-            amount_yer = None
-            if amount_match:
-                amount_yer = float(amount_match.group(1))
-            else:
-                amounts_found = re.findall(r'\b([0-9]{1,6}(?:\.[0-9]+)?)\b', extracted_text_clean)
-                valid_amounts = [float(a) for a in amounts_found if (not transaction_id or a != transaction_id) and float(a) < 500000]
-                if valid_amounts:
-                    amount_yer = valid_amounts[0]
-
-            if not transaction_id or not amount_yer:
+            
+            if not extracted_text or len(extracted_text.strip()) < 3:
                 await processing_msg.edit_text(
-                    "❌ **عذراً، تعذر قراءة (المبلغ) أو (رقم العملية) من الصورة تلقائياً!**\n\n"
-                    "💡 **الأسباب المحتملة:** دقة الصورة منخفضة، أو الخطوط متداخلة مع خلفية المحفظة.\n"
-                    "🔄 يرجى التأكد من وضوح لقطة الشاشة وإعادة إرسالها من جديد.",
+                    "❌ **عذراً، لم يتمكن البوت من قراءة النص من الصورة.**\n"
+                    "🔄 يرجى التأكد من وضوح إيصال التحويل وإعادة إرساله.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
+            clean_text = re.sub(r'\s+', ' ', extracted_text)
+            digits_only = re.sub(r'\D', '', clean_text)
+
+            # 2. استخراج رقم مرجع العملية بدقة
+            transaction_id = None
+            tx_match = re.search(r'\b([0-9]{10,16})\b', digits_only)
+            if tx_match:
+                transaction_id = tx_match.group(1)
+            else:
+                all_numbers = re.findall(r'\b([0-9]{8,16})\b', digits_only)
+                if all_numbers:
+                    transaction_id = all_numbers[0]
+
+            # 3. استخراج المبلغ المالي بالريال اليمني
+            amount_yer = None
+            amount_match = re.search(r'([0-9,]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|YR)', clean_text, re.IGNORECASE)
+            if amount_match:
+                raw_amt = amount_match.group(1).replace(',', '')
+                try:
+                    amount_yer = float(raw_amt)
+                except ValueError:
+                    pass
+
+            if not amount_yer:
+                potential_amounts = re.findall(r'\b([0-9]{2,6}(?:\.[0-9]{1,2})?)\b', clean_text.replace(',', ''))
+                valid_nums = [float(n) for n in potential_amounts if (not transaction_id or str(n) not in transaction_id) and float(n) <= 1000000]
+                if valid_nums:
+                    amount_yer = max(valid_nums)
+
+            if not transaction_id or not amount_yer or amount_yer <= 0:
+                await processing_msg.edit_text(
+                    f"❌ **تعذر استخراج (المبلغ) أو (رقم العملية) تلقائياً من النص الآتي:**\n\n"
+                    f"💬 *النص المنسوخ من الإيصال:*\n`{extracted_text[:250]}`\n\n"
+                    "🔄 تأكد من وضوح الصورة وأعد إرسالها.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            # حساب المبلغ بالدولار
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
-            amount_val = usd_amount
 
             from database import supabase
             
+            # 4. فحص ما إذا تم استخدام رقم العملية مسبقاً
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
             rows = existing_tx.data if hasattr(existing_tx, 'data') else []
             
             if rows:
                 await processing_msg.edit_text(
-                    f"❌ **تم رفض الإيصال (عملية مكررة تلقائياً)!**\n"
-                    f"📌 رقم مرجع العملية (`{transaction_id}`) تم استخدامه مسبقاً في النظام.",
+                    f"❌ **تم رفض الإيصال (عملية مكررة مستخدمة مسبقاً)!**\n"
+                    f"📌 رقم مرجع العملية (`{transaction_id}`) تم تسجيله وصرف رصيده من قبل.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
+            # 5. حفظ العملية في جدول transactions في Supabase ورقم الحساب
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
-                "amount": amount_val,
+                "amount": usd_amount,
                 "amount_yer": amount_yer, 
                 "usd_amount": usd_amount
             }).execute()
 
+            # 6. شحن رصيد المستخدم فوراً
             db_update_balance(user_id, usd_amount, mode="add")
             u_data = db_get_user(user_id)
             
@@ -1219,7 +1232,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                         chat_id=adm_id,
                         photo=update.message.photo[-1].file_id,
                         caption=(
-                            f"🚨 **[إيصال شحن تم تنفيذه تلقائياً 100%]** 💳\n"
+                            f"🚨 **[إيصال شحن تم قراءته وشحنه تلقائياً]** 💳\n"
                             f"━━━━━━━━━━━━━━━━━━━━━━\n"
                             f"👤 **آيدي العميل:** `{user_id}`\n"
                             f"💳 **الطريقة:** `{wallet_name}`\n"
@@ -1234,7 +1247,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception as e:
             print(f"Receipt Processing Error: {e}")
             await processing_msg.edit_text(
-                f"❌ **حدث خطأ تقني أثناء معالجة الإيصال تلقائياً!**\n\n"
+                f"❌ **حدث خطأ تقني أثناء معالجة الإيصال!**\n\n"
                 f"📌 **التفاصيل:** `{str(e)[:100]}`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
