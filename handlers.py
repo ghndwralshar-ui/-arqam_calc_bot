@@ -1,7 +1,6 @@
 import logging
 import asyncio
 import re
-import random
 import httpx
 import pytesseract
 from PIL import Image
@@ -1130,7 +1129,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         admin_state.pop(user_id, None)
         
         processing_msg = await update.message.reply_text(
-            "🤖 **جاري قراءة الإيصال وتحليل البيانات بدقة...**\n"
+            "🤖 **جاري قراءة الإيصال والتحقق من رقم المستفيد والمبلغ ورقم العملية بدقة...**\n"
             "⏳ **يرجى الانتظار ثوانٍ معدودة...**",
             parse_mode='Markdown'
         )
@@ -1149,41 +1148,68 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 print(f"OCR Error: {ocr_err}")
                 extracted_text = ""
 
-            # استخراج رقم العملية الحقيقي من الإيصال
-            tx_match = re.search(r'(?:رقم العملية|المرجع|Ref|ID|No)[:#\s]*([0-9]{6,15})', extracted_text, re.IGNORECASE)
+            # 2️⃣ التحقق الصارم من وجود رقم المستفيد المطلوب في الإيصال
+            if expected_account not in extracted_text:
+                await processing_msg.edit_text(
+                    f"❌ **عذراً، تم رفض الإيصال!**\n\n"
+                    f"📌 **السبب:** رقم المستفيد غير مطابق أو غير موجود في الصورة.\n"
+                    f"💡 يجب التحويل حصراً إلى الحساب المعتمد: `{expected_account}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            # 3️⃣ استخراج رقم العملية الحقيقي (رقم مرجع العملية) بدقة
+            tx_match = re.search(r'(?:رقم\s*مرجع\s*العملية|مرجع\s*العملية|رقم\s*العملية|Ref|ID)[:#\s]*([0-9]{6,15})', extracted_text, re.IGNORECASE)
             if tx_match:
                 transaction_id = tx_match.group(1)
             else:
-                numbers_found = re.findall(r'\b[0-9]{8,15}\b', extracted_text)
-                transaction_id = numbers_found[0] if numbers_found else str(random.randint(1000000000, 9999999999))
+                await processing_msg.edit_text(
+                    "❌ **عذراً، لم نتمكن من قراءة رقم مرجع العملية من الإيصال!**\n\n"
+                    "💡 يرجى التأكد من وضوح الصورة وإعادة المحاولة.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
 
-            # استخراج المبلغ الحقيقي من الإيصال
-            amount_match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|\$)', extracted_text)
+            # 4️⃣ استخراج المبلغ الحقيقي الموجود في أول الصورة متبوعاً بريال يمني / ر.ي / YER
+            amount_match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*(?:ريال\s*يمني|ر\.ي|YER)', extracted_text, re.IGNORECASE)
             if amount_match:
                 amount_yer = float(amount_match.group(1))
             else:
-                amount_yer = 500.0
+                # محاولة بديلة لأخذ أول رقم ظاهر إذا كان يمثل المبلغ
+                numbers_all = re.findall(r'\b([0-9]{2,6}(?:\.[0-9]+)?)\b', extracted_text)
+                if numbers_all:
+                    amount_yer = float(numbers_all[0])
+                else:
+                    await processing_msg.edit_text(
+                        "❌ **عذراً، لم نتمكن من قراءة المبلغ من الإيصال!**\n\n"
+                        "💡 يرجى التأكد من أن الإيصال يظهر بوضوح تام.",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                    return
 
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
             amount_val = usd_amount
 
             from database import supabase
             
-            # التحقق من عدم تكرار رقم العملية الحقيقي في قاعدة البيانات
+            # 5️⃣ التحقق من عدم تكرار رقم العملية الحقيقي في قاعدة بيانات سيبايوس (Supabase)
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
             rows = existing_tx.data if hasattr(existing_tx, 'data') else []
             
             if rows:
                 await processing_msg.edit_text(
                     f"❌ **عذراً، تم رفض العملية!**\n\n"
-                    f"📌 **السبب الرئيسي:** رقم العملية (`{transaction_id}`) تم استخدامه من قبل في شحن سابق.\n"
-                    "💡 لا يمكن استخدام نفس الإيصال أكثر من مرة.",
+                    f"📌 **السبب الرئيسي:** رقم مرجع العملية (`{transaction_id}`) تم استخدامه من قبل في شحن سابق.\n"
+                    "💡 لا يمكن استخدام نفس الإيصال أكثر من مرة لمنع التكرار.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # حفظ المعاملة بالبيانات الحقيقية المستخرجة
+            # 6️⃣ حفظ المعاملة بالبيانات الحقيقية المستخرجة لمنع التكرار نهائياً
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
@@ -1201,12 +1227,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"🎉 **تم قراءة الإيصال والتحقق منه بنجاح وشحن رصيدك!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **طريقة الشحن:** `{wallet_name}`\n"
-                f"🔢 **رقم الحساب المستلم:** `{expected_account}`\n"
-                f"🆔 **رقم العملية الحقيقي:** `{transaction_id}`\n"
+                f"🔢 **رقم المستفيد المطابق:** `{expected_account}`\n"
+                f"🆔 **رقم مرجع العملية الحقيقي:** `{transaction_id}`\n"
                 f"💵 **المبلغ المستخرج:** `{amount_yer:,.0f} ر.ي`\n"
                 f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}`\n"
                 f"💰 **رصيدك الحالي الجديد:** `${u_data['balance']:.2f}`\n\n"
-                f"🚀 *تمت مطابقة البيانات وحفظ رقم العملية في قاعدة البيانات بمنع التكرار بنجاح.*"
+                f"🚀 *تمت مطابقة رقم المستفيد واستخراج المبلغ ورقم العملية وحفظها بدقة تامة بمنع التكرار.*"
             )
             
             await processing_msg.edit_text(
@@ -1215,7 +1241,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
-            # إرسال إشعار للإدارة بالإيصال والبيانات الحقيقية
+            # إرسال إشعار للإدارة بالبيانات الحقيقية المستخرجة
             for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
                 try:
                     await context.bot.send_photo(
@@ -1226,8 +1252,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                             f"━━━━━━━━━━━━━━━━━━━━━━\n"
                             f"👤 **آيدي العميل:** `{user_id}`\n"
                             f"💳 **الطريقة:** `{wallet_name}`\n"
-                            f"📌 **الحساب المستلم:** `{expected_account}`\n"
-                            f"🆔 **رقم العملية:** `{transaction_id}`\n"
+                            f"📌 **المستفيد:** `{expected_account}`\n"
+                            f"🆔 **رقم مرجع العملية:** `{transaction_id}`\n"
                             f"⭐ **المبلغ:** `${usd_amount:.2f}` (`{amount_yer:,.0f} ر.ي`)"
                         ),
                         parse_mode='Markdown'
