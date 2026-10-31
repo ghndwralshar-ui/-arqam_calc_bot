@@ -1099,7 +1099,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """إرسال الصورة إلى API احترافي مجاني لقراءة النصوص العربية بالكامل بدقة 100%"""
+    """إرسال الصورة إلى API OCR مع تفعيل معالجة الأرقام والنصوص المتداخلة"""
     try:
         url = "https://api.ocr.space/parse/image"
         payload = {
@@ -1107,7 +1107,8 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
             'language': 'ara',
             'isOverlayRequired': False,
             'detectOrientation': True,
-            'scale': True
+            'scale': True,
+            'OCREngine': 2
         }
         files = [('file', ('receipt.jpg', photo_bytes, 'image/jpeg'))]
         
@@ -1145,19 +1146,19 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             expected_account = JAIB_ACCOUNT if action_type == 'waiting_for_jaib_deposit' else KREEMI_ACCOUNT
             wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
 
-            # قراءة النص من الصورة
+            # قراءة النص الأصلي من الصورة
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
             
-            # تنظيف النص وإزالة أي رموز أو أقواس لضمان مطابقة دقيقة لرقم الحساب
-            cleaned_text = re.sub(r'[\s\-_\|\(\)\[\]\.\*]+', '', extracted_text)
+            # 💡 [ملاحظة توضيحية]: استخراج الأرقام فقط وتجاوز الرموز، النجوم، والأقواس (لأن رقم المستفيد يقع تحت الرموز المكتوبة في الإيصال)
+            digits_only = re.sub(r'\D', '', extracted_text)
             clean_expected = re.sub(r'\D', '', expected_account)
 
-            # 1️⃣ التحقق الصارم والمرن من وجود رقم المستفيد في أي مكان بالصورة (متجاوزاً الرموز والأحرف المتداخلة)
-            if clean_expected not in cleaned_text:
+            # 1️⃣ التحقق الفائق والمرن من وجود رقم المستفيد ضمن الأرقام المستخرجة من الصورة
+            if clean_expected not in digits_only:
                 await processing_msg.edit_text(
                     f"❌ **تم رفض الإيصال!**\n\n"
-                    f"📌 **السبب:** لم نجد رقم حساب المستفيد المطلوب (`{expected_account}`) في النص المستخرج من الصورة.\n"
-                    f"💡 يرجى التأكد من أن الصورة لإيصال تحويل صحيح ورقم المستفيد واضح جداً.",
+                    f"📌 **السبب:** لم نجد رقم حساب المستفيد المطلوب (`{expected_account}`) في الصورة.\n"
+                    f"💡 يرجى التأكد من وضوح إيصال التحويل وأن رقم المستفيد مكتوب بشكل ظاهر.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1165,15 +1166,16 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             extracted_text_clean = re.sub(r'\s+', ' ', extracted_text)
 
-            # 2️⃣ استخراج رقم مرجع العملية الحقيقي (رقم مرجع العملية)
-            tx_match = re.search(r'(?:رقم\s*مرجع\s*العملية|مرجع\s*العملية|رقم\s*العملية|Ref|ID)[:#\s]*([0-9]{8,16})', extracted_text_clean, re.IGNORECASE)
-            if tx_match:
-                transaction_id = tx_match.group(1)
+            # 2️⃣ استخراج رقم مرجع العملية (يبحث عن تسلسل أرقام طواله من 10 إلى 15 رقم لا يساوي رقم الحساب)
+            all_long_numbers = re.findall(r'\b([0-9]{10,16})\b', digits_only)
+            valid_tx_nums = [n for n in all_long_numbers if n != clean_expected]
+            
+            if valid_tx_nums:
+                transaction_id = valid_tx_nums[0]
             else:
-                all_long_numbers = re.findall(r'\b([0-9]{10,16})\b', extracted_text_clean)
-                valid_tx_nums = [n for n in all_long_numbers if n != expected_account]
-                if valid_tx_nums:
-                    transaction_id = valid_tx_nums[0]
+                tx_match = re.search(r'([0-9]{10,16})', extracted_text_clean)
+                if tx_match and tx_match.group(1) != clean_expected:
+                    transaction_id = tx_match.group(1)
                 else:
                     await processing_msg.edit_text(
                         "❌ **لم نتمكن من قراءة (رقم مرجع العملية) من الإيصال!**\n\n"
@@ -1183,13 +1185,13 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     )
                     return
 
-            # 3️⃣ استخراج المبلغ الحقيقي الموجود في أول الصورة متبوعاً بـ ريال يمني / ر.ي / ريال
+            # 3️⃣ استخراج المبلغ الحقيقي بالريال اليمني
             amount_match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*(?:ريال\s*يمني|ر\.ي|YER|ريال)', extracted_text_clean, re.IGNORECASE)
             if amount_match:
                 amount_yer = float(amount_match.group(1))
             else:
                 amounts_found = re.findall(r'\b([0-9]{1,6}(?:\.[0-9]+)?)\b', extracted_text_clean)
-                valid_amounts = [float(a) for a in amounts_found if float(a) != float(expected_account) and float(a) != float(transaction_id) and float(a) < 500000]
+                valid_amounts = [float(a) for a in amounts_found if a != clean_expected and a != transaction_id and float(a) < 500000]
                 if valid_amounts:
                     amount_yer = valid_amounts[0]
                 else:
