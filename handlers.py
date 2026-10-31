@@ -2,7 +2,7 @@ import logging
 import asyncio
 import re
 import httpx
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image
 from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
@@ -192,8 +192,6 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
 
 async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🔄 جاري فحص وصول الكود من السيرفر...", show_alert=False)
-    
     parts = query.data.split('_')
     order_id = parts[2]
     
@@ -209,7 +207,7 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     full_text = sms_list[0].get('text', '')
                     current_text = query.message.text
                     
-                    if "🔑 **الكود:**" not in current_text and "🔑 **الكود الواصل:**" not in current_text:
+                    if "🔑 **الكود الواصل:**" not in current_text:
                         updated_text = current_text + f"\n\n🔑 **الكود الواصل:** `{sms_code}`\n💬 **النص الكامل:** `{full_text}`"
                         await query.edit_message_text(
                             updated_text, parse_mode='Markdown',
@@ -218,11 +216,11 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         await query.answer(f"✅ الكود وصل بالفعل: {sms_code}", show_alert=True)
                 else:
-                    await query.answer("⏳ لم يصل الكود حتى الآن. يرجى الانتظار قليلاً والضغط مجدداً.", show_alert=True)
+                    await query.answer("❌ لم يصل الكود حتى الآن، يرجى الانتظار قليلاً والمحاولة مجدداً.", show_alert=True)
             else:
-                await query.answer("⚠️ تعذر فحص الطلب حالياً.", show_alert=True)
+                await query.answer("⚠️ تعذر فحص الطلب حالياً من السيرفر.", show_alert=True)
         except Exception:
-            await query.answer("❌ خطأ في الاتصال بالسيرفر.", show_alert=True)
+            await query.answer("❌ حدث خطأ في الاتصال بالسيرفر.", show_alert=True)
 
 async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str, price: float, service: str, user_id: int, bot_username: str, section_name: str, country_name: str, dial_code: str):
     url = f"https://5sim.net/v1/user/check/{order_id}"
@@ -897,7 +895,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($)، يرجى اختيار محفظة التحويل المناسبة:\n\n"
             "💱 **سعر الصرف المعتمد (بالعملة القديمة):**\n"
             "• **كل 1 دولار ($) = 550 ريال يمني**\n"
-            "  *(البوت يتحقق من الإيصال ويضيف الرصيد آلياً فوراً)*\n\n"
+            "  *(البوت ينسخ النص من الإيصال ويضيف الرصيد آلياً فوراً)*\n\n"
             "👇 اختر محفظة الشحن المعتمدة:"
         )
         deposit_keyboard = InlineKeyboardMarkup([
@@ -935,7 +933,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت بنسخ النص وفحص (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم البوت بنسخ النص بالكامل واستخراج (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -947,7 +945,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت بنسخ النص وفحص (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم البوت بنسخ النص بالكامل واستخراج (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1077,7 +1075,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """نسخ وقراءة النص بالكامل من صورة الإيصال"""
+    """نسخ واستخراج النص الكامل من الصورة كما هو لعرضه وفحصه"""
     try:
         img = Image.open(BytesIO(photo_bytes))
         output_buffer = BytesIO()
@@ -1128,7 +1126,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            # 1. نسخ واستخراج النص الكامل من الصورة
+            # 1. نسخ النص بالكامل من الصورة
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
             
             if not extracted_text or len(extracted_text.strip()) < 3:
@@ -1153,7 +1151,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 if all_numbers:
                     transaction_id = all_numbers[0]
 
-            # 3. استخراج المبلغ المالي بالريال اليمني
+            # 3. استخراج المبلغ بالريال اليمني
             amount_yer = None
             amount_match = re.search(r'([0-9,]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|YR)', clean_text, re.IGNORECASE)
             if amount_match:
@@ -1171,7 +1169,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             if not transaction_id or not amount_yer or amount_yer <= 0:
                 await processing_msg.edit_text(
-                    f"❌ **تعذر استخراج (المبلغ) أو (رقم العملية) تلقائياً من النص الآتي:**\n\n"
+                    f"❌ **عذراً، تعذر استخراج المبلغ أو رقم العملية من النص المنسوخ الآتي:**\n\n"
                     f"💬 *النص المنسوخ من الإيصال:*\n`{extracted_text[:250]}`\n\n"
                     "🔄 تأكد من وضوح الصورة وأعد إرسالها.",
                     parse_mode='Markdown',
@@ -1184,7 +1182,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             from database import supabase
             
-            # 4. فحص ما إذا تم استخدام رقم العملية مسبقاً
+            # 4. فحص ما إذا تم استخدام رقم العملية مسبقاً في قاعدة بيانات Supabase
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
             rows = existing_tx.data if hasattr(existing_tx, 'data') else []
             
@@ -1197,7 +1195,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # 5. حفظ العملية في جدول transactions في Supabase ورقم الحساب
+            # 5. حفظ العملية ورقم الحساب في جدول transactions في Supabase
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
@@ -1206,7 +1204,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 "usd_amount": usd_amount
             }).execute()
 
-            # 6. شحن رصيد المستخدم فوراً
+            # 6. شحن رصيد المستخدم فوراً في جدول users
             db_update_balance(user_id, usd_amount, mode="add")
             u_data = db_get_user(user_id)
             
@@ -1237,7 +1235,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                             f"👤 **آيدي العميل:** `{user_id}`\n"
                             f"💳 **الطريقة:** `{wallet_name}`\n"
                             f"🆔 **رقم العملية:** `{transaction_id}`\n"
-                            f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}` (`{amount_yer:,.0f} ر.ي`)"
+                            f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}` (`{amount_yer:,.0f} ر.ي`)\n\n"
+                            f"💬 *النص المستخرج المنسوخ:* `{extracted_text[:150]}`"
                         ),
                         parse_mode='Markdown'
                     )
