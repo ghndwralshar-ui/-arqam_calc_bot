@@ -2,7 +2,7 @@ import logging
 import asyncio
 import re
 import httpx
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageOps
 from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
@@ -1075,11 +1075,23 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """نسخ واستخراج النص الكامل من الصورة كما هو لعرضه وفحصه"""
+    """دالة معالجة وتضخيم الصورة قسرياً لنسخ النص واستخراجه من أي إيصال مهما كانت خلفيته"""
     try:
         img = Image.open(BytesIO(photo_bytes))
+        
+        # 1. تحويل للأبيض والأسود
+        img = ImageOps.grayscale(img)
+        
+        # 2. تكبير الصورة لثلاثة أضعاف لضمان وضوح الأرقام الصغيرة
+        w, h = img.size
+        img = img.resize((w * 3, h * 3), Image.Resampling.LANCZOS)
+        
+        # 3. رفع التباين والحدة لأقصى حد لنسخ الأرقام بوضوح تام
+        img = ImageEnhance.Contrast(img).enhance(4.0)
+        img = ImageEnhance.Sharpness(img).enhance(3.0)
+        
         output_buffer = BytesIO()
-        img.save(output_buffer, format="JPEG", quality=95)
+        img.save(output_buffer, format="JPEG", quality=100)
         processed_bytes = output_buffer.getvalue()
 
         url = "https://api.ocr.space/parse/image"
@@ -1091,7 +1103,7 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
             'scale': True,
             'OCREngine': 2
         }
-        files = [('file', ('receipt.jpg', processed_bytes, 'image/jpeg'))]
+        files = [('file', ('forced_receipt.jpg', processed_bytes, 'image/jpeg'))]
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.post(url, data=payload, files=files)
@@ -1101,7 +1113,7 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
                 if results:
                     return results[0].get("ParsedText", "")
     except Exception as e:
-        print(f"OCR Exception: {e}")
+        print(f"Forced OCR Exception: {e}")
     return ""
 
 async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1117,7 +1129,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🔎 **جاري نسخ النص وقراءة بيانات الإيصال بدقة...**\n"
+            "🔎 **جاري معالجة ونسخ النص من الإيصال قسرياً...**\n"
             "⏳ **يرجى الانتظار ثوانٍ معدودة...**",
             parse_mode='Markdown'
         )
@@ -1126,7 +1138,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            # 1. نسخ النص بالكامل من الصورة
+            # 1. نسخ النص بالكامل قسرياً من الصورة
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
             
             if not extracted_text or len(extracted_text.strip()) < 3:
