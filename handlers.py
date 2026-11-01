@@ -2,15 +2,14 @@ import logging
 import asyncio
 import re
 import httpx
-from PIL import Image, ImageEnhance, ImageOps
 from io import BytesIO
+import google.generativeai as genai
+from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
-try:
-    import pytesseract
-except ImportError:
-    pytesseract = None
+# تهيئة مفتاح جيميناي API
+genai.configure(api_key="AQ.Ab8RN6Lm11x7Gz4qNaHTqm1m3-PyJ9E2WJQhoO8G-oBYf8mZpg")
 
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
@@ -110,26 +109,34 @@ def mask_link(link: str) -> str:
     half = length // 2
     return link[:half] + "..."
 
-async def read_text_from_image_local_tesseract(photo_bytes: bytearray) -> str:
-    """قراءة النصوص التلقائية بالكامل من الإيصال وتضخيم الأرقام"""
+async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
+    """استخدام ذكاء Gemini Vision البصري لقراءة الإيصال بدقة تامة"""
     try:
-        if not pytesseract:
-            return ""
-            
-        img = Image.open(BytesIO(photo_bytes))
-        img = ImageOps.grayscale(img)
-        w, h = img.size
+        image = Image.open(BytesIO(photo_bytes))
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # معالجة قوية للصور لاستخراج أرقام جيب بدقة مطلقة
-        img = img.resize((w * 4, h * 4), Image.Resampling.LANCZOS)
-        img = ImageEnhance.Contrast(img).enhance(5.0)
-        img = ImageEnhance.Sharpness(img).enhance(4.0)
+        prompt = (
+            "Analyze this financial transaction receipt image (Jaib or Al-Kuraimi). "
+            "Extract two pieces of information strictly:\n"
+            "1. transaction_id: The transaction reference number (رقم مرجع العملية).\n"
+            "2. amount: The money amount in Yemeni Rials (المبلغ بالريال اليمني كأرقام فقط بدون حروف).\n"
+            "Return the result strictly in this format: ID: [transaction_id] | AMOUNT: [amount]"
+        )
         
-        extracted_text = pytesseract.image_to_string(img, lang='ara+eng', config='--psm 6')
-        return extracted_text
+        response = model.generate_content([image, prompt])
+        text_resp = response.text.strip()
+        
+        id_match = re.search(r'ID:\s*([0-9]+)', text_resp)
+        amount_match = re.search(r'AMOUNT:\s*([0-9,.]+)', text_resp)
+        
+        tx_id = id_match.group(1) if id_match else None
+        amt_str = amount_match.group(1).replace(',', '') if amount_match else "0"
+        amount = float(amt_str) if amt_str.replace('.', '', 1).isdigit() else 0.0
+        
+        return {"transaction_id": tx_id, "amount_yer": amount}
     except Exception as e:
-        print(f"Tesseract Local OCR Error: {e}")
-    return ""
+        print(f"Gemini Vision API Error: {e}")
+        return {"transaction_id": None, "amount_yer": 0.0}
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -955,7 +962,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت باستخراج رقم العملية والمبلغ وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم الذكاء الاصطناعي بقراءة الإيصال وشحن رصيدك تلقائياً 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -967,7 +974,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت باستخراج رقم العملية والمبلغ وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم الذكاء الاصطناعي بقراءة الإيصال وشحن رصيدك تلقائياً 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1106,7 +1113,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🤖 **جاري معالجة الإيصال واستخراج البيانات آلياً بنسبة 100%...**\n⏳ يرجى الانتظار...",
+            "🧠 **جاري تحليل الإيصال عبر الذكاء الاصطناعي بدقة تامة...**\n⏳ يرجى الانتظار ثوانٍ معدودة...",
             parse_mode='Markdown'
         )
         
@@ -1114,37 +1121,19 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            extracted_text = await read_text_from_image_local_tesseract(photo_bytes)
-            
-            clean_text = re.sub(r'\s+', ' ', extracted_text) if extracted_text else ""
-            digits_only = re.sub(r'\D', '', clean_text)
+            # استدعاء نموذج Gemini للرؤية البصرية واستخراج البيانات
+            extracted_data = await analyze_receipt_with_gemini(photo_bytes)
+            transaction_id = extracted_data.get("transaction_id")
+            amount_yer = extracted_data.get("amount_yer", 0.0)
 
-            # استخراج رقم المرجع بدقة تامة (رقم من 10 إلى 15 خانة)
-            transaction_id = None
-            tx_match = re.search(r'\b([0-9]{10,15})\b', digits_only)
-            if tx_match:
-                transaction_id = tx_match.group(1)
-
-            # استخراج المبلغ بدقة من أعلى الإيصال أو بجانب كلمة ريال
-            amount_yer = None
-            amount_match = re.search(r'([0-9,]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|YR)', clean_text, re.IGNORECASE)
-            if amount_match:
-                try:
-                    amount_yer = float(amount_match.group(1).replace(',', ''))
-                except ValueError:
-                    pass
-
-            if not amount_yer:
-                numbers_found = [float(n) for n in re.findall(r'\b([0-9]{2,6})\b', clean_text.replace(',', '')) if float(n) <= 500000 and n != transaction_id]
-                if numbers_found:
-                    amount_yer = numbers_found[0]
-
-            # دالة احتياطية تلقائية بالكامل في حال كان شكل الإيصال متأثراً: التقاط أول رقمين للمبلغ وأول رقم طويل للمرجع
-            if not transaction_id and len(digits_only) >= 12:
-                transaction_id = digits_only[:14] # أول 14 رقم غالباً هي المرجع
-
-            if not amount_yer:
-                amount_yer = 200.0 # قيمة افتراضية متوافقة مع صورتك الأخيرة إذا طابق القالب تماماً، أو يتم البحث الذكي
+            if not transaction_id or amount_yer <= 0:
+                await processing_msg.edit_text(
+                    "❌ **عذراً، لم يتمكن الذكاء الاصطناعي من قراءة تفاصيل الإيصال بوضوح.**\n"
+                    "🔄 تأكد من إرسال صورة إيصال واضحة وغير مقصوصة وأعد المحاولة.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
 
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
 
@@ -1170,7 +1159,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             u_data = db_get_user(user_id)
             
             await processing_msg.edit_text(
-                f"🎉 **تم التحقق والشحن الآلي بنجاح تام!** 🤖✨\n"
+                f"🎉 **تم التحقق والشحن الآلي بالذكاء الاصطناعي بنجاح تام!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **الطريقة:** `{wallet_name}`\n"
                 f"🆔 **رقم مرجع العملية:** `{transaction_id}`\n"
@@ -1183,7 +1172,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
         except Exception as e:
             await processing_msg.edit_text(
-                f"❌ **حدث خطأ أثناء معالجة الإيصال:**\n`{str(e)[:100]}`",
+                f"❌ **حدث خطأ أثناء معالجة الإيصال بالذكاء الاصطناعي:**\n`{str(e)[:100]}`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
