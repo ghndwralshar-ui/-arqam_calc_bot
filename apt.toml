@@ -1,1 +1,6 @@
-
+[build.apt]
+packages = [
+  "tesseract-ocr",
+  "tesseract-ocr-ara",
+  "tesseract-ocr-eng"
+]
