@@ -5,3 +5,4 @@ pillow
 pydantic
 pypdf
 pytesseract
+google-generativeai
