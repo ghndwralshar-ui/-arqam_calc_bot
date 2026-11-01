@@ -4,3 +4,4 @@ supabase
 pillow
 pydantic
 pypdf
+pytesseract
