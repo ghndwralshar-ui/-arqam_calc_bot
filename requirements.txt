@@ -5,4 +5,4 @@ pillow
 pydantic
 pypdf
 pytesseract
-pip install google-genai
+pip install -U google-genai
