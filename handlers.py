@@ -109,14 +109,15 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
-    """تحليل الإيصال عبر REST API المباشر مع دعم gemini-flash-latest والمفتاح الجديد"""
+    """تحليل الإيصال عبر REST API المباشر مع دعم مفاتيح AQ (Bearer Token)"""
     try:
         image_base64 = base64.b64encode(photo_bytes).decode('utf-8')
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
         
+        # الترويسة المتوافقة مع المفتاح المعروض في الشاشة (Bearer Token)
         headers = {
             "Content-Type": "application/json",
-            "X-goog-api-key": GEMINI_API_KEY
+            "Authorization": f"Bearer {GEMINI_API_KEY}"
         }
 
         payload = {
@@ -146,6 +147,14 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, headers=headers, json=payload)
+            
+            # محاولة احتياطية ثانية في حال استدعى الأمر الهيدر التقليدي
+            if response.status_code == 401:
+                headers_alt = {
+                    "Content-Type": "application/json",
+                    "X-goog-api-key": GEMINI_API_KEY
+                }
+                response = await client.post(url, headers=headers_alt, json=payload)
             
             if response.status_code != 200:
                 return {
