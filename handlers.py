@@ -1052,7 +1052,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'admin_broadcast':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_broadcast'}
-        await query.edit_message_text("📢 أرسل الآن رسالة الإذاعة الشاملة (نص، صورة، أو وسائط):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        await query.edit_message_text("📢 أرسل الآن رسالة الإذاعة الشاملة (نص، صورة، أو وسائط):", parse_Mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
 async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
@@ -1117,7 +1117,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🤖 **جاري فحص الإيصال واستخراج البيانات المطابقة آلياً...**\n⏳ يرجى الانتظار...",
+            "🤖 **جاري تحليل الإيصال واستخراج رقم العملية والمبلغ بدقة...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1139,13 +1139,13 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             clean_text = re.sub(r'\s+', ' ', extracted_text)
             digits_only = re.sub(r'\D', '', clean_text)
 
-            # 1. استخراج رقم مرجع العملية (رقم تسلسلي طويل يطابق إيصال جيب)
+            # 1. استخراج رقم مرجع العملية (رقم تسلسلي طويل يطابق إيصال جيب تماماً)
             transaction_id = None
             tx_match = re.search(r'\b([0-9]{10,15})\b', digits_only)
             if tx_match:
                 transaction_id = tx_match.group(1)
 
-            # 2. استخراج المبلغ بدقة من أعلى الإيصال
+            # 2. استخراج المبلغ بدقة بناءً على قالب الإيصال الثابت
             amount_yer = None
             amount_match = re.search(r'([0-9,]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|YR)', clean_text, re.IGNORECASE)
             if amount_match:
@@ -1365,7 +1365,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 db_update_balance(user_id, amount, mode="add")
                 supabase.table("promo_codes").update({"used_count": used_count + 1}).eq("code", text_content).execute()
                 supabase.table("user_promo_uses").insert({"user_id": user_id, "code": text_content}).execute()
-                await update.message.reply_text(f"🎉 **تهانينا! تم تفعيل كود الهدية وإضافة `${amount:.2f}` إلى رصيدك.**", parse_mode='Markdown')
+                await update.message.reply_text(f"🎉 **تهانينا! تم تفعيل كود الهدية وإضافة `${amount:.2f}` إلى رصيدك.**", parse_Mode='Markdown')
                 return
         except Exception:
             pass
