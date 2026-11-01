@@ -2,8 +2,8 @@ import logging
 import asyncio
 import re
 import httpx
+import base64
 from io import BytesIO
-import google.generativeai as genai
 from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
@@ -14,8 +14,6 @@ from config import (
     FORCED_CHANNEL_URL, LOG_CHANNEL_ID, HMCARD_API_URL, HMCARD_API_KEY, 
     HEADERS, COUNTRY_INFO, STATIC_COUNTRIES, GEMINI_API_KEY
 )
-
-genai.configure(api_key=GEMINI_API_KEY)
 
 from database import (
     db_get_user, db_update_balance, db_get_advanced_stats, 
@@ -111,49 +109,76 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
-    """تحليل الإيصال بالطريقة الكلاسيكية المستقرة المتوافقة مع المفتاح الجديد"""
+    """تحليل الإيصال عبر REST API المباشر مع دعم gemini-flash-latest والمفتاح الجديد"""
     try:
-        image = Image.open(BytesIO(photo_bytes))
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        image_base64 = base64.b64encode(photo_bytes).decode('utf-8')
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
         
-        prompt = (
-            "Analyze this financial transaction receipt image (Jaib or Al-Kuraimi) carefully. "
-            "Extract the following details strictly:\n"
-            "1. transaction_id: The transaction reference number (رقم مرجع العملية).\n"
-            "2. amount: The money amount in Yemeni Rials (المبلغ بالريال اليمني كأرقام فقط بدون حروف).\n"
-            "3. receiver_account: The beneficiary account number (رقم المستفيد أو الحساب المحول إليه).\n"
-            "Return the result strictly in this format: ID: [transaction_id] | AMOUNT: [amount] | RECEIVER: [receiver_account]"
-        )
-        
-        response = model.generate_content([image, prompt])
-        
-        if not response or not response.text:
-            return {"transaction_id": None, "amount_yer": 0.0, "receiver": None, "raw_text": "", "error_details": "الرد من الذكاء الاصطناعي فارغ."}
-
-        text_resp = response.text.strip()
-        
-        id_match = re.search(r'ID:\s*([0-9]+)', text_resp)
-        amount_match = re.search(r'AMOUNT:\s*([0-9,.]+)', text_resp)
-        receiver_match = re.search(r'RECEIVER:\s*([0-9]+)', text_resp)
-        
-        tx_id = id_match.group(1) if id_match else None
-        amt_str = amount_match.group(1).replace(',', '') if amount_match else "0"
-        amount = float(amt_str) if amt_str.replace('.', '', 1).isdigit() else 0.0
-        receiver = receiver_match.group(1) if receiver_match else None
-        
-        return {
-            "transaction_id": tx_id, 
-            "amount_yer": amount, 
-            "receiver": receiver, 
-            "raw_text": text_resp,
-            "error_details": None
+        headers = {
+            "Content-Type": "application/json",
+            "X-goog-api-key": GEMINI_API_KEY
         }
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": (
+                                "Analyze this financial transaction receipt image (Jaib or Al-Kuraimi) carefully. "
+                                "Extract the following details strictly:\n"
+                                "1. transaction_id: The transaction reference number (رقم مرجع العملية).\n"
+                                "2. amount: The money amount in Yemeni Rials (المبلغ بالريال اليمني كأرقام فقط بدون حروف).\n"
+                                "3. receiver_account: The beneficiary account number (رقم المستفيد أو الحساب المحول إليه).\n"
+                                "Return the result strictly in this format: ID: [transaction_id] | AMOUNT: [amount] | RECEIVER: [receiver_account]"
+                            )
+                        },
+                        {
+                            "inline_data": {
+                                "mime_type": "image/jpeg",
+                                "data": image_base64
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            
+            if response.status_code != 200:
+                return {
+                    "transaction_id": None, "amount_yer": 0.0, "receiver": None, 
+                    "raw_text": "", "error_details": f"API Error HTTP {response.status_code}: {response.text}"
+                }
+
+            res_json = response.json()
+            candidates = res_json.get("candidates", [])
+            if not candidates:
+                return {"transaction_id": None, "amount_yer": 0.0, "receiver": None, "raw_text": "", "error_details": "الرد من الذكاء الاصطناعي فارغ."}
+
+            text_resp = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+
+            id_match = re.search(r'ID:\s*([0-9]+)', text_resp)
+            amount_match = re.search(r'AMOUNT:\s*([0-9,.]+)', text_resp)
+            receiver_match = re.search(r'RECEIVER:\s*([0-9]+)', text_resp)
+            
+            tx_id = id_match.group(1) if id_match else None
+            amt_str = amount_match.group(1).replace(',', '') if amount_match else "0"
+            amount = float(amt_str) if amt_str.replace('.', '', 1).isdigit() else 0.0
+            receiver = receiver_match.group(1) if receiver_match else None
+            
+            return {
+                "transaction_id": tx_id, 
+                "amount_yer": amount, 
+                "receiver": receiver, 
+                "raw_text": text_resp,
+                "error_details": None
+            }
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ Gemini Error: {error_msg}")
+        print(f"❌ Gemini REST Error: {error_msg}")
         return {
             "transaction_id": None, 
             "amount_yer": 0.0, 
@@ -946,7 +971,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🌟 **بوابة شحن الرصيد الفوري والآمن** 🌟\n\n"
-            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($)، يرجى اختيار محفظة التحويل المناسبة:\n\n"
+            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($), يرجى اختيار محفظة التحويل المناسبة:\n\n"
             "💱 **سعر الصرف المعتمد (بالعملة القديمة):**\n"
             "• **كل 1 دولار ($) = 550 ريال يمني**\n\n"
             "👇 اختر محفظة الشحن المعتمدة:"
