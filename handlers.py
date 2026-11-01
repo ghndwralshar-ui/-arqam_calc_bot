@@ -8,7 +8,7 @@ from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
-# استيراد المكتبة الرسمية لجوجل المتوافقة تماماً مع مفاتيح AQ
+# الاستيراد بالطريقة الرسمية الحديثة لمكتبة google-genai
 from google import genai
 from google.genai import types
 
@@ -113,31 +113,33 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
-    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي (OCR) باستخدام مكتبة جوجل الرسمية"""
+    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي (OCR) باستخدام مكتبة google-genai الحديثة"""
     try:
-        # تهيئة العميل بالمفتاح (يتعامل تلقائياً مع مفاتيح AQ)
+        # تهيئة العميل بالطريقة الرسمية الحديثة مع تمرير مفتاحك (AQ)
         client = genai.Client(api_key=GEMINI_API_KEY)
         
-        # تجهيز بيانات الصورة للإرسال
-        image_part = types.Part.from_bytes(
-            data=photo_bytes,
-            mime_type="image/jpeg",
+        # استخدام Interactions API الحديثة المدعومة في المكتبة الجديدة
+        interaction = client.interactions.create(
+            model="gemini-2.5-flash",
+            input=[
+                {
+                    "type": "text", 
+                    "text": "قم بقراءة جميع النصوص والكتابات الموجودة في صورة إيصال التحويل المرفق (جيب أو الكريمي) بدقة عالية ونسخها حرفياً كما هي دون أي تغيير أو اختصار."
+                },
+                {
+                    "type": "image",
+                    "data": base64.b64encode(photo_bytes).decode("utf-8"),
+                    "mime_type": "image/jpeg"
+                }
+            ]
         )
         
-        prompt = "قم بقراءة جميع النصوص والكتابات الموجودة في صورة إيصال التحويل المرفق (جيب أو الكريمي) بدقة عالية ونسخها حرفياً كما هي دون أي تغيير أو اختصار."
-
-        # استدعاء النموذج الرسمي
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[prompt, image_part],
-        )
-        
-        if response and response.text:
-            return response.text.strip()
+        if interaction and interaction.output_text:
+            return interaction.output_text.strip()
         return "❌ الإيصال فارغ أو تعذر استخراج النص."
             
     except Exception as e:
-        return f"❌ خطأ في الاتصال بالذكاء الاصطناعي: {str(e)}"
+        return f"❌ خطأ عبر واجهة الذكاء الاصطناعي الحديثة: {str(e)}"
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -1114,7 +1116,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🧠 **جاري قراءة واستخراج النصوص من الإيصال عبر الذكاء الاصطناعي...**\n⏳ يرجى الانتظار...",
+            "🧠 **جاري قراءة واستخراج النصوص من الإيصال عبر واجهة الذكاء الاصطناعي الحديثة...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
