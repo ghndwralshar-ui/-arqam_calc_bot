@@ -8,6 +8,10 @@ from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
+# استيراد المكتبة الرسمية لجوجل المتوافقة تماماً مع مفاتيح AQ
+from google import genai
+from google.genai import types
+
 # تهيئة المفتاح بالطريقة القياسية المستقرة من ملف الإعدادات
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
@@ -109,58 +113,31 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
-    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي (OCR) مع التوافق التام للتوثيق"""
+    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي (OCR) باستخدام مكتبة جوجل الرسمية"""
     try:
-        image_base64 = base64.b64encode(photo_bytes).decode('utf-8')
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+        # تهيئة العميل بالمفتاح (يتعامل تلقائياً مع مفاتيح AQ)
+        client = genai.Client(api_key=GEMINI_API_KEY)
         
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "text": "قم بقراءة جميع النصوص والكتابات الموجودة في صورة إيصال التحويل المرفق (جيب أو الكريمي) بدقة عالية ونسخها حرفياً كما هي دون أي تغيير أو اختصار."
-                        },
-                        {
-                            "inline_data": {
-                                "mime_type": "image/jpeg",
-                                "data": image_base64
-                            }
-                        }
-                    ]
-                }
-            ]
-        }
+        # تجهيز بيانات الصورة للإرسال
+        image_part = types.Part.from_bytes(
+            data=photo_bytes,
+            mime_type="image/jpeg",
+        )
+        
+        prompt = "قم بقراءة جميع النصوص والكتابات الموجودة في صورة إيصال التحويل المرفق (جيب أو الكريمي) بدقة عالية ونسخها حرفياً كما هي دون أي تغيير أو اختصار."
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # المحاولة الأولى باستخدام Bearer Token
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {GEMINI_API_KEY}"
-            }
-            response = await client.post(url, headers=headers, json=payload)
-            
-            # المحاولة الاحتياطية الثانية بالترويسة القياسية في حال الخطأ 401
-            if response.status_code == 401:
-                headers_alt = {
-                    "Content-Type": "application/json",
-                    "X-goog-api-key": GEMINI_API_KEY
-                }
-                response = await client.post(url, headers=headers_alt, json=payload)
-            
-            if response.status_code != 200:
-                return f"❌ خطأ في الاتصال بالذكاء الاصطناعي (HTTP {response.status_code}): {response.text}"
-
-            res_json = response.json()
-            candidates = res_json.get("candidates", [])
-            if not candidates:
-                return "❌ لم يتم العثور على رد من الذكاء الاصطناعي."
-
-            text_resp = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
-            return text_resp if text_resp else "❌ الإيصال فارغ أو تعذر استخراج النص."
+        # استدعاء النموذج الرسمي
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[prompt, image_part],
+        )
+        
+        if response and response.text:
+            return response.text.strip()
+        return "❌ الإيصال فارغ أو تعذر استخراج النص."
             
     except Exception as e:
-        return f"❌ حدث خطأ أثناء قراءة الإيصال: {str(e)}"
+        return f"❌ خطأ في الاتصال بالذكاء الاصطناعي: {str(e)}"
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
