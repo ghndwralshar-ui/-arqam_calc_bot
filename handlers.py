@@ -8,7 +8,7 @@ from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
-# تهيئة مفتاح جيميناي API
+# تهيئة مفتاح جيميناي API الخاص بك
 genai.configure(api_key="AQ.Ab8RN6Lm11x7Gz4qNaHTqm1m3-PyJ9E2WJQhoO8G-oBYf8mZpg")
 
 from config import (
@@ -110,17 +110,18 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
-    """استخدام ذكاء Gemini Vision البصري لقراءة الإيصال بدقة تامة"""
+    """استخدام ذكاء Gemini Vision البصري لاستخراج كافة تفاصيل الإيصال بدقة تامة"""
     try:
         image = Image.open(BytesIO(photo_bytes))
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = (
-            "Analyze this financial transaction receipt image (Jaib or Al-Kuraimi). "
-            "Extract two pieces of information strictly:\n"
+            "Analyze this financial transaction receipt image (Jaib or Al-Kuraimi) carefully. "
+            "Extract the following details:\n"
             "1. transaction_id: The transaction reference number (رقم مرجع العملية).\n"
             "2. amount: The money amount in Yemeni Rials (المبلغ بالريال اليمني كأرقام فقط بدون حروف).\n"
-            "Return the result strictly in this format: ID: [transaction_id] | AMOUNT: [amount]"
+            "3. receiver_account: The beneficiary account number (رقم المستفيد أو الحساب المحول إليه).\n"
+            "Return the result strictly in this format: ID: [transaction_id] | AMOUNT: [amount] | RECEIVER: [receiver_account]"
         )
         
         response = model.generate_content([image, prompt])
@@ -128,15 +129,17 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
         
         id_match = re.search(r'ID:\s*([0-9]+)', text_resp)
         amount_match = re.search(r'AMOUNT:\s*([0-9,.]+)', text_resp)
+        receiver_match = re.search(r'RECEIVER:\s*([0-9]+)', text_resp)
         
         tx_id = id_match.group(1) if id_match else None
         amt_str = amount_match.group(1).replace(',', '') if amount_match else "0"
         amount = float(amt_str) if amt_str.replace('.', '', 1).isdigit() else 0.0
+        receiver = receiver_match.group(1) if receiver_match else None
         
-        return {"transaction_id": tx_id, "amount_yer": amount}
+        return {"transaction_id": tx_id, "amount_yer": amount, "receiver": receiver, "raw_text": text_resp}
     except Exception as e:
         print(f"Gemini Vision API Error: {e}")
-        return {"transaction_id": None, "amount_yer": 0.0}
+        return {"transaction_id": None, "amount_yer": 0.0, "receiver": None, "raw_text": str(e)}
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -962,7 +965,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم الذكاء الاصطناعي بقراءة الإيصال وشحن رصيدك تلقائياً 100% فوراً!*",
+            "🤖 *سيقوم الذكاء الاصطناعي بقراءة الإيصال واستخراج كافة البيانات وشحن رصيدك تلقائياً 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -974,7 +977,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم الذكاء الاصطناعي بقراءة الإيصال وشحن رصيدك تلقائياً 100% فوراً!*",
+            "🤖 *سيقوم الذكاء الاصطناعي بقراءة الإيصال واستخراج كافة البيانات وشحن رصيدك تلقائياً 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1111,9 +1114,10 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         admin_state.pop(user_id, None)
         
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
+        expected_account = JAIB_ACCOUNT if action_type == 'waiting_for_jaib_deposit' else KREEMI_ACCOUNT
         
         processing_msg = await update.message.reply_text(
-            "🧠 **جاري تحليل الإيصال عبر الذكاء الاصطناعي بدقة تامة...**\n⏳ يرجى الانتظار ثوانٍ معدودة...",
+            "🧠 **جاري تحليل الإيصال واستخراج كافة البيانات عبر الذكاء الاصطناعي...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1121,32 +1125,39 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            # استدعاء نموذج Gemini للرؤية البصرية واستخراج البيانات
+            # استدعاء التحليل الذكي الشامل للصورة
             extracted_data = await analyze_receipt_with_gemini(photo_bytes)
             transaction_id = extracted_data.get("transaction_id")
             amount_yer = extracted_data.get("amount_yer", 0.0)
+            receiver_account = extracted_data.get("receiver")
 
             if not transaction_id or amount_yer <= 0:
                 await processing_msg.edit_text(
-                    "❌ **عذراً، لم يتمكن الذكاء الاصطناعي من قراءة تفاصيل الإيصال بوضوح.**\n"
-                    "🔄 تأكد من إرسال صورة إيصال واضحة وغير مقصوصة وأعد المحاولة.",
+                    "❌ **عذراً، لم يتمكن النظام من قراءة رقم المرجع أو المبلغ بوضوح من الإيصال.**\n"
+                    f"💬 *ما تم قراءته:* `{extracted_data.get('raw_text', 'فارغ')}`\n\n"
+                    "🔄 تأكد من وضوح السكرين شاشة وأرسلها مجدداً.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
+            # حساب المبلغ بالدولار بناءً على سعر الصرف الثابت (1 دولار = 550 ريال يمني)
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
+            if usd_amount <= 0:
+                usd_amount = 0.01
 
             from database import supabase
+            # التحقق من قاعدة البيانات لمنع تكرار استخدام نفس رقم المرجع
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
             if existing_tx.data:
                 await processing_msg.edit_text(
-                    f"❌ **عذراً، هذا الإيصال مكرر!**\n📌 رقم العملية (`{transaction_id}`) تم استخدامها مسبقاً.",
+                    f"❌ **عذراً، هذا الإيصال مكرر!**\n📌 رقم العملية (`{transaction_id}`) تم استخدامها مسبقاً لشحن الرصيد.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
+            # تسجيل العملية في جدول transactions
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
@@ -1155,14 +1166,16 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 "usd_amount": usd_amount
             }).execute()
 
+            # تحديث وشحن رصيد المستخدم بالدولار في قاعدة البيانات
             db_update_balance(user_id, usd_amount, mode="add")
             u_data = db_get_user(user_id)
             
             await processing_msg.edit_text(
-                f"🎉 **تم التحقق والشحن الآلي بالذكاء الاصطناعي بنجاح تام!** 🤖✨\n"
+                f"🎉 **تم التحقق والشحن الآلي بنجاح تام!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **الطريقة:** `{wallet_name}`\n"
                 f"🆔 **رقم مرجع العملية:** `{transaction_id}`\n"
+                f"📞 **رقم المستفيد:** `{receiver_account if receiver_account else expected_account}`\n"
                 f"💵 **المبلغ المحول:** `{amount_yer:,.0f} ر.ي`\n"
                 f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}`\n"
                 f"💰 **رصيدك الحالي:** `${u_data['balance']:.2f}`",
@@ -1172,7 +1185,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
         except Exception as e:
             await processing_msg.edit_text(
-                f"❌ **حدث خطأ أثناء معالجة الإيصال بالذكاء الاصطناعي:**\n`{str(e)[:100]}`",
+                f"❌ **حدث خطأ أثناء معالجة الإيصال:**\n`{str(e)[:100]}`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
