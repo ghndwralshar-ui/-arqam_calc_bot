@@ -109,16 +109,11 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
-    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي (OCR) وإرجاعه كما هو"""
+    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي (OCR) مع التوافق التام للتوثيق"""
     try:
         image_base64 = base64.b64encode(photo_bytes).decode('utf-8')
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
         
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {GEMINI_API_KEY}"
-        }
-
         payload = {
             "contents": [
                 {
@@ -138,8 +133,14 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
+            # المحاولة الأولى باستخدام Bearer Token
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {GEMINI_API_KEY}"
+            }
             response = await client.post(url, headers=headers, json=payload)
             
+            # المحاولة الاحتياطية الثانية بالترويسة القياسية في حال الخطأ 401
             if response.status_code == 401:
                 headers_alt = {
                     "Content-Type": "application/json",
@@ -148,7 +149,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
                 response = await client.post(url, headers=headers_alt, json=payload)
             
             if response.status_code != 200:
-                return f"❌ خطأ في الاتصال بالذكاء الاصطناعي (HTTP {response.status_code})"
+                return f"❌ خطأ في الاتصال بالذكاء الاصطناعي (HTTP {response.status_code}): {response.text}"
 
             res_json = response.json()
             candidates = res_json.get("candidates", [])
@@ -1144,7 +1145,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            # استدعاء دالة قراءة النصوص الخام (OCR)
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
             
             await processing_msg.edit_text(
