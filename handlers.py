@@ -7,6 +7,11 @@ from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
+try:
+    import pytesseract
+except ImportError:
+    pytesseract = None
+
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
     FORCED_CHANNEL_URL, LOG_CHANNEL_ID, HMCARD_API_URL, HMCARD_API_KEY, 
@@ -104,6 +109,26 @@ def mask_link(link: str) -> str:
     if length <= 10: return link[:3] + "..."
     half = length // 2
     return link[:half] + "..."
+
+async def read_text_from_image_local_tesseract(photo_bytes: bytearray) -> str:
+    """قراءة النص محلياً وبشكل تلقائي باستخدام مكتبة pytesseract المثبتة"""
+    try:
+        if not pytesseract:
+            print("Pytesseract is not installed or imported!")
+            return ""
+            
+        img = Image.open(BytesIO(photo_bytes))
+        img = ImageOps.grayscale(img)
+        w, h = img.size
+        img = img.resize((w * 3, h * 3), Image.Resampling.LANCZOS)
+        img = ImageEnhance.Contrast(img).enhance(4.0)
+        img = ImageEnhance.Sharpness(img).enhance(3.0)
+        
+        extracted_text = pytesseract.image_to_string(img, lang='ara+eng')
+        return extracted_text
+    except Exception as e:
+        print(f"Tesseract Local OCR Error: {e}")
+    return ""
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -891,8 +916,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🌟 **بوابة شحن الرصيد الفوري والآمن** 🌟\n\n"
             "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($)، يرجى اختيار محفظة التحويل المناسبة:\n\n"
             "💱 **سعر الصرف المعتمد (بالعملة القديمة):**\n"
-            "• **كل 1 دولار ($) = 550 ريال يمني**\n"
-            "  *(البوت ينسخ النص من الإيصال ويضيف الرصيد آلياً فوراً)*\n\n"
+            "• **كل 1 دولار ($) = 550 ريال يمني**\n\n"
             "👇 اختر محفظة الشحن المعتمدة:"
         )
         deposit_keyboard = InlineKeyboardMarkup([
@@ -930,7 +954,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت باستخراج (المبلغ ورقم مرجع العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم البوت باستخراج رقم العملية والمبلغ وشحن رصيدك تلقائياً محلياً فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -942,7 +966,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت باستخراج البيانات وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم البوت باستخراج رقم العملية والمبلغ وشحن رصيدك تلقائياً محلياً فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1052,7 +1076,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'admin_broadcast':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_broadcast'}
-        await query.edit_message_text("📢 أرسل الآن رسالة الإذاعة الشاملة (نص، صورة، أو وسائط):", parse_Mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        await query.edit_message_text("📢 أرسل الآن رسالة الإذاعة الشاملة (نص، صورة، أو وسائط):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
 async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
@@ -1070,152 +1094,6 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             await update.message.reply_text(f"🎉 **تمت عملية الشحن الفوري بنجاح!**\n⭐ تم إضافة: `${amount:.2f}` لحسابك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
         except Exception:
             pass
-
-async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """معالجة وتضخيم الصورة واستخراج كافة النصوص والأرقام بدقة تامة لإيصالات جيب والكريمي"""
-    try:
-        img = Image.open(BytesIO(photo_bytes))
-        img = ImageOps.grayscale(img)
-        w, h = img.size
-        img = img.resize((w * 3, h * 3), Image.Resampling.LANCZOS)
-        img = ImageEnhance.Contrast(img).enhance(4.0)
-        img = ImageEnhance.Sharpness(img).enhance(3.0)
-        
-        output_buffer = BytesIO()
-        img.save(output_buffer, format="JPEG", quality=100)
-        processed_bytes = output_buffer.getvalue()
-
-        url = "https://api.ocr.space/parse/image"
-        payload = {
-            'apikey': 'helloworld',
-            'language': 'ara',
-            'isOverlayRequired': False,
-            'detectOrientation': True,
-            'scale': True,
-            'OCREngine': 2
-        }
-        files = [('file', ('receipt.jpg', processed_bytes, 'image/jpeg'))]
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            res = await client.post(url, data=payload, files=files)
-            if res.status_code == 200:
-                data = res.json()
-                results = data.get("ParsedResults", [])
-                if results:
-                    return results[0].get("ParsedText", "")
-    except Exception as e:
-        print(f"OCR Error: {e}")
-    return ""
-
-async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    
-    if user_id in admin_state and admin_state[user_id].get('action') in ['waiting_for_jaib_deposit', 'waiting_for_kreemi_deposit']:
-        action_type = admin_state[user_id].get('action')
-        admin_state.pop(user_id, None)
-        
-        wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
-        
-        processing_msg = await update.message.reply_text(
-            "🤖 **جاري تحليل الإيصال واستخراج رقم العملية والمبلغ بدقة...**\n⏳ يرجى الانتظار...",
-            parse_mode='Markdown'
-        )
-        
-        try:
-            photo_file = await update.message.photo[-1].get_file()
-            photo_bytes = await photo_file.download_as_bytearray()
-
-            extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
-            
-            if not extracted_text or len(extracted_text.strip()) < 3:
-                await processing_msg.edit_text(
-                    "❌ **عذراً، لم يتمكن النظام من قراءة تفاصيل الإيصال بوضوح.**\n"
-                    "🔄 يرجى إرسال لقطة شاشة (Screenshot) واضحة تماماً للإيصال ومحاولة الشحن مجدداً.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-                return
-
-            clean_text = re.sub(r'\s+', ' ', extracted_text)
-            digits_only = re.sub(r'\D', '', clean_text)
-
-            # 1. استخراج رقم مرجع العملية (رقم تسلسلي طويل يطابق إيصال جيب تماماً)
-            transaction_id = None
-            tx_match = re.search(r'\b([0-9]{10,15})\b', digits_only)
-            if tx_match:
-                transaction_id = tx_match.group(1)
-
-            # 2. استخراج المبلغ بدقة بناءً على قالب الإيصال الثابت
-            amount_yer = None
-            amount_match = re.search(r'([0-9,]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|YR)', clean_text, re.IGNORECASE)
-            if amount_match:
-                try:
-                    amount_yer = float(amount_match.group(1).replace(',', ''))
-                except ValueError:
-                    pass
-
-            if not amount_yer:
-                numbers_found = [float(n) for n in re.findall(r'\b([0-9]{2,6})\b', clean_text.replace(',', '')) if float(n) <= 500000 and n != transaction_id]
-                if numbers_found:
-                    amount_yer = numbers_found[0]
-
-            if not transaction_id or not amount_yer or amount_yer <= 0:
-                await processing_msg.edit_text(
-                    f"❌ **عذراً، تعذر استخراج رقم العملية أو المبلغ بدقة من الإيصال.**\n\n"
-                    f"💬 *النص المستخرج:* `{extracted_text[:200]}`\n\n"
-                    "🔄 تأكد من إرسال سكرين شاشة واضح وعدم قص أطراف الإيصال.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-                return
-
-            usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
-
-            from database import supabase
-            existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
-            if existing_tx.data:
-                await processing_msg.edit_text(
-                    f"❌ **عملية مرفوضة (إيصال مكرر مستخدم مسبقاً)!**\n"
-                    f"📌 رقم العملية (`{transaction_id}`) تم تسجيله وصرف رصيده مسبقاً.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-                return
-
-            supabase.table("transactions").insert({
-                "user_id": user_id, 
-                "transaction_id": transaction_id, 
-                "amount": usd_amount,
-                "amount_yer": amount_yer, 
-                "usd_amount": usd_amount
-            }).execute()
-
-            db_update_balance(user_id, usd_amount, mode="add")
-            u_data = db_get_user(user_id)
-            
-            success_text = (
-                f"🎉 **تم التحقق والشحن الآلي بنجاح تام!** 🤖✨\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"💳 **الطريقة:** `{wallet_name}`\n"
-                f"🆔 **رقم مرجع العملية:** `{transaction_id}`\n"
-                f"💵 **المبلغ المحول:** `{amount_yer:,.0f} ر.ي`\n"
-                f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}`\n"
-                f"💰 **رصيدك الحالي:** `${u_data['balance']:.2f}`"
-            )
-            
-            await processing_msg.edit_text(
-                success_text, 
-                parse_mode='Markdown', 
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-            )
-
-        except Exception as e:
-            await processing_msg.edit_text(
-                f"❌ **حدث خطأ أثناء معالجة الإيصال الآلي:**\n`{str(e)[:100]}`",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-            )
-        return
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1365,7 +1243,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 db_update_balance(user_id, amount, mode="add")
                 supabase.table("promo_codes").update({"used_count": used_count + 1}).eq("code", text_content).execute()
                 supabase.table("user_promo_uses").insert({"user_id": user_id, "code": text_content}).execute()
-                await update.message.reply_text(f"🎉 **تهانينا! تم تفعيل كود الهدية وإضافة `${amount:.2f}` إلى رصيدك.**", parse_Mode='Markdown')
+                await update.message.reply_text(f"🎉 **تهانينا! تم تفعيل كود الهدية وإضافة `${amount:.2f}` إلى رصيدك.**", parse_mode='Markdown')
                 return
         except Exception:
             pass
