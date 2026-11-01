@@ -114,7 +114,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
         image_base64 = base64.b64encode(photo_bytes).decode('utf-8')
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
         
-        # الترويسة المتوافقة مع المفتاح المعروض في الشاشة (Bearer Token)
+        # الترويسة الصحيحة للتعامل مع مفاتيح AQ كـ Bearer Token
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {GEMINI_API_KEY}"
