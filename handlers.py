@@ -889,7 +889,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🌟 **بوابة شحن الرصيد الفوري والآمن** 🌟\n\n"
-            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($)، يرجى اختيار محفظة التحويل المناسبة:\n\n"
+            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($), يرجى اختيار محفظة التحويل المناسبة:\n\n"
             "💱 **سعر الصرف المعتمد (بالعملة القديمة):**\n"
             "• **كل 1 دولار ($) = 550 ريال يمني**\n"
             "  *(البوت ينسخ النص من الإيصال ويضيف الرصيد آلياً فوراً)*\n\n"
@@ -1072,7 +1072,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """دالة قوية لمعالجة وتضخيم الصورة واستخراج كافة النصوص والأرقام بدقة تامة"""
+    """دالة مطورة لضغط وتكبير وزيادة تباين الصورة لاستخراج النص بدقة قصوى"""
     try:
         img = Image.open(BytesIO(photo_bytes))
         img = ImageOps.grayscale(img)
