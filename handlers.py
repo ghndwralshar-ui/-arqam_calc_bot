@@ -889,7 +889,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🌟 **بوابة شحن الرصيد الفوري والآمن** 🌟\n\n"
-            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($), يرجى اختيار محفظة التحويل المناسبة:\n\n"
+            "أهلاً بك عزيزي العميل. لتعبئة رصيدك بالدولار ($)، يرجى اختيار محفظة التحويل المناسبة:\n\n"
             "💱 **سعر الصرف المعتمد (بالعملة القديمة):**\n"
             "• **كل 1 دولار ($) = 550 ريال يمني**\n"
             "  *(البوت ينسخ النص من الإيصال ويضيف الرصيد آلياً فوراً)*\n\n"
@@ -930,7 +930,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت بنسخ النص بالكامل واستخراج (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم البوت باستخراج (المبلغ ورقم مرجع العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -942,7 +942,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم البوت بنسخ النص بالكامل واستخراج (المبلغ ورقم العملية) وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
+            "🤖 *سيقوم البوت باستخراج البيانات وشحن رصيدك تلقائياً بنسبة 100% فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1072,7 +1072,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """دالة مطورة لضغط وتكبير وزيادة تباين الصورة لاستخراج النص بدقة قصوى"""
+    """معالجة وتضخيم الصورة واستخراج كافة النصوص والأرقام بدقة تامة لإيصالات جيب والكريمي"""
     try:
         img = Image.open(BytesIO(photo_bytes))
         img = ImageOps.grayscale(img)
@@ -1117,7 +1117,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🤖 **جاري فحص الإيصال واستخراج بيانات التحويل آلياً...**\n⏳ يرجى الانتظار...",
+            "🤖 **جاري فحص الإيصال واستخراج البيانات المطابقة آلياً...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1139,11 +1139,13 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             clean_text = re.sub(r'\s+', ' ', extracted_text)
             digits_only = re.sub(r'\D', '', clean_text)
 
+            # 1. استخراج رقم مرجع العملية (رقم تسلسلي طويل يطابق إيصال جيب)
             transaction_id = None
-            tx_match = re.search(r'\b([0-9]{8,16})\b', digits_only)
+            tx_match = re.search(r'\b([0-9]{10,15})\b', digits_only)
             if tx_match:
                 transaction_id = tx_match.group(1)
 
+            # 2. استخراج المبلغ بدقة من أعلى الإيصال
             amount_yer = None
             amount_match = re.search(r'([0-9,]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|YR)', clean_text, re.IGNORECASE)
             if amount_match:
@@ -1153,9 +1155,9 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     pass
 
             if not amount_yer:
-                numbers_found = [float(n) for n in re.findall(r'\b([0-9]{2,6})\b', clean_text.replace(',', '')) if float(n) <= 1000000]
+                numbers_found = [float(n) for n in re.findall(r'\b([0-9]{2,6})\b', clean_text.replace(',', '')) if float(n) <= 500000 and n != transaction_id]
                 if numbers_found:
-                    amount_yer = max(numbers_found)
+                    amount_yer = numbers_found[0]
 
             if not transaction_id or not amount_yer or amount_yer <= 0:
                 await processing_msg.edit_text(
@@ -1195,7 +1197,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"🎉 **تم التحقق والشحن الآلي بنجاح تام!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **الطريقة:** `{wallet_name}`\n"
-                f"🆔 **رقم العملية المستخرج:** `{transaction_id}`\n"
+                f"🆔 **رقم مرجع العملية:** `{transaction_id}`\n"
                 f"💵 **المبلغ المحول:** `{amount_yer:,.0f} ر.ي`\n"
                 f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}`\n"
                 f"💰 **رصيدك الحالي:** `${u_data['balance']:.2f}`"
