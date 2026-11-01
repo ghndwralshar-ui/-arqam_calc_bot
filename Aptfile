@@ -1,3 +1,1 @@
-tesseract-ocr
-tesseract-ocr-ara
-tesseract-ocr-eng
+sudo apt-get install tesseract-ocr-ara tesseract-ocr-eng
