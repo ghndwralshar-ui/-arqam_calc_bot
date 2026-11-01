@@ -3,19 +3,18 @@ import asyncio
 import re
 import httpx
 from io import BytesIO
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
-# تهيئة مفتاح جيميناي API المستورد من ملف الإعدادات (مشروع خزان)
+# تهيئة المفتاح من ملف الإعدادات (مشروع خزان)
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
     FORCED_CHANNEL_URL, LOG_CHANNEL_ID, HMCARD_API_URL, HMCARD_API_KEY, 
     HEADERS, COUNTRY_INFO, STATIC_COUNTRIES, GEMINI_API_KEY
 )
-
-genai.configure(api_key=GEMINI_API_KEY)
 
 from database import (
     db_get_user, db_update_balance, db_get_advanced_stats, 
@@ -111,14 +110,18 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
-    """تحليل الإيصال بدقة مع معالجة الأبعاد ووضع RGB وطباعة السبب التفصيلي عند الفشل"""
+    """تحليل الإيصال عبر المكتبة الحديثة google-genai المتوافقة مع مفتاتيح خزان AQ."""
     try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        
         image = Image.open(BytesIO(photo_bytes))
         if image.mode != 'RGB':
             image = image.convert('RGB')
+            
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG")
+        image_bytes = buffered.getvalue()
 
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
         prompt = (
             "Analyze this financial transaction receipt image (Jaib or Al-Kuraimi) carefully. "
             "Extract the following details strictly:\n"
@@ -127,8 +130,17 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
             "3. receiver_account: The beneficiary account number (رقم المستفيد أو الحساب المحول إليه).\n"
             "Return the result strictly in this format: ID: [transaction_id] | AMOUNT: [amount] | RECEIVER: [receiver_account]"
         )
-        
-        response = model.generate_content([image, prompt])
+
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type="image/jpeg",
+                ),
+                prompt
+            ]
+        )
         
         if not response or not response.text:
             return {"transaction_id": None, "amount_yer": 0.0, "receiver": None, "raw_text": "", "error_details": "الذكاء الاصطناعي لم يرجع أي نص (الرد فارغ)."}
@@ -153,7 +165,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> dict:
         }
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ Gemini Vision API Error Details: {error_msg}")
+        print(f"❌ Modern Google GenAI Error Details: {error_msg}")
         return {
             "transaction_id": None, 
             "amount_yer": 0.0, 
