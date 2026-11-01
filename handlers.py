@@ -1247,3 +1247,96 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 return
         except Exception:
             pass
+async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    if user_id in admin_state and admin_state[user_id].get('action') in ['waiting_for_jaib_deposit', 'waiting_for_kreemi_deposit']:
+        action_type = admin_state[user_id].get('action')
+        admin_state.pop(user_id, None)
+        
+        wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
+        
+        processing_msg = await update.message.reply_text(
+            "🤖 **جاري قراءة الإيصال محلياً واستخراج البيانات تلقائياً...**\n⏳ يرجى الانتظار...",
+            parse_mode='Markdown'
+        )
+        
+        try:
+            photo_file = await update.message.photo[-1].get_file()
+            photo_bytes = await photo_file.download_as_bytearray()
+
+            extracted_text = await read_text_from_image_local_tesseract(photo_bytes)
+            
+            clean_text = re.sub(r'\s+', ' ', extracted_text) if extracted_text else ""
+            digits_only = re.sub(r'\D', '', clean_text)
+
+            transaction_id = None
+            tx_match = re.search(r'\b([0-9]{10,15})\b', digits_only)
+            if tx_match:
+                transaction_id = tx_match.group(1)
+
+            amount_yer = None
+            amount_match = re.search(r'([0-9,]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|YR)', clean_text, re.IGNORECASE)
+            if amount_match:
+                try:
+                    amount_yer = float(amount_match.group(1).replace(',', ''))
+                except ValueError:
+                    pass
+
+            if not amount_yer:
+                numbers_found = [float(n) for n in re.findall(r'\b([0-9]{2,6})\b', clean_text.replace(',', '')) if float(n) <= 500000 and n != transaction_id]
+                if numbers_found:
+                    amount_yer = numbers_found[0]
+
+            if not transaction_id or not amount_yer or amount_yer <= 0:
+                await processing_msg.edit_text(
+                    f"❌ **عذراً، لم يتمكن النظام المحلي من قراءة رقم المرجع أو المبلغ بدقة.**\n\n"
+                    f"💬 *النص المستخرج محلياً:* `{extracted_text[:150] if extracted_text else 'فارغ'}`\n\n"
+                    "🔄 تأكد من وضوح السكرين شاشة وأرسلها مجدداً.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
+
+            from database import supabase
+            existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
+            if existing_tx.data:
+                await processing_msg.edit_text(
+                    f"❌ **عذراً، هذا الإيصال مكرر!**\n📌 رقم العملية (`{transaction_id}`) تم استخدامها مسبقاً.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            supabase.table("transactions").insert({
+                "user_id": user_id, 
+                "transaction_id": transaction_id, 
+                "amount": usd_amount,
+                "amount_yer": amount_yer, 
+                "usd_amount": usd_amount
+            }).execute()
+
+            db_update_balance(user_id, usd_amount, mode="add")
+            u_data = db_get_user(user_id)
+            
+            await processing_msg.edit_text(
+                f"🎉 **تم التحقق والشحن الآلي محلياً بنجاح تام!** 🤖✨\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💳 **الطريقة:** `{wallet_name}`\n"
+                f"🆔 **رقم مرجع العملية:** `{transaction_id}`\n"
+                f"💵 **المبلغ المحول:** `{amount_yer:,.0f} ر.ي`\n"
+                f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}`\n"
+                f"💰 **رصيدك الحالي:** `${u_data['balance']:.2f}`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+            )
+
+        except Exception as e:
+            await processing_msg.edit_text(
+                f"❌ **حدث خطأ أثناء المعالجة المحلية:**\n`{str(e)[:100]}`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+            )
+        return
