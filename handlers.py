@@ -36,10 +36,7 @@ admin_state = {}
 user_selected_service = {}
 user_order_data = {}
 
-# سعر الصرف الثابت (كل 1 دولار = 550 ريال يمني)
 EXCHANGE_RATE = 550.0
-
-# أرقام الحسابات المعتمدة
 JAIB_ACCOUNT = "772074924"
 KREEMI_ACCOUNT = "3105004949"
 
@@ -1075,18 +1072,12 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             pass
 
 async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
-    """دالة معالجة وتضخيم الصورة قسرياً لنسخ النص واستخراجه من أي إيصال مهما كانت خلفيته"""
+    """دالة قوية لمعالجة وتضخيم الصورة واستخراج كافة النصوص والأرقام بدقة تامة"""
     try:
         img = Image.open(BytesIO(photo_bytes))
-        
-        # 1. تحويل للأبيض والأسود
         img = ImageOps.grayscale(img)
-        
-        # 2. تكبير الصورة لثلاثة أضعاف لضمان وضوح الأرقام الصغيرة
         w, h = img.size
         img = img.resize((w * 3, h * 3), Image.Resampling.LANCZOS)
-        
-        # 3. رفع التباين والحدة لأقصى حد لنسخ الأرقام بوضوح تام
         img = ImageEnhance.Contrast(img).enhance(4.0)
         img = ImageEnhance.Sharpness(img).enhance(3.0)
         
@@ -1103,7 +1094,7 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
             'scale': True,
             'OCREngine': 2
         }
-        files = [('file', ('forced_receipt.jpg', processed_bytes, 'image/jpeg'))]
+        files = [('file', ('receipt.jpg', processed_bytes, 'image/jpeg'))]
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             res = await client.post(url, data=payload, files=files)
@@ -1113,15 +1104,12 @@ async def read_text_from_image_via_ocr_api(photo_bytes: bytearray) -> str:
                 if results:
                     return results[0].get("ParsedText", "")
     except Exception as e:
-        print(f"Forced OCR Exception: {e}")
+        print(f"OCR Error: {e}")
     return ""
 
 async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    if not await check_user_subscription(user_id, context):
-        return
-
     if user_id in admin_state and admin_state[user_id].get('action') in ['waiting_for_jaib_deposit', 'waiting_for_kreemi_deposit']:
         action_type = admin_state[user_id].get('action')
         admin_state.pop(user_id, None)
@@ -1129,8 +1117,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🔎 **جاري معالجة ونسخ النص من الإيصال قسرياً...**\n"
-            "⏳ **يرجى الانتظار ثوانٍ معدودة...**",
+            "🤖 **جاري فحص الإيصال واستخراج بيانات التحويل آلياً...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1138,13 +1125,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            # 1. نسخ النص بالكامل قسرياً من الصورة
             extracted_text = await read_text_from_image_via_ocr_api(photo_bytes)
             
             if not extracted_text or len(extracted_text.strip()) < 3:
                 await processing_msg.edit_text(
-                    "❌ **عذراً، لم يتمكن البوت من قراءة النص من الصورة.**\n"
-                    "🔄 يرجى التأكد من وضوح إيصال التحويل وإعادة إرساله.",
+                    "❌ **عذراً، لم يتمكن النظام من قراءة تفاصيل الإيصال بوضوح.**\n"
+                    "🔄 يرجى إرسال لقطة شاشة (Screenshot) واضحة تماماً للإيصال ومحاولة الشحن مجدداً.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1153,61 +1139,47 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             clean_text = re.sub(r'\s+', ' ', extracted_text)
             digits_only = re.sub(r'\D', '', clean_text)
 
-            # 2. استخراج رقم مرجع العملية بدقة
             transaction_id = None
-            tx_match = re.search(r'\b([0-9]{10,16})\b', digits_only)
+            tx_match = re.search(r'\b([0-9]{8,16})\b', digits_only)
             if tx_match:
                 transaction_id = tx_match.group(1)
-            else:
-                all_numbers = re.findall(r'\b([0-9]{8,16})\b', digits_only)
-                if all_numbers:
-                    transaction_id = all_numbers[0]
 
-            # 3. استخراج المبلغ بالريال اليمني
             amount_yer = None
             amount_match = re.search(r'([0-9,]+(?:\.[0-9]+)?)\s*(?:ريال|ر\.ي|YER|YR)', clean_text, re.IGNORECASE)
             if amount_match:
-                raw_amt = amount_match.group(1).replace(',', '')
                 try:
-                    amount_yer = float(raw_amt)
+                    amount_yer = float(amount_match.group(1).replace(',', ''))
                 except ValueError:
                     pass
 
             if not amount_yer:
-                potential_amounts = re.findall(r'\b([0-9]{2,6}(?:\.[0-9]{1,2})?)\b', clean_text.replace(',', ''))
-                valid_nums = [float(n) for n in potential_amounts if (not transaction_id or str(n) not in transaction_id) and float(n) <= 1000000]
-                if valid_nums:
-                    amount_yer = max(valid_nums)
+                numbers_found = [float(n) for n in re.findall(r'\b([0-9]{2,6})\b', clean_text.replace(',', '')) if float(n) <= 1000000]
+                if numbers_found:
+                    amount_yer = max(numbers_found)
 
             if not transaction_id or not amount_yer or amount_yer <= 0:
                 await processing_msg.edit_text(
-                    f"❌ **عذراً، تعذر استخراج المبلغ أو رقم العملية من النص المنسوخ الآتي:**\n\n"
-                    f"💬 *النص المنسوخ من الإيصال:*\n`{extracted_text[:250]}`\n\n"
-                    "🔄 تأكد من وضوح الصورة وأعد إرسالها.",
+                    f"❌ **عذراً، تعذر استخراج رقم العملية أو المبلغ بدقة من الإيصال.**\n\n"
+                    f"💬 *النص المستخرج:* `{extracted_text[:200]}`\n\n"
+                    "🔄 تأكد من إرسال سكرين شاشة واضح وعدم قص أطراف الإيصال.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # حساب المبلغ بالدولار
             usd_amount = round(amount_yer / EXCHANGE_RATE, 2)
 
             from database import supabase
-            
-            # 4. فحص ما إذا تم استخدام رقم العملية مسبقاً في قاعدة بيانات Supabase
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
-            rows = existing_tx.data if hasattr(existing_tx, 'data') else []
-            
-            if rows:
+            if existing_tx.data:
                 await processing_msg.edit_text(
-                    f"❌ **تم رفض الإيصال (عملية مكررة مستخدمة مسبقاً)!**\n"
-                    f"📌 رقم مرجع العملية (`{transaction_id}`) تم تسجيله وصرف رصيده من قبل.",
+                    f"❌ **عملية مرفوضة (إيصال مكرر مستخدم مسبقاً)!**\n"
+                    f"📌 رقم العملية (`{transaction_id}`) تم تسجيله وصرف رصيده مسبقاً.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # 5. حفظ العملية ورقم الحساب في جدول transactions في Supabase
             supabase.table("transactions").insert({
                 "user_id": user_id, 
                 "transaction_id": transaction_id, 
@@ -1216,12 +1188,11 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 "usd_amount": usd_amount
             }).execute()
 
-            # 6. شحن رصيد المستخدم فوراً في جدول users
             db_update_balance(user_id, usd_amount, mode="add")
             u_data = db_get_user(user_id)
             
             success_text = (
-                f"🎉 **تم فحص وشحن رصيدك تلقائياً بنجاح تام!** 🤖✨\n"
+                f"🎉 **تم التحقق والشحن الآلي بنجاح تام!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💳 **الطريقة:** `{wallet_name}`\n"
                 f"🆔 **رقم العملية المستخرج:** `{transaction_id}`\n"
@@ -1236,30 +1207,9 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
-            for adm_id in set([ADMIN_ID] + get_all_sub_admins()):
-                try:
-                    await context.bot.send_photo(
-                        chat_id=adm_id,
-                        photo=update.message.photo[-1].file_id,
-                        caption=(
-                            f"🚨 **[إيصال شحن تم قراءته وشحنه تلقائياً]** 💳\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"👤 **آيدي العميل:** `{user_id}`\n"
-                            f"💳 **الطريقة:** `{wallet_name}`\n"
-                            f"🆔 **رقم العملية:** `{transaction_id}`\n"
-                            f"⭐ **المبلغ المضاف:** `${usd_amount:.2f}` (`{amount_yer:,.0f} ر.ي`)\n\n"
-                            f"💬 *النص المستخرج المنسوخ:* `{extracted_text[:150]}`"
-                        ),
-                        parse_mode='Markdown'
-                    )
-                except Exception as admin_send_err:
-                    print(f"Error sending receipt to admin: {admin_send_err}")
-
         except Exception as e:
-            print(f"Receipt Processing Error: {e}")
             await processing_msg.edit_text(
-                f"❌ **حدث خطأ تقني أثناء معالجة الإيصال!**\n\n"
-                f"📌 **التفاصيل:** `{str(e)[:100]}`",
+                f"❌ **حدث خطأ أثناء معالجة الإيصال الآلي:**\n`{str(e)[:100]}`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
@@ -1330,49 +1280,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     pass
             except ValueError:
                 await update.message.reply_text("⚠️ يرجى إرسال رقم صحيح للمبلغ:")
-            return
-
-        elif action == 'waiting_for_gift_id':
-            if not text_content.isdigit():
-                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح:")
-                return
-            st['target_id'] = int(text_content)
-            st['action'] = 'waiting_for_gift_amount'
-            await update.message.reply_text("🎁 أرسل قيمة الهدية المالية (بالدولار):", parse_mode='Markdown')
-            return
-
-        elif action == 'waiting_for_gift_amount':
-            try:
-                amount = float(text_content)
-                target_id = st['target_id']
-                db_update_balance(target_id, amount, mode="add")
-                admin_state.pop(user_id, None)
-                await update.message.reply_text(f"✅ تم إرسال هدية بقيمة `${amount:.2f}` للمستخدم `{target_id}` بنجاح!", parse_mode='Markdown')
-                try:
-                    await context.bot.send_message(chat_id=target_id, text=f"🎁 **مبروك! لقد تلقيت هدية مالية من الإدارة.**\n⭐ القيمة: `${amount:.2f}`", parse_mode='Markdown')
-                except Exception:
-                    pass
-            except ValueError:
-                await update.message.reply_text("⚠️ يرجى إرسال مبلغ صحيح:")
-            return
-
-        elif action == 'waiting_for_reply_id':
-            if not text_content.isdigit():
-                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح:")
-                return
-            st['target_id'] = int(text_content)
-            st['action'] = 'waiting_for_reply_text'
-            await update.message.reply_text("💬 أرسل نص الرد الآن للإرسال للمستخدم:", parse_mode='Markdown')
-            return
-
-        elif action == 'waiting_for_reply_text':
-            target_id = st['target_id']
-            admin_state.pop(user_id, None)
-            try:
-                await context.bot.send_message(chat_id=target_id, text=f"💬 **رد الإدارة:**\n{text_content}", parse_mode='Markdown')
-                await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!")
-            except Exception as e:
-                await update.message.reply_text(f"❌ تعذر إرسال الرد: {e}")
             return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
