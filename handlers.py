@@ -1137,8 +1137,11 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 1: التحقق من رقم المستفيد الثابت ---
-            if str(target_acc) not in extracted_text and str(target_acc) not in clean_text:
+            # --- الخطوة 1: التحقق الصارم (الاسم الكامل الصريح "سالم احمد يحيى صالح السعدي" أو رقم المستفيد الثابت دون السماح بالتمويه بالنجوم) ---
+            has_valid_acc = str(target_acc) in extracted_text or str(target_acc) in clean_text
+            has_explicit_name = "سالم احمد يحيى صالح السعدي" in extracted_text or "سالم احمد" in extracted_text
+
+            if not (has_valid_acc or has_explicit_name):
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
@@ -1146,16 +1149,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 2: التحقق من وجود اسم المستفيد ---
-            if "المستفيد" not in extracted_text and "سالم" not in extracted_text and "*" not in extracted_text:
-                await processing_msg.edit_text(
-                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-                return
-
-            # --- الخطوة 3: استخراج المبلغ بدقة صارمة (الموجود بجانب كلمة ريال يمني فقط وتجنب السنة 2026) ---
+            # --- الخطوة 2: استخراج المبلغ بدقة صارمة (الموجود بجانب كلمة ريال يمني فقط وتجنب السنة 2026) ---
             amount_yer = 0.0
             amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
             if amount_match:
@@ -1173,7 +1167,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 4: استخراج رقم مرجع العملية بدقة وتجنب التواريخ والسنوات ---
+            # --- الخطوة 3: استخراج رقم مرجع العملية بدقة وتجنب التواريخ والسنوات ---
             tx_id = None
             tx_id_match = re.search(r'(?:رقم مرجع العملية|مرجع العملية|مرجع|المرجع|Ref|Reference)[:\s#]*([0-9A-Za-z\-]{8,20})', extracted_text, re.IGNORECASE)
             if tx_id_match:
@@ -1197,7 +1191,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 5: التحقق من قاعدة البيانات لمنع تكرار رقم المرجع ---
+            # --- الخطوة 4: التحقق من قاعدة البيانات لمنع تكرار رقم المرجع ---
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", str(tx_id)).execute()
             if existing_tx.data and len(existing_tx.data) > 0:
                 prev_data = existing_tx.data[0]
