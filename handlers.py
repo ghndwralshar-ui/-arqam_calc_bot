@@ -112,15 +112,12 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     
     payload = {
         'apikey': OCR_SPACE_API_KEY,  
-        'language': 'ara',            
         'isOverlayRequired': False,
         'detectOrientation': True,
         'scale': True
     }
     
-    # استخدام البايتات الخام مباشرة لضمان عدم حدوث أي خطأ توافق مع مكتبة الطلبات
     raw_bytes = bytes(photo_bytes)
-    
     files = {
         'file': ('receipt.jpg', raw_bytes, 'image/jpeg')
     }
