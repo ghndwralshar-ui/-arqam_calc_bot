@@ -1127,9 +1127,13 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             # قراءة النص بالكامل عبر OCR.space
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
             
+            # طباعة النص المستخرج في التيرمنال لمراقبة القراءة بنسبة 100%
+            print(f"\n================ OCR EXTRACTED TEXT ================\n{extracted_text}\n==================================================\n")
+
             clean_text = re.sub(r'[\s\-\_\:\,]', '', extracted_text)
             
-            if "❌" in extracted_text or len(extracted_text.strip()) < 10:
+            if "❌" in extracted_text or len(extracted_text.strip()) < 5:
+                print("DEBUG_ERROR: OCR failed or text is empty.")
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
@@ -1137,12 +1141,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 1: التحقق المرن والذكي (يقبل رقم الحساب الثابت أو اسمك الصريح أو أجزاء منه لتفادي مشاكل تقطيع الـ OCR) ---
+            # --- الخطوة 1: التحقق المرن (يقبل رقم الحساب الثابت أو اسمك الصريح لتفادي تقطيع الـ OCR) ---
             has_valid_acc = str(target_acc) in extracted_text or str(target_acc) in clean_text
-            # التحقق من اسمك بغض النظر عن المسافات أو تقطيع الحروف من محرك OCR
-            has_valid_name = any(name_part in extracted_text or name_part in clean_text for name_part in ["سالم احمد", "السعدي", "سالم", "يحيى"])
+            has_valid_name = any(k in extracted_text or k in clean_text for k in ["سالم احمد", "السعدي", "سالم", "يحيى"])
 
             if not (has_valid_acc or has_valid_name):
+                print(f"DEBUG_ERROR: Target account '{target_acc}' or name not found in extracted text.")
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
@@ -1161,6 +1165,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     pass
 
             if amount_yer <= 0 or amount_yer > 10000000 or amount_yer == 2026:
+                print(f"DEBUG_ERROR: Invalid amount extracted: {amount_yer}")
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
@@ -1185,6 +1190,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     break
 
             if not tx_id:
+                print("DEBUG_ERROR: Transaction reference ID not found.")
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
@@ -1193,16 +1199,20 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 return
 
             # --- الخطوة 4: التحقق من قاعدة البيانات لمنع تكرار رقم المرجع ---
-            existing_tx = supabase.table("transactions").select("*").eq("transaction_id", str(tx_id)).execute()
-            if existing_tx.data and len(existing_tx.data) > 0:
-                prev_data = existing_tx.data[0]
-                prev_amount = prev_data.get('amount_yer', amount_yer)
-                await processing_msg.edit_text(
-                    f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{prev_amount:,.0f} ريال يمني` حسب رقم مرجع العملية (`{tx_id}`) والمبلغ حقها.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-                return
+            try:
+                existing_tx = supabase.table("transactions").select("*").eq("transaction_id", str(tx_id)).execute()
+                if existing_tx.data and len(existing_tx.data) > 0:
+                    prev_data = existing_tx.data[0]
+                    prev_amount = prev_data.get('amount_yer', amount_yer)
+                    print(f"DEBUG_WARNING: Transaction ID {tx_id} already exists in database.")
+                    await processing_msg.edit_text(
+                        f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{prev_amount:,.0f} ريال يمني` حسب رقم مرجع العملية (`{tx_id}`).",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                    return
+            except Exception as db_check_err:
+                print(f"DEBUG_DB_ERROR on select: {db_check_err}")
 
             # --- حساب المبلغ بالدولار ---
             amount_usd = round(amount_yer / EXCHANGE_RATE, 2)
@@ -1219,8 +1229,9 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             )
 
             if not saved_success:
+                print(f"DEBUG_ERROR: Failed to save transaction {tx_id} to database.")
                 await processing_msg.edit_text(
-                    f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{amount_yer:,.0f} ريال يمني` حسب رقم مرجع العملية (`{tx_id}`) والمبلغ حقها.",
+                    f"⚠️ تم استخدام رقم مرجع العملية من قبل أو حدث خطأ في قاعدة البيانات لشحن الرصيد.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1270,6 +1281,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 print(f"Error sending log: {log_err}")
 
         except Exception as e:
+            print(f"DEBUG_EXCEPTION in handle_photo_receipt: {e}")
             await processing_msg.edit_text(
                 f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                 parse_mode='Markdown',
