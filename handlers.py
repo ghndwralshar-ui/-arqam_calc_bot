@@ -118,7 +118,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         'scale': True
     }
     
-    # تغليف البايتات بـ BytesIO لتفادي خطأ 'bytearray' object has no attribute 'read'
+    # تغليف البايتات بـ BytesIO لكي تدعم خاصية الـ read() وتعمل بدون أخطاء
     files = {
         'file': ('receipt.jpg', BytesIO(photo_bytes), 'image/jpeg')
     }
