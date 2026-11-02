@@ -1,25 +1,28 @@
 import os
 
-# --- الإعدادات والبيانات الأساسية ---
+# --- إعدادات البوت والآيديات الأساسية ---
 BOT_TOKEN = "8850483932:AAEng210C30m9AEfyeb9lmzWAGKaZ2tkbQo"
-FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
-
-# مفتاح Gemini المحدث والخاص بمشروعك (خزان)
-
-GEMINI_API_KEY = "AQ.Ab8RN6KUJj7iXraGOa0CXfI_NcvRUTUYfUML7P4mbRaLMkcqBQ"
-
 ADMIN_ID = 6472852297
 SUPPORT_USERNAME = "benti"
 
+# --- القناة الإجبارية ولॉग الأنشطة ---
 FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"
 FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"
 LOG_CHANNEL_ID = -1004374640175
 
+# --- مفاتيح خدمات الرشق (HMCARD) ---
 HMCARD_API_URL = "https://hmcard.online/api/v2"
 HMCARD_API_KEY = "0c13f3ad91dc8c152e7cb01f87f1a271"
 
+# --- مفتاح محرك قراءة الإيصالات (OCR.space) ---
+OCR_SPACE_API_KEY = "K8801265751720788957"
+
+# --- بيانات قاعدة بيانات Supabase ---
 SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
 SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
+
+# --- مفتاح وتهيئة 5SIM للأرقام الافتراضية ---
+FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
 
 HEADERS = {
     'Authorization': f'Bearer {FIVESIM_API_KEY}',
@@ -27,7 +30,7 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
-# قاموس الدول المعتمدة
+# --- قاموس الدول المعتمدة للأرقام الافتراضية ---
 COUNTRY_INFO = {
     "russia": {"name_ar": "روسيا", "flag": "🇷🇺", "dial": "+7"},
     "usa": {"name_ar": "أمريكا", "flag": "🇺🇸", "dial": "+1"},
