@@ -106,7 +106,7 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
-    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي باستخدام OCR.space API ومفتاحك الخاص"""
+    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي باستخدام OCR.space API"""
     url = "https://api.ocr.space/parse/image"
     
     payload = {
@@ -963,7 +963,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم الذكاء الاصطناعي بقراءة الإيصال واستخراج كافة النصوص وإرسالها لك فوراً!*",
+            "🤖 *سيقوم النظام بقراءة الإيصال واستخراج كافة النصوص وإرسالها لك فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -975,7 +975,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم الذكاء الاصطناعي بقراءة الإيصال واستخراج كافة النصوص وإرسالها لك فوراً!*",
+            "🤖 *سيقوم النظام بقراءة الإيصال واستخراج كافة النصوص وإرسالها لك فوراً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1114,7 +1114,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🧠 **جاري قراءة واستخراج النصوص من الإيصال عبر النظام الآلي...**\n⏳ يرجى الانتظار...",
+            "🧠 **جاري قراءة واستخراج النصوص من الإيصال عبر نظام OCR.space...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
