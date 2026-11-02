@@ -107,7 +107,7 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
-    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي باستخدام OCR.space API"""
+    """قراءة كامل النص الموجود في الإيصال باستخدام OCR.space API"""
     url = "https://api.ocr.space/parse/image"
     
     payload = {
@@ -1116,7 +1116,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         target_acc = JAIB_ACCOUNT if is_jaib else KREEMI_ACCOUNT
         
         processing_msg = await update.message.reply_text(
-            f"🧠 **جاري قراءة وتحليل إيصال {wallet_name} والتحقق من البيانات...**\n⏳ يرجى الانتظار...",
+            f"🧠 **جاري قراءة وتحليل إيصال {wallet_name} والتحقق من البيانات بدقة...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1127,6 +1127,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             # قراءة النص بالكامل عبر OCR.space
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
             
+            clean_text = re.sub(r'[\s\-\_\:\,]', '', extracted_text)
+            
             if "❌" in extracted_text or len(extracted_text.strip()) < 10:
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
@@ -1136,7 +1138,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 return
 
             # --- الخطوة 1: التحقق من رقم المستفيد الثابت ---
-            if target_acc not in extracted_text:
+            if str(target_acc) not in extracted_text and str(target_acc) not in clean_text:
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
@@ -1144,7 +1146,17 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 2: استخراج المبلغ الذي بجانبه كلمة "ريال يمني" بدقة ---
+            # --- الخطوة 2: التحقق من وجود اسم المستفيد الموجود فوق الرقم مباشرة (مطابقة مرنة تدعم الأسماء الصريحة أو المמוهة) ---
+            # في إيصالات جيب، كلمة "المستفيد" تظهر بجانب أو فوق الحساب
+            if "المستفيد" not in extracted_text and "سالم" not in extracted_text and "*" not in extracted_text:
+                await processing_msg.edit_text(
+                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            # --- الخطوة 3: استخراج المبلغ الذي بجانبه كلمة "ريال يمني" بدقة ---
             amount_yer = 0.0
             amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
             if amount_match:
@@ -1155,6 +1167,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     pass
 
             if amount_yer <= 0:
+                nums = re.findall(r'\b([1-9][0-9]{1,5})\b', extracted_text)
+                nums = [float(n) for n in nums if n != int(target_acc)]
+                if nums:
+                    amount_yer = max(nums)
+
+            if amount_yer <= 0:
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
@@ -1162,20 +1180,18 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 3: استخراج رقم مرجع العملية بدقة ---
+            # --- الخطوة 4: استخراج رقم مرجع العملية بدقة ---
             tx_id = None
-            tx_id_match = re.search(r'(?:رقم مرجع العملية|مرجع العملية|مرجع|Ref|Reference)[:\s#]*([0-9A-Za-z\-]{6,20})', extracted_text, re.IGNORECASE)
+            tx_id_match = re.search(r'(?:رقم مرجع العملية|مرجع العملية|مرجع|المرجع|Ref|Reference)[:\s#]*([0-9A-Za-z\-]{8,20})', extracted_text, re.IGNORECASE)
             if tx_id_match:
                 candidate = tx_id_match.group(1).strip()
-                if not candidate.startswith('77') and target_acc not in candidate:
+                if candidate != str(target_acc):
                     tx_id = candidate
 
             if not tx_id:
                 potential_refs = re.findall(r'\b([0-9]{10,16})\b', extracted_text)
                 for ref in potential_refs:
-                    if ref == target_acc or ref == str(int(amount_yer)):
-                        continue
-                    if len(ref) == 9 and ref.startswith(('77', '73', '70', '71', '78')):
+                    if ref == str(target_acc) or ref == str(int(amount_yer)):
                         continue
                     tx_id = ref
                     break
@@ -1188,7 +1204,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 4: التحقق من قاعدة البيانات لمنع تكرار رقم المرجع ---
+            # --- الخطوة 5: التحقق من قاعدة البيانات لمنع تكرار رقم المرجع ---
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", str(tx_id)).execute()
             if existing_tx.data and len(existing_tx.data) > 0:
                 prev_data = existing_tx.data[0]
@@ -1227,7 +1243,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             updated_user = db_get_user(user_id)
             new_balance = float(updated_user.get('balance', 0.0))
 
-            # --- رسالة النجاح المطلوبة بالنص الدقيق ---
+            # --- رسالة النجاح حسب طلبك بالنص الدقيق ---
             success_reply = (
                 f"🎉 **تم التحقق من إيصال محفظة جيب (Jaib) وشحن رصيدك بنجاح!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
