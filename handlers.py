@@ -15,7 +15,8 @@ from config import (
 
 from database import (
     db_get_user, db_update_balance, db_get_advanced_stats, 
-    db_get_all_users, is_admin_or_sub, get_all_sub_admins
+    db_get_all_users, is_admin_or_sub, get_all_sub_admins,
+    db_check_and_save_transaction
 )
 from keyboards import (
     get_main_keyboard, get_virtual_services_keyboard, sections_menu_keyboard,
@@ -965,7 +966,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
             f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم النظام بقراءة الإيصال واستخراج كافة النصوص وإرسالها لك فوراً!*",
+            "🤖 *سيقوم النظام بقراءة الإيصال والتحقق منه وشحن رصيدك تلقائياً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -977,7 +978,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
             f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
             "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "🤖 *سيقوم النظام بقراءة الإيصال واستخراج كافة النصوص وإرسالها لك فوراً!*",
+            "🤖 *سيقوم النظام بقراءة الإيصال والتحقق منه وشحن رصيدك تلقائياً!*",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
         )
@@ -1113,10 +1114,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         action_type = admin_state[user_id].get('action')
         admin_state.pop(user_id, None)
         
-        wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
+        is_jaib = (action_type == 'waiting_for_jaib_deposit')
+        wallet_name = "محفظة جيب (Jaib)" if is_jaib else "بنك الكريمي (Al-Kuraimi)"
+        target_acc = JAIB_ACCOUNT if is_jaib else KREEMI_ACCOUNT
         
         processing_msg = await update.message.reply_text(
-            "🧠 **جاري قراءة واستخراج النصوص من الإيصال عبر نظام OCR.space...**\n⏳ يرجى الانتظار...",
+            f"🧠 **جاري قراءة وتحليل إيصال {wallet_name} واستخراج البيانات...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1124,18 +1127,141 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
+            # استخراج النص من الصورة عبر OCR.space
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
             
+            if "❌" in extracted_text or len(extracted_text.strip()) < 10:
+                await processing_msg.edit_text(
+                    f"❌ **عذراً، لم نتمكن من قراءة الإيصال بوضوح.**\n"
+                    f"الرجاء إرسال صورة واضحة وغير مموهة لإيصال التحويل.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            # --- استخراج البيانات عبر Regex الذكي ---
+            tx_id_match = re.search(r'(?:رقم العملية|العملية|مرجع|Ref|ID)[:\s#]*([0-9]{5,15})', extracted_text, re.IGNORECASE)
+            tx_id = tx_id_match.group(1) if tx_id_match else None
+            
+            if not tx_id:
+                all_numbers = re.findall(r'\b[0-9]{6,12}\b', extracted_text)
+                all_numbers = [n for n in all_numbers if target_acc not in n]
+                if all_numbers:
+                    tx_id = all_numbers[0]
+
+            amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال|يمني|YER|YR|Rial)', extracted_text, re.IGNORECASE)
+            amount_yer = 0.0
+            if amount_match:
+                amt_str = amount_match.group(1).replace(',', '')
+                try:
+                    amount_yer = float(amt_str)
+                except ValueError:
+                    pass
+            
+            if amount_yer <= 0:
+                nums = re.findall(r'\b([1-9][0-9]{2,6}(?:\.[0-9]+)?)\b', extracted_text)
+                nums = [float(n.replace(',', '')) for n in nums if n != target_acc and (not tx_id or n != tx_id)]
+                if nums:
+                    amount_yer = max(nums)
+
+            acc_found = target_acc in extracted_text
+
+            # --- شروط التحقق الصارمة ---
+            if not acc_found:
+                await processing_msg.edit_text(
+                    f"❌ **عذراً، رقم الحساب المستلم في الإيصال غير مطابق!**\n"
+                    f"📌 يجب أن يتم التحويل إلى حسابنا الرسمي: `{target_acc}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            if not tx_id:
+                await processing_msg.edit_text(
+                    f"❌ **تعذر استخراج رقم العملية (المرجع) من الإيصال تلقائياً.**\n"
+                    f"يرجى التأكد من وضوح الإيصال أو التواصل مع الدعم الفني.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            if amount_yer <= 0:
+                await processing_msg.edit_text(
+                    f"❌ **تعذر تحديد مبلغ التحويل بدقة من الصورة.**\n"
+                    f"رقم العملية المستخرج: `{tx_id}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            # حساب المبلغ بالدولار بناء على سعر الصرف (550 ريال = 1 دولار)
+            amount_usd = round(amount_yer / EXCHANGE_RATE, 2)
+            if amount_usd <= 0:
+                amount_usd = 0.01
+
+            # --- التحقق من قاعدة البيانات لمنع التكرار وحفظ العملية ---
+            saved_success = db_check_and_save_transaction(
+                transaction_id=str(tx_id),
+                user_id=user_id,
+                amount_yer=amount_yer,
+                amount_usd=amount_usd,
+                wallet_type=wallet_name
+            )
+
+            if not saved_success:
+                await processing_msg.edit_text(
+                    f"⚠️ **عذراً، رقم العملية (`{tx_id}`) مستخدم مسبقاً وتم شحن رصيده من قبل!**\n"
+                    f"لا يمكن استخدام نفس الإيصال أو رقم العملية أكثر من مرة.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
+
+            # --- شحن الرصيد للمستخدم بنجاح ---
+            db_update_balance(user_id, amount_usd, mode="add")
+            updated_user = db_get_user(user_id)
+            new_balance = float(updated_user.get('balance', 0.0))
+
+            # صياغة رسالة النجاح حسب طلبك بالتمام والكمال
+            success_reply = (
+                f"🎉 **تم التحقق من إيصال {wallet_name} وشحن رصيدك بنجاح!** 🤖✨\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💳 **طريقة الشحن:** {wallet_name}\n"
+                f"🔢 **رقم الحساب المستلم:** `{target_acc}`\n"
+                f"🆔 **رقم العملية الموثق:** `{tx_id}`\n"
+                f"💵 **المبلغ المرسل:** `{amount_yer:,.0f} ريال يمني`\n"
+                f"⭐ **المبلغ المضاف:** `${amount_usd:.2f}`\n"
+                f"💰 **رصيدك الحالي الجديد:** `${new_balance:.2f}`\n\n"
+                f"🚀 **تم التحقق وحفظ العملية في قاعدة البيانات بنجاح تام.**"
+            )
+
             await processing_msg.edit_text(
-                f"📄 **نتيجة قراءة إيصال {wallet_name}:**\n\n"
-                f"```text\n{extracted_text}\n```",
+                success_reply,
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
+            # إرسال إشعار لقناة اللوجات للإدارة
+            try:
+                await context.bot.send_message(
+                    chat_id=LOG_CHANNEL_ID,
+                    text=(
+                        "📥 **عملية شحن رصيد ناجحة وآلية عبر الإيصال!** ✅\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"👤 **آيدي المستخدم:** `{user_id}`\n"
+                        f"💳 **المحفظة:** {wallet_name}\n"
+                        f"🆔 **رقم العملية:** `{tx_id}`\n"
+                        f"💵 **المبلغ باليمني:** `{amount_yer:,.0f}`\n"
+                        f"⭐ **المبلغ المضاف:** `${amount_usd:.2f}`\n"
+                        f"💎 **رصيده الجديد:** `${new_balance:.2f}`"
+                    ),
+                    parse_mode='Markdown'
+                )
+            except Exception as log_err:
+                print(f"Error sending log: {log_err}")
+
         except Exception as e:
             await processing_msg.edit_text(
-                f"❌ **حدث استثناء أثناء قراءة الإيصال:**\n`{str(e)[:150]}`",
+                f"❌ **حدث خطأ أثناء معالجة الإيصال الآلي:**\n`{str(e)[:150]}`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
