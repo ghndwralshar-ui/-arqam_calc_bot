@@ -118,9 +118,12 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         'scale': True
     }
     
-    # تغليف البايتات بـ BytesIO لكي تدعم خاصية الـ read() وتعمل بدون أخطاء
+    # تحويل bytearray إلى بايتات عادية وتغليفها بـ BytesIO مع اسم ملف صريح لمنع خطأ الـ read
+    image_stream = BytesIO(bytes(photo_bytes))
+    image_stream.name = "receipt.jpg"
+    
     files = {
-        'file': ('receipt.jpg', BytesIO(photo_bytes), 'image/jpeg')
+        'file': ('receipt.jpg', image_stream, 'image/jpeg')
     }
     
     try:
