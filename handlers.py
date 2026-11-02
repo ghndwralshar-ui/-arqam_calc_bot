@@ -42,6 +42,10 @@ EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
 KREEMI_ACCOUNT = "3105004949"
 
+# البيانات الثابتة الصحيحة للمستفيد بناءً على إيصالك الأخير
+VALID_BENEFICIARY_PHONE = "772074924"
+VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
+
 def get_subadmin_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
@@ -1116,7 +1120,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         target_acc = JAIB_ACCOUNT if is_jaib else KREEMI_ACCOUNT
         
         processing_msg = await update.message.reply_text(
-            f"🧠 **جاري قراءة وتحليل إيصال {wallet_name} والتحقق من البيانات بدقة...**\n⏳ يرجى الانتظار...",
+            f"🧠 **جاري قراءة وتنسيق تفاصيل إيصال {wallet_name} واستخراج البيانات بدقة...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1127,34 +1131,33 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             # قراءة النص بالكامل عبر OCR.space
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
             
-            # طباعة النص المستخرج في التيرمنال لمراقبة القراءة بنسبة 100%
             print(f"\n================ OCR EXTRACTED TEXT ================\n{extracted_text}\n==================================================\n")
 
-            clean_text = re.sub(r'[\s\-\_\:\,]', '', extracted_text)
-            
             if "❌" in extracted_text or len(extracted_text.strip()) < 5:
-                print("DEBUG_ERROR: OCR failed or text is empty.")
                 await processing_msg.edit_text(
-                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
+                    f"❌ **عذرا، تعذر قراءة الإيصال بوضوح.**\nيرجى إرسال صورة واضحة لعملية تحويل صحيحة استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # --- الخطوة 1: التحقق المرن (يقبل رقم الحساب الثابت أو اسمك الصريح لتفادي تقطيع الـ OCR) ---
-            has_valid_acc = str(target_acc) in extracted_text or str(target_acc) in clean_text
+            clean_text = re.sub(r'[\s\-\_\:\,]', '', extracted_text)
+
+            # --- الخطوة 1: التحقق الصارم من رقم المستفيد واسم المستفيد كما طلبت تماماً ---
+            has_valid_phone = VALID_BENEFICIARY_PHONE in extracted_text or VALID_BENEFICIARY_PHONE in clean_text
             has_valid_name = any(k in extracted_text or k in clean_text for k in ["سالم احمد", "السعدي", "سالم", "يحيى"])
 
-            if not (has_valid_acc or has_valid_name):
-                print(f"DEBUG_ERROR: Target account '{target_acc}' or name not found in extracted text.")
+            if not (has_valid_phone and has_valid_name):
+                print(f"DEBUG_ERROR: Beneficiary check failed. Phone match: {has_valid_phone}, Name match: {has_valid_name}")
                 await processing_msg.edit_text(
-                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
+                    f"❌ **عذرا، إيصال التحويل غير مطابق!**\n\n"
+                    f"⚠️ يشترط أن يكون التحويل لنفس رقم المستفيد (`{VALID_BENEFICIARY_PHONE}`) وباسم المستفيد (`{VALID_BENEFICIARY_NAME}`).",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # --- الخطوة 2: استخراج المبلغ بدقة صارمة (الموجود بجانب كلمة ريال يمني فقط وتجنب السنة 2026) ---
+            # --- الخطوة 2: استخراج المبلغ بدقة بجانب كلمة ريال يمني ---
             amount_yer = 0.0
             amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
             if amount_match:
@@ -1165,15 +1168,14 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     pass
 
             if amount_yer <= 0 or amount_yer > 10000000 or amount_yer == 2026:
-                print(f"DEBUG_ERROR: Invalid amount extracted: {amount_yer}")
                 await processing_msg.edit_text(
-                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
+                    f"❌ **عذرا، لم يتم تحديد مبلغ صحيح في الإيصال.**",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # --- الخطوة 3: استخراج رقم مرجع العملية بدقة وتجنب التواريخ والسنوات ---
+            # --- الخطوة 3: استخراج رقم مرجع العملية بدقة وتجنب التواريخ ---
             tx_id = None
             tx_id_match = re.search(r'(?:رقم مرجع العملية|مرجع العملية|مرجع|المرجع|Ref|Reference)[:\s#]*([0-9A-Za-z\-]{8,20})', extracted_text, re.IGNORECASE)
             if tx_id_match:
@@ -1190,9 +1192,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     break
 
             if not tx_id:
-                print("DEBUG_ERROR: Transaction reference ID not found.")
                 await processing_msg.edit_text(
-                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
+                    f"❌ **عذرا، لم يتم العثور على رقم مرجع العملية في الإيصال.**",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1204,9 +1205,11 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 if existing_tx.data and len(existing_tx.data) > 0:
                     prev_data = existing_tx.data[0]
                     prev_amount = prev_data.get('amount_yer', amount_yer)
-                    print(f"DEBUG_WARNING: Transaction ID {tx_id} already exists in database.")
                     await processing_msg.edit_text(
-                        f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{prev_amount:,.0f} ريال يمني` حسب رقم مرجع العملية (`{tx_id}`).",
+                        f"⚠️ **تم استخدام رقم مرجع العملية من قبل!**\n\n"
+                        f"🆔 رقم المرجع: `{tx_id}`\n"
+                        f"💰 المبلغ السابق: `{prev_amount:,.0f} ريال يمني`\n"
+                        f"❌ عذراً، لا يمكن استخدام نفس الإيصال أكثر من مرة.",
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                     )
@@ -1214,7 +1217,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             except Exception as db_check_err:
                 print(f"DEBUG_DB_ERROR on select: {db_check_err}")
 
-            # --- حساب المبلغ بالدولار ---
+            # --- حساب المبلغ بالدولار وصرف العملة ---
             amount_usd = round(amount_yer / EXCHANGE_RATE, 2)
             if amount_usd <= 0:
                 amount_usd = 0.01
@@ -1229,9 +1232,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             )
 
             if not saved_success:
-                print(f"DEBUG_ERROR: Failed to save transaction {tx_id} to database.")
                 await processing_msg.edit_text(
-                    f"⚠️ تم استخدام رقم مرجع العملية من قبل أو حدث خطأ في قاعدة البيانات لشحن الرصيد.",
+                    f"⚠️ **عذراً، رقم مرجع العملية هذا مستخدم مسبقاً أو حدث خطأ في الحفظ.**",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1242,17 +1244,21 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             updated_user = db_get_user(user_id)
             new_balance = float(updated_user.get('balance', 0.0))
 
-            # --- رسالة النجاح بالنص الدقيق ---
+            # --- عرض تفاصيل النص المستخرج كاملة للمستخدم كما طلبت تماماً ---
             success_reply = (
-                f"🎉 **تم التحقق من إيصال محفظة جيب (Jaib) وشحن رصيدك بنجاح!** 🤖✨\n"
+                f"🎉 **تم التحقق من إيصال العملية وشحن رصيدك بنجاح!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"💳 **طريقة الشحن:** محفظة جيب (Jaib)\n"
-                f"🔢 **رقم الحساب المستلم:** `{target_acc}`\n"
-                f"🆔 **رقم العملية الموثق:** `{tx_id}`\n"
-                f"💵 **المبلغ المرسل باليمني:** `{amount_yer:,.0f} ريال يمني`\n"
+                f"📄 **النص المستخرج من الإيصال:**\n"
+                f"```text\n{extracted_text[:450]}\n```\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💳 **طريقة الشحن:** {wallet_name}\n"
+                f"👤 **المستفيد المطابق:** `{VALID_BENEFICIARY_NAME}`\n"
+                f"📞 **رقم المستفيد:** `{VALID_BENEFICIARY_PHONE}`\n"
+                f"🆔 **رقم مرجع العملية:** `{tx_id}`\n"
+                f"💵 **المبلغ باليمني:** `{amount_yer:,.0f} ريال يمني`\n"
                 f"⭐ **المبلغ المضاف:** `${amount_usd:.2f}`\n"
                 f"💰 **رصيدك الحالي الجديد:** `${new_balance:.2f}`\n\n"
-                f"🚀 **تم التحقق وحفظ العملية في قاعدة البيانات بنجاح تام.**"
+                f"🚀 **تم اعتماد العملية وحفظها في قاعدة البيانات بنجاح تام.**"
             )
 
             await processing_msg.edit_text(
@@ -1266,7 +1272,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 await context.bot.send_message(
                     chat_id=LOG_CHANNEL_ID,
                     text=(
-                        "📥 **عملية شحن رصيد ناجحة وآلية عبر الإيصال!** ✅\n"
+                        "📥 **عملية شحن رصيد ناجحة وموثقة عبر الإيصال!** ✅\n"
                         "━━━━━━━━━━━━━━━━━━━━━━\n"
                         f"👤 **آيدي المستخدم:** `{user_id}`\n"
                         f"💳 **المحفظة:** {wallet_name}\n"
