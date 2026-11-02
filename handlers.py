@@ -1146,8 +1146,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 2: التحقق من وجود اسم المستفيد الموجود فوق الرقم مباشرة (مطابقة مرنة تدعم الأسماء الصريحة أو المמוهة) ---
-            # في إيصالات جيب، كلمة "المستفيد" تظهر بجانب أو فوق الحساب
+            # --- الخطوة 2: التحقق من وجود اسم المستفيد ---
             if "المستفيد" not in extracted_text and "سالم" not in extracted_text and "*" not in extracted_text:
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
@@ -1156,7 +1155,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 3: استخراج المبلغ الذي بجانبه كلمة "ريال يمني" بدقة ---
+            # --- الخطوة 3: استخراج المبلغ بدقة صارمة (الموجود بجانب كلمة ريال يمني فقط وتجنب السنة 2026) ---
             amount_yer = 0.0
             amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
             if amount_match:
@@ -1166,13 +1165,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 except ValueError:
                     pass
 
-            if amount_yer <= 0:
-                nums = re.findall(r'\b([1-9][0-9]{1,5})\b', extracted_text)
-                nums = [float(n) for n in nums if n != int(target_acc)]
-                if nums:
-                    amount_yer = max(nums)
-
-            if amount_yer <= 0:
+            if amount_yer <= 0 or amount_yer > 10000000 or amount_yer == 2026:
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
@@ -1180,18 +1173,18 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 4: استخراج رقم مرجع العملية بدقة ---
+            # --- الخطوة 4: استخراج رقم مرجع العملية بدقة وتجنب التواريخ والسنوات ---
             tx_id = None
             tx_id_match = re.search(r'(?:رقم مرجع العملية|مرجع العملية|مرجع|المرجع|Ref|Reference)[:\s#]*([0-9A-Za-z\-]{8,20})', extracted_text, re.IGNORECASE)
             if tx_id_match:
                 candidate = tx_id_match.group(1).strip()
-                if candidate != str(target_acc):
+                if candidate != str(target_acc) and candidate != str(int(amount_yer)) and not candidate.startswith('2026'):
                     tx_id = candidate
 
             if not tx_id:
                 potential_refs = re.findall(r'\b([0-9]{10,16})\b', extracted_text)
                 for ref in potential_refs:
-                    if ref == str(target_acc) or ref == str(int(amount_yer)):
+                    if ref == str(target_acc) or ref == str(int(amount_yer)) or ref.startswith('2026'):
                         continue
                     tx_id = ref
                     break
@@ -1243,7 +1236,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             updated_user = db_get_user(user_id)
             new_balance = float(updated_user.get('balance', 0.0))
 
-            # --- رسالة النجاح حسب طلبك بالنص الدقيق ---
+            # --- رسالة النجاح بالنص الدقيق ---
             success_reply = (
                 f"🎉 **تم التحقق من إيصال محفظة جيب (Jaib) وشحن رصيدك بنجاح!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
