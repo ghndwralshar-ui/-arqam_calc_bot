@@ -1116,7 +1116,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         target_acc = JAIB_ACCOUNT if is_jaib else KREEMI_ACCOUNT
         
         processing_msg = await update.message.reply_text(
-            f"🧠 **جاري قراءة وتحليل إيصال {wallet_name} بدقة عالية...**\n⏳ يرجى الانتظار...",
+            f"🧠 **جاري قراءة وتحليل إيصال {wallet_name} والتحقق من البيانات...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1135,7 +1135,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الشرط 1: التحقق من وجود رقم المستفيد بدقة ---
+            # --- الخطوة 1: التحقق من رقم المستفيد الثابت ---
             if target_acc not in extracted_text:
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
@@ -1144,22 +1144,15 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الشرط 2: استخراج المبلغ الذي يسبقه أو يتبعه عبارة "ريال يمني" ---
+            # --- الخطوة 2: استخراج المبلغ الذي بجانبه كلمة "ريال يمني" بدقة ---
             amount_yer = 0.0
-            amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|YER|YER\b|ريال)', extracted_text, re.IGNORECASE)
+            amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
             if amount_match:
                 amt_str = amount_match.group(1).replace(',', '')
                 try:
                     amount_yer = float(amt_str)
                 except ValueError:
                     pass
-
-            if amount_yer <= 0:
-                # محاولة بديلة للبحث عن المبالغ بجوار كلمات مثل "المبلغ" أو الأرقام الكبيرة
-                nums = re.findall(r'\b([1-9][0-9]{2,6}(?:\.[0-9]+)?)\b', extracted_text)
-                nums = [float(n.replace(',', '')) for n in nums if n != target_acc]
-                if nums:
-                    amount_yer = max(nums)
 
             if amount_yer <= 0:
                 await processing_msg.edit_text(
@@ -1169,22 +1162,19 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الشرط 3: استخراج رقم مرجع العملية بدقة وتجنب أرقام الهواتف ---
+            # --- الخطوة 3: استخراج رقم مرجع العملية بدقة ---
             tx_id = None
-            # البحث عن كلمات مفتاحية للمرجع
-            tx_id_match = re.search(r'(?:رقم المرجع|مرجع|المرجع|Reference|Ref|Transaction ID|رقم العملية)[:\s#]*([A-Za-z0-9\-]{5,20})', extracted_text, re.IGNORECASE)
+            tx_id_match = re.search(r'(?:رقم مرجع العملية|مرجع العملية|مرجع|Ref|Reference)[:\s#]*([0-9A-Za-z\-]{6,20})', extracted_text, re.IGNORECASE)
             if tx_id_match:
                 candidate = tx_id_match.group(1).strip()
                 if not candidate.startswith('77') and target_acc not in candidate:
                     tx_id = candidate
 
             if not tx_id:
-                # البحث عن أي كود تسلسلي صالح بعيداً عن أرقام الهواتف
-                potential_refs = re.findall(r'\b([A-Za-z0-9]{6,15})\b', extracted_text)
+                potential_refs = re.findall(r'\b([0-9]{10,16})\b', extracted_text)
                 for ref in potential_refs:
                     if ref == target_acc or ref == str(int(amount_yer)):
                         continue
-                    # تجاهل أرقام الهواتف اليمنية (التي تتكون من 9 أرقام وتبدأ بـ 7)
                     if len(ref) == 9 and ref.startswith(('77', '73', '70', '71', '78')):
                         continue
                     tx_id = ref
@@ -1198,13 +1188,13 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الشرط 4: التحقق مما إذا كان رقم العملية محفوظاً مسبقاً (منع التكرار) ---
+            # --- الخطوة 4: التحقق من قاعدة البيانات لمنع تكرار رقم المرجع ---
             existing_tx = supabase.table("transactions").select("*").eq("transaction_id", str(tx_id)).execute()
             if existing_tx.data and len(existing_tx.data) > 0:
                 prev_data = existing_tx.data[0]
-                prev_amount = prev_data.get('amount_yer', 0)
+                prev_amount = prev_data.get('amount_yer', amount_yer)
                 await processing_msg.edit_text(
-                    f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{prev_amount:,.5f}` حسب رقم مرجع العملية (`{tx_id}`) والمبلغ حقها.",
+                    f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{prev_amount:,.0f} ريال يمني` حسب رقم مرجع العملية (`{tx_id}`) والمبلغ حقها.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1215,7 +1205,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             if amount_usd <= 0:
                 amount_usd = 0.01
 
-            # --- حفظ العملية في قاعدة البيانات وشحن الرصيد ---
+            # --- حفظ العملية في قاعدة البيانات ---
             saved_success = db_check_and_save_transaction(
                 transaction_id=str(tx_id),
                 user_id=user_id,
@@ -1226,17 +1216,18 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             if not saved_success:
                 await processing_msg.edit_text(
-                    f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{amount_yer:,.5f}` حسب رقم مرجع العملية (`{tx_id}`) والمبلغ حقها.",
+                    f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{amount_yer:,.0f} ريال يمني` حسب رقم مرجع العملية (`{tx_id}`) والمبلغ حقها.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
+            # --- شحن الرصيد للمستخدم ---
             db_update_balance(user_id, amount_usd, mode="add")
             updated_user = db_get_user(user_id)
             new_balance = float(updated_user.get('balance', 0.0))
 
-            # --- رسالة النجاح حسب طلبك بالنص الدقيق ---
+            # --- رسالة النجاح المطلوبة بالنص الدقيق ---
             success_reply = (
                 f"🎉 **تم التحقق من إيصال محفظة جيب (Jaib) وشحن رصيدك بنجاح!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
