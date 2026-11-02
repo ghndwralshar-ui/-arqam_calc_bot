@@ -2,6 +2,7 @@ import logging
 import asyncio
 import re
 import httpx
+from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
@@ -116,8 +117,10 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         'detectOrientation': True,
         'scale': True
     }
+    
+    # تغليف البايتات بـ BytesIO لتفادي خطأ 'bytearray' object has no attribute 'read'
     files = {
-        'file': ('receipt.jpg', photo_bytes, 'image/jpeg')
+        'file': ('receipt.jpg', BytesIO(photo_bytes), 'image/jpeg')
     }
     
     try:
