@@ -16,7 +16,7 @@ from config import (
 from database import (
     db_get_user, db_update_balance, db_get_advanced_stats, 
     db_get_all_users, is_admin_or_sub, get_all_sub_admins,
-    db_check_and_save_transaction
+    db_check_and_save_transaction, supabase
 )
 from keyboards import (
     get_main_keyboard, get_virtual_services_keyboard, sections_menu_keyboard,
@@ -72,7 +72,6 @@ async def process_successful_join_reward(user, context, u_data):
     try:
         if u_data.get("reward_claimed", 0) == 1:
             return
-        from database import supabase
         supabase.table("users").update({"reward_claimed": 1}).eq("user_id", user.id).execute()
 
         if user.id != ADMIN_ID:
@@ -319,7 +318,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         referrer_id = int(arg_param)
         if referrer_id != user.id:
             if u_data.get('referred_by', 0) == 0:
-                from database import supabase
                 supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", user.id).execute()
                 u_data['referred_by'] = referrer_id
 
@@ -1071,7 +1069,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'admin_reset_balances':
         if user_id != ADMIN_ID: return
         try:
-            from database import supabase
             res = supabase.table("users").select("user_id").execute()
             for u in (res.data if hasattr(res, 'data') else []):
                 supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
@@ -1119,7 +1116,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         target_acc = JAIB_ACCOUNT if is_jaib else KREEMI_ACCOUNT
         
         processing_msg = await update.message.reply_text(
-            f"🧠 **جاري قراءة وتحليل إيصال {wallet_name} واستخراج البيانات...**\n⏳ يرجى الانتظار...",
+            f"🧠 **جاري قراءة وتحليل إيصال {wallet_name} بدقة عالية...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
@@ -1127,78 +1124,98 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            # استخراج النص من الصورة عبر OCR.space
+            # قراءة النص بالكامل عبر OCR.space
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
             
             if "❌" in extracted_text or len(extracted_text.strip()) < 10:
                 await processing_msg.edit_text(
-                    f"❌ **عذراً، لم نتمكن من قراءة الإيصال بوضوح.**\n"
-                    f"الرجاء إرسال صورة واضحة وغير مموهة لإيصال التحويل.",
+                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
+                    parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # --- استخراج البيانات عبر Regex الذكي ---
-            tx_id_match = re.search(r'(?:رقم العملية|العملية|مرجع|Ref|ID)[:\s#]*([0-9]{5,15})', extracted_text, re.IGNORECASE)
-            tx_id = tx_id_match.group(1) if tx_id_match else None
-            
-            if not tx_id:
-                all_numbers = re.findall(r'\b[0-9]{6,12}\b', extracted_text)
-                all_numbers = [n for n in all_numbers if target_acc not in n]
-                if all_numbers:
-                    tx_id = all_numbers[0]
+            # --- الشرط 1: التحقق من وجود رقم المستفيد بدقة ---
+            if target_acc not in extracted_text:
+                await processing_msg.edit_text(
+                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                return
 
-            amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال|يمني|YER|YR|Rial)', extracted_text, re.IGNORECASE)
+            # --- الشرط 2: استخراج المبلغ الذي يسبقه أو يتبعه عبارة "ريال يمني" ---
             amount_yer = 0.0
+            amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|YER|YER\b|ريال)', extracted_text, re.IGNORECASE)
             if amount_match:
                 amt_str = amount_match.group(1).replace(',', '')
                 try:
                     amount_yer = float(amt_str)
                 except ValueError:
                     pass
-            
+
             if amount_yer <= 0:
+                # محاولة بديلة للبحث عن المبالغ بجوار كلمات مثل "المبلغ" أو الأرقام الكبيرة
                 nums = re.findall(r'\b([1-9][0-9]{2,6}(?:\.[0-9]+)?)\b', extracted_text)
-                nums = [float(n.replace(',', '')) for n in nums if n != target_acc and (not tx_id or n != tx_id)]
+                nums = [float(n.replace(',', '')) for n in nums if n != target_acc]
                 if nums:
                     amount_yer = max(nums)
 
-            acc_found = target_acc in extracted_text
-
-            # --- شروط التحقق الصارمة ---
-            if not acc_found:
+            if amount_yer <= 0:
                 await processing_msg.edit_text(
-                    f"❌ **عذراً، رقم الحساب المستلم في الإيصال غير مطابق!**\n"
-                    f"📌 يجب أن يتم التحويل إلى حسابنا الرسمي: `{target_acc}`",
+                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
+
+            # --- الشرط 3: استخراج رقم مرجع العملية بدقة وتجنب أرقام الهواتف ---
+            tx_id = None
+            # البحث عن كلمات مفتاحية للمرجع
+            tx_id_match = re.search(r'(?:رقم المرجع|مرجع|المرجع|Reference|Ref|Transaction ID|رقم العملية)[:\s#]*([A-Za-z0-9\-]{5,20})', extracted_text, re.IGNORECASE)
+            if tx_id_match:
+                candidate = tx_id_match.group(1).strip()
+                if not candidate.startswith('77') and target_acc not in candidate:
+                    tx_id = candidate
+
+            if not tx_id:
+                # البحث عن أي كود تسلسلي صالح بعيداً عن أرقام الهواتف
+                potential_refs = re.findall(r'\b([A-Za-z0-9]{6,15})\b', extracted_text)
+                for ref in potential_refs:
+                    if ref == target_acc or ref == str(int(amount_yer)):
+                        continue
+                    # تجاهل أرقام الهواتف اليمنية (التي تتكون من 9 أرقام وتبدأ بـ 7)
+                    if len(ref) == 9 and ref.startswith(('77', '73', '70', '71', '78')):
+                        continue
+                    tx_id = ref
+                    break
 
             if not tx_id:
                 await processing_msg.edit_text(
-                    f"❌ **تعذر استخراج رقم العملية (المرجع) من الإيصال تلقائياً.**\n"
-                    f"يرجى التأكد من وضوح الإيصال أو التواصل مع الدعم الفني.",
+                    f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            if amount_yer <= 0:
+            # --- الشرط 4: التحقق مما إذا كان رقم العملية محفوظاً مسبقاً (منع التكرار) ---
+            existing_tx = supabase.table("transactions").select("*").eq("transaction_id", str(tx_id)).execute()
+            if existing_tx.data and len(existing_tx.data) > 0:
+                prev_data = existing_tx.data[0]
+                prev_amount = prev_data.get('amount_yer', 0)
                 await processing_msg.edit_text(
-                    f"❌ **تعذر تحديد مبلغ التحويل بدقة من الصورة.**\n"
-                    f"رقم العملية المستخرج: `{tx_id}`",
+                    f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{prev_amount:,.5f}` حسب رقم مرجع العملية (`{tx_id}`) والمبلغ حقها.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # حساب المبلغ بالدولار بناء على سعر الصرف (550 ريال = 1 دولار)
+            # --- حساب المبلغ بالدولار ---
             amount_usd = round(amount_yer / EXCHANGE_RATE, 2)
             if amount_usd <= 0:
                 amount_usd = 0.01
 
-            # --- التحقق من قاعدة البيانات لمنع التكرار وحفظ العملية ---
+            # --- حفظ العملية في قاعدة البيانات وشحن الرصيد ---
             saved_success = db_check_and_save_transaction(
                 transaction_id=str(tx_id),
                 user_id=user_id,
@@ -1209,26 +1226,24 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             if not saved_success:
                 await processing_msg.edit_text(
-                    f"⚠️ **عذراً، رقم العملية (`{tx_id}`) مستخدم مسبقاً وتم شحن رصيده من قبل!**\n"
-                    f"لا يمكن استخدام نفس الإيصال أو رقم العملية أكثر من مرة.",
+                    f"⚠️ تم استخدام رقم مرجع العملية من قبل بتحويل مبلغ `{amount_yer:,.5f}` حسب رقم مرجع العملية (`{tx_id}`) والمبلغ حقها.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # --- شحن الرصيد للمستخدم بنجاح ---
             db_update_balance(user_id, amount_usd, mode="add")
             updated_user = db_get_user(user_id)
             new_balance = float(updated_user.get('balance', 0.0))
 
-            # صياغة رسالة النجاح حسب طلبك بالتمام والكمال
+            # --- رسالة النجاح حسب طلبك بالنص الدقيق ---
             success_reply = (
-                f"🎉 **تم التحقق من إيصال {wallet_name} وشحن رصيدك بنجاح!** 🤖✨\n"
+                f"🎉 **تم التحقق من إيصال محفظة جيب (Jaib) وشحن رصيدك بنجاح!** 🤖✨\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"💳 **طريقة الشحن:** {wallet_name}\n"
+                f"💳 **طريقة الشحن:** محفظة جيب (Jaib)\n"
                 f"🔢 **رقم الحساب المستلم:** `{target_acc}`\n"
                 f"🆔 **رقم العملية الموثق:** `{tx_id}`\n"
-                f"💵 **المبلغ المرسل:** `{amount_yer:,.0f} ريال يمني`\n"
+                f"💵 **المبلغ المرسل باليمني:** `{amount_yer:,.0f} ريال يمني`\n"
                 f"⭐ **المبلغ المضاف:** `${amount_usd:.2f}`\n"
                 f"💰 **رصيدك الحالي الجديد:** `${new_balance:.2f}`\n\n"
                 f"🚀 **تم التحقق وحفظ العملية في قاعدة البيانات بنجاح تام.**"
@@ -1240,7 +1255,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
-            # إرسال إشعار لقناة اللوجات للإدارة
+            # إرسال إشعار للإدارة في قناة اللوجات
             try:
                 await context.bot.send_message(
                     chat_id=LOG_CHANNEL_ID,
@@ -1261,7 +1276,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
         except Exception as e:
             await processing_msg.edit_text(
-                f"❌ **حدث خطأ أثناء معالجة الإيصال الآلي:**\n`{str(e)[:150]}`",
+                f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
@@ -1399,7 +1414,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if text_content and not (is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state):
         try:
-            from database import supabase
             res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
             rows = res.data if hasattr(res, 'data') else []
             if rows:
