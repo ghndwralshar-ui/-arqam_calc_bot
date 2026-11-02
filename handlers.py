@@ -509,7 +509,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"🌍 **الدولة:** {c_name_ar}\n"
                         f"📞 **مفتاح الدولة:** `{c_dial}`\n"
                         f"📱 **الرقم المشتري:** `{phone}`\n"
-                        f"⭐ **المبلغ المخصوم:** `${price:.2f}`\n\n"
+                        f"⭐ **المبلغ المخصوم:** `${country_price:.2f}`\n\n"
                         f"⏳ **جاري رصد واستقبال الكود تلقائياً...**\n"
                         f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
                     )
@@ -1125,7 +1125,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
             
-            print(f"\n================ OCR EXTRACTED TEXT ================\n{extracted_text}\n==================================================\n")
+            print(f"\n================ OCR EXTRACTED TEXT ===============:\n{extracted_text}\n==================================================\n")
 
             if extracted_text.startswith("ERROR_"):
                 await processing_msg.edit_text(
@@ -1165,44 +1165,28 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- التحديث الذكي لاستخراج المبلغ حتى لو كان في سطر مستقل ---
+            # --- استخراج المبلغ: أخذ أول رقم صحيح يظهر في أول أسطر النص (خاص بإيصالات جيب) ---
             amount_yer = 0.0
-            # 1. البحث بالطريقة التقليدية بجانب كلمة ريال
-            amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
-            if amount_match:
-                amt_str = amount_match.group(1).replace(',', '')
-                try:
-                    amount_yer = float(amt_str)
-                except ValueError:
-                    pass
+            lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
+            
+            # 1. فحص أول 4 أسطر لالتقاط الرقم الموجود أعلى الإيصال بدقة تامة
+            for line in lines[:4]:
+                clean_line = line.replace(',', '').replace(' ', '').replace('•', '')
+                if clean_line.isdigit():
+                    val = float(clean_line)
+                    if 10 <= val <= 10000000 and val != 2026:
+                        amount_yer = val
+                        break
 
-            # 2. إذا لم يتم العثور عليه، نبحث عن الرقم المكتوب مباشرة بعد أو قبل كلمة "ريال يمني" بغض النظر عن المسافة والسطر
+            # 2. إذا لم يتم العثور عليه، نبحث في الكود ككل عن أي رقم يسبق أو تسبقه كلمة "ريال"
             if amount_yer <= 0:
-                lines = extracted_text.split('\n')
-                for i, line in enumerate(lines):
-                    if "ريال" in line or "YER" in line:
-                        # فحص نفس السطر
-                        nums_in_line = re.findall(r'\b([0-9,]+\.?[0-9]*)\b', line)
-                        for n in nums_in_line:
-                            clean_n = n.replace(',', '')
-                            if clean_n.replace('.', '', 1).isdigit():
-                                val = float(clean_n)
-                                if 10 <= val <= 10000000 and val != 2026:
-                                    amount_yer = val
-                                    break
-                        if amount_yer > 0: break
-                        # فحص السطر الذي يسبقه مباشرة (حسب شكل إيصالك الأخير)
-                        if i > 0:
-                            prev_line = lines[i-1]
-                            nums_in_prev = re.findall(r'\b([0-9,]+\.?[0-9]*)\b', prev_line)
-                            for n in nums_in_prev:
-                                clean_n = n.replace(',', '')
-                                if clean_n.replace('.', '', 1).isdigit():
-                                    val = float(clean_n)
-                                    if 10 <= val <= 10000000 and val != 2026:
-                                        amount_yer = val
-                                        break
-                        if amount_yer > 0: break
+                amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
+                if amount_match:
+                    amt_str = amount_match.group(1).replace(',', '')
+                    try:
+                        amount_yer = float(amt_str)
+                    except ValueError:
+                        pass
 
             if amount_yer <= 0 or amount_yer > 10000000 or amount_yer == 2026:
                 await processing_msg.edit_text(
