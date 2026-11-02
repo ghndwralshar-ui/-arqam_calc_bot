@@ -2,21 +2,14 @@ import logging
 import asyncio
 import re
 import httpx
-import base64
-from io import BytesIO
-from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
-# الاستيراد بالطريقة الرسمية الحديثة لمكتبة google-genai
-from google import genai
-from google.genai import types
-
-# تهيئة المفتاح بالطريقة القياسية المستقرة من ملف الإعدادات
+# استيراد الإعدادات ومفتاح OCR من ملف config
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
     FORCED_CHANNEL_URL, LOG_CHANNEL_ID, HMCARD_API_URL, HMCARD_API_KEY, 
-    HEADERS, COUNTRY_INFO, STATIC_COUNTRIES, GEMINI_API_KEY
+    HEADERS, COUNTRY_INFO, STATIC_COUNTRIES, OCR_SPACE_API_KEY
 )
 
 from database import (
@@ -113,33 +106,38 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
-    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي (OCR) باستخدام مكتبة google-genai الحديثة"""
+    """قراءة كامل النص الموجود في إيصال جيب أو الكريمي باستخدام OCR.space API ومفتاحك الخاص"""
+    url = "https://api.ocr.space/parse/image"
+    
+    payload = {
+        'apikey': OCR_SPACE_API_KEY,  
+        'language': 'ara',            
+        'isOverlayRequired': False,
+        'detectOrientation': True,
+        'scale': True
+    }
+    files = {
+        'file': ('receipt.jpg', photo_bytes, 'image/jpeg')
+    }
+    
     try:
-        # تهيئة العميل بالطريقة الرسمية الحديثة مع تمرير مفتاحك (AQ)
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        # استخدام Interactions API الحديثة المدعومة في المكتبة الجديدة
-        interaction = client.interactions.create(
-            model="gemini-2.5-flash",
-            input=[
-                {
-                    "type": "text", 
-                    "text": "قم بقراءة جميع النصوص والكتابات الموجودة في صورة إيصال التحويل المرفق (جيب أو الكريمي) بدقة عالية ونسخها حرفياً كما هي دون أي تغيير أو اختصار."
-                },
-                {
-                    "type": "image",
-                    "data": base64.b64encode(photo_bytes).decode("utf-8"),
-                    "mime_type": "image/jpeg"
-                }
-            ]
-        )
-        
-        if interaction and interaction.output_text:
-            return interaction.output_text.strip()
-        return "❌ الإيصال فارغ أو تعذر استخراج النص."
-            
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, data=payload, files=files)
+            if response.status_code == 200:
+                result = response.json()
+                if not result.get("IsErroredOnProcessing"):
+                    parsed_results = result.get("ParsedResults", [])
+                    if parsed_results:
+                        text = parsed_results[0].get("ParsedText", "").strip()
+                        if text:
+                            return text
+                    return "❌ الإيصال فارغ أو تعذر استخراج النص."
+                else:
+                    error_msg = result.get("ErrorMessage", ["خطأ غير معروف"])[0]
+                    return f"❌ خطأ في معالجة الصورة: {error_msg}"
+            return f"❌ خطأ في الاتصال بالخدمة (رمز: {response.status_code})."
     except Exception as e:
-        return f"❌ خطأ عبر واجهة الذكاء الاصطناعي الحديثة: {str(e)}"
+        return f"❌ حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -1116,7 +1114,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
         wallet_name = "محفظة جيب (Jaib)" if action_type == 'waiting_for_jaib_deposit' else "بنك الكريمي (Al-Kuraimi)"
         
         processing_msg = await update.message.reply_text(
-            "🧠 **جاري قراءة واستخراج النصوص من الإيصال عبر واجهة الذكاء الاصطناعي الحديثة...**\n⏳ يرجى الانتظار...",
+            "🧠 **جاري قراءة واستخراج النصوص من الإيصال عبر النظام الآلي...**\n⏳ يرجى الانتظار...",
             parse_mode='Markdown'
         )
         
