@@ -118,3 +118,24 @@ def get_all_sub_admins():
         return [row["admin_id"] for row in rows] if rows else []
     except Exception:
         return []
+def db_check_and_save_transaction(transaction_id: str, user_id: int, amount_yer: float, amount_usd: float, wallet_type: str) -> bool:
+    """التحقق مما إذا كانت العملية مستخدمة مسبقاً، وإذا لم تكن، يتم حفظها وشحن الرصيد"""
+    try:
+        from database import supabase
+        # 1. التحقق من وجود رقم العملية مسبقاً لمنع التكرار
+        existing = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
+        if existing.data and len(existing.data) > 0:
+            return False # العملية مستخدمة من قبل!
+            
+        # 2. حفظ العملية الجديدة في قاعدة البيانات
+        supabase.table("transactions").insert({
+            "transaction_id": transaction_id,
+            "user_id": user_id,
+            "amount_yer": amount_yer,
+            "amount_usd": amount_usd,
+            "wallet_type": wallet_type
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"Database Transaction Error: {e}")
+        return False
