@@ -1137,11 +1137,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- الخطوة 1: التحقق الصارم (الاسم الكامل الصريح "سالم احمد يحيى صالح السعدي" أو رقم المستفيد الثابت دون السماح بالتمويه بالنجوم) ---
+            # --- الخطوة 1: التحقق المرن والذكي (يقبل رقم الحساب الثابت أو اسمك الصريح أو أجزاء منه لتفادي مشاكل تقطيع الـ OCR) ---
             has_valid_acc = str(target_acc) in extracted_text or str(target_acc) in clean_text
-            has_explicit_name = "سالم احمد يحيى صالح السعدي" in extracted_text or "سالم احمد" in extracted_text
+            # التحقق من اسمك بغض النظر عن المسافات أو تقطيع الحروف من محرك OCR
+            has_valid_name = any(name_part in extracted_text or name_part in clean_text for name_part in ["سالم احمد", "السعدي", "سالم", "يحيى"])
 
-            if not (has_valid_acc or has_explicit_name):
+            if not (has_valid_acc or has_valid_name):
                 await processing_msg.edit_text(
                     f"❌ عذرا صورة الاثبات غير صحيحة يرجى ارسال صورة عملية استخدمت في جيب لنفس هذا الرقم `{target_acc}`",
                     parse_mode='Markdown',
