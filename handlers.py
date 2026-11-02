@@ -42,7 +42,6 @@ EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
 KREEMI_ACCOUNT = "3105004949"
 
-# البيانات الثابتة الصحيحة للمستفيد
 VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
@@ -111,21 +110,17 @@ def mask_link(link: str) -> str:
     return link[:half] + "..."
 
 async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
-    """قراءة كامل النص الموجود في الإيصال باستخدام OCR.space API"""
     url = "https://api.ocr.space/parse/image"
-    
     payload = {
         'apikey': OCR_SPACE_API_KEY,  
         'isOverlayRequired': False,
         'detectOrientation': True,
         'scale': True
     }
-    
     raw_bytes = bytes(photo_bytes)
     files = {
         'file': ('receipt.jpg', raw_bytes, 'image/jpeg')
     }
-    
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, data=payload, files=files)
@@ -514,7 +509,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"🌍 **الدولة:** {c_name_ar}\n"
                         f"📞 **مفتاح الدولة:** `{c_dial}`\n"
                         f"📱 **الرقم المشتري:** `{phone}`\n"
-                        f"⭐ **المبلغ المخصوم:** `${country_price:.2f}`\n\n"
+                        f"⭐ **المبلغ المخصوم:** `${price:.2f}`\n\n"
                         f"⏳ **جاري رصد واستقبال الكود تلقائياً...**\n"
                         f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
                     )
@@ -1128,12 +1123,10 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_file = await update.message.photo[-1].get_file()
             photo_bytes = await photo_file.download_as_bytearray()
 
-            # قراءة النص بالكامل عبر OCR.space مع كشف أخطاء الاتصال
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
             
             print(f"\n================ OCR EXTRACTED TEXT ================\n{extracted_text}\n==================================================\n")
 
-            # --- فحص 1: هل فشل الـ OCR الأساسي أو حدث خطأ اتصال؟ ---
             if extracted_text.startswith("ERROR_"):
                 await processing_msg.edit_text(
                     f"❌ **خطأ تقني في قراءة الإيصال:**\n`{extracted_text}`\n\n"
@@ -1154,7 +1147,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             clean_text = re.sub(r'[\s\-\_\:\,]', '', extracted_text)
 
-            # --- فحص 2: التحقق من رقم المستفيد أو اسمه ---
             has_valid_phone = VALID_BENEFICIARY_PHONE in extracted_text or VALID_BENEFICIARY_PHONE in clean_text
             has_valid_name = any(k in extracted_text or k in clean_text for k in ["سالم احمد", "السعدي", "سالم", "يحيى"])
 
@@ -1173,8 +1165,9 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- فحص 3: استخراج المبلغ بدقة بجانب كلمة ريال يمني ---
+            # --- التحديث الذكي لاستخراج المبلغ حتى لو كان في سطر مستقل ---
             amount_yer = 0.0
+            # 1. البحث بالطريقة التقليدية بجانب كلمة ريال
             amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
             if amount_match:
                 amt_str = amount_match.group(1).replace(',', '')
@@ -1182,6 +1175,34 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     amount_yer = float(amt_str)
                 except ValueError:
                     pass
+
+            # 2. إذا لم يتم العثور عليه، نبحث عن الرقم المكتوب مباشرة بعد أو قبل كلمة "ريال يمني" بغض النظر عن المسافة والسطر
+            if amount_yer <= 0:
+                lines = extracted_text.split('\n')
+                for i, line in enumerate(lines):
+                    if "ريال" in line or "YER" in line:
+                        # فحص نفس السطر
+                        nums_in_line = re.findall(r'\b([0-9,]+\.?[0-9]*)\b', line)
+                        for n in nums_in_line:
+                            clean_n = n.replace(',', '')
+                            if clean_n.replace('.', '', 1).isdigit():
+                                val = float(clean_n)
+                                if 10 <= val <= 10000000 and val != 2026:
+                                    amount_yer = val
+                                    break
+                        if amount_yer > 0: break
+                        # فحص السطر الذي يسبقه مباشرة (حسب شكل إيصالك الأخير)
+                        if i > 0:
+                            prev_line = lines[i-1]
+                            nums_in_prev = re.findall(r'\b([0-9,]+\.?[0-9]*)\b', prev_line)
+                            for n in nums_in_prev:
+                                clean_n = n.replace(',', '')
+                                if clean_n.replace('.', '', 1).isdigit():
+                                    val = float(clean_n)
+                                    if 10 <= val <= 10000000 and val != 2026:
+                                        amount_yer = val
+                                        break
+                        if amount_yer > 0: break
 
             if amount_yer <= 0 or amount_yer > 10000000 or amount_yer == 2026:
                 await processing_msg.edit_text(
@@ -1192,7 +1213,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- فحص 4: استخراج رقم مرجع العملية ---
+            # --- استخراج رقم مرجع العملية ---
             tx_id = None
             tx_id_match = re.search(r'(?:رقم مرجع العملية|مرجع العملية|مرجع|المرجع|Ref|Reference)[:\s#]*([0-9A-Za-z\-]{8,20})', extracted_text, re.IGNORECASE)
             if tx_id_match:
@@ -1217,7 +1238,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- فحص 5: منع تكرار رقم المرجع في قاعدة البيانات ---
+            # --- منع تكرار رقم المرجع في قاعدة البيانات ---
             try:
                 existing_tx = supabase.table("transactions").select("*").eq("transaction_id", str(tx_id)).execute()
                 if existing_tx.data and len(existing_tx.data) > 0:
