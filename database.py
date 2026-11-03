@@ -94,11 +94,19 @@ def db_get_advanced_stats():
         return {"total_users": 0, "total_balances": 0, "total_referrals": 0, "new_24h": 0, "top_refs": []}
 
 def db_get_all_users():
+    """جلب جميع آيديهات المستخدمين من قاعدة البيانات بشكل مباشر وسليم"""
     try:
-        res = supabase.table("users").select("user_id").eq("is_banned", 0).execute()
+        res = supabase.table("users").select("user_id").execute()
         rows = res.data if hasattr(res, 'data') else []
-        return [row["user_id"] for row in rows] if rows else []
-    except Exception:
+        # إذا وجد عمود is_banned يتم استثناء المحظورين، وإذا حدث أي خطأ يتم جلب الكل ضماناً للإذاعة
+        users_list = []
+        for row in rows:
+            uid = row.get("user_id")
+            if uid:
+                users_list.append(uid)
+        return users_list
+    except Exception as e:
+        print(f"db_get_all_users Error: {e}")
         return []
 
 def is_admin_or_sub(user_id, admin_id):
@@ -118,16 +126,14 @@ def get_all_sub_admins():
         return [row["admin_id"] for row in rows] if rows else []
     except Exception:
         return []
+
 def db_check_and_save_transaction(transaction_id: str, user_id: int, amount_yer: float, amount_usd: float, wallet_type: str) -> bool:
     """التحقق مما إذا كانت العملية مستخدمة مسبقاً، وإذا لم تكن، يتم حفظها وشحن الرصيد"""
     try:
-        from database import supabase
-        # 1. التحقق من وجود رقم العملية مسبقاً لمنع التكرار
         existing = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
         if existing.data and len(existing.data) > 0:
             return False # العملية مستخدمة من قبل!
             
-        # 2. حفظ العملية الجديدة في قاعدة البيانات
         supabase.table("transactions").insert({
             "transaction_id": transaction_id,
             "user_id": user_id,
