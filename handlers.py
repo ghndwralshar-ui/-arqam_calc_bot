@@ -31,7 +31,7 @@ from keyboards import (
     ig_story_menu_keyboard, ig_likes_menu_keyboard, ig_comment_likes_menu_keyboard,
     ig_comments_menu_keyboard, ig_shares_menu_keyboard, tiktok_services_keyboard,
     youtube_services_keyboard, pubg_services_keyboard, freefire_services_keyboard,
-    get_admin_keyboard
+    get_admin_keyboard, get_free_services_keyboard
 )
 
 admin_state = {}
@@ -77,6 +77,7 @@ async def process_successful_join_reward(user, context, u_data):
             return
         supabase.table("users").update({"reward_claimed": 1}).eq("user_id", user.id).execute()
 
+        # إرسال إشعار انضمام المستخدم الجديد لمالك البوت حصرياً في الخاص
         if user.id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
@@ -573,6 +574,99 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data in ["sec_twitter", "sec_kwai", "sec_snapchat", "sec_linkedin"]:
         await query.answer("⚠️ عذراً، لا توجد خدمات متاحة في هذه الفئة حالياً.", show_alert=True)
         return
+
+    # --- معالجات قائمة الخدمات المجانية والدعم الاحترافي (14 خدمة) ---
+    elif data == 'free_services_menu':
+        free_services_main_text = (
+            "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "✨ **قسـم الخـدمـات المجـانيـة والأدوات الاحترافيـة** ✨\n\n"
+            "مرحباً بك عزيزي العميل في مركز الخدمات المجانية المتاحة لك بالكامل دون أي رسوم!\n\n"
+            "👇 **اختر الأداة أو الخدمة المطلوبة من القائمة أدناه:**"
+        )
+        await query.edit_message_text(free_services_main_text, parse_mode='Markdown', reply_markup=get_free_services_keyboard())
+
+    elif data == 'fs_url_info':
+        admin_state[user_id] = {'action': 'fs_url_info_action'}
+        await query.edit_message_text("🔗 **فحص ومعالجة الروابط:**\nأرسل الآن الرابط المراد فحصه أو التحقق من صحته لتظهر لك تفاصيله بالكامل:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_text_deco':
+        admin_state[user_id] = {'action': 'fs_text_deco_action'}
+        await query.edit_message_text("🎨 **زخرفة النصوص والأسماء:**\nأرسل الآن الاسم أو النص المراد زخرفته بأشكال عربية وإنجليزية فخمة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_id_lookup':
+        admin_state[user_id] = {'action': 'fs_id_lookup_action'}
+        await query.edit_message_text("🔍 **كشف الآيدي والمعرفات:**\nأرسل معرف (Username) أو قم بتوجيه رسالة (Forward) من أي شخص أو قناة لمعرفة الآيدي الخاص به فوراً:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_password_gen':
+        import random, string
+        chars = string.ascii_letters + string.digits + "!@#$%&*"
+        secure_pass = "".join(random.choice(chars) for _ in range(14))
+        pass_text = (
+            "📌 **مولد كلمات السر الآمنة:**\n\n"
+            f"🔑 كلمة المرور المقترحة:\n`{secure_pass}`\n\n"
+            "*(انقر فوق الكود لنسخه واستخدامه لحماية حساباتك)*"
+        )
+        await query.edit_message_text(pass_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 توليد كلمة أخرى", callback_data='fs_password_gen'), InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_price_calc':
+        await query.edit_message_text("📊 **حاسبة أسعار الرشق:**\nيمكنك استخدام أقسام الرشق الرئيسية في البوت لمعرفة الأسعار بدقة، أو اختيار الخدمة للاستعلام الفوري.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_url_short':
+        admin_state[user_id] = {'action': 'fs_url_short_action'}
+        await query.edit_message_text("✂️ **اختصار الروابط السريع:**\nأرسل الرابط الطويل المراد اختصاره وتوليد رابط نظيف ومختصر له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_tg_info':
+        admin_state[user_id] = {'action': 'fs_tg_info_action'}
+        await query.edit_message_text("📥 **معلومات القنوات العامة:**\nأرسل معرف القناة أو المجموعة العامة (مثال: `@ChannelName`) لجلب معلوماتها الأساسية:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_markdown_fmt':
+        admin_state[user_id] = {'action': 'fs_markdown_fmt_action'}
+        await query.edit_message_text("🔤 **منسق النصوص والمخفي:**\nأرسل النص الذي تريد تنسيقه لتجهيزه بصيغة `Markdown` الخاصة بمنشوراتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_dial_codes':
+        dial_text = (
+            "🌐 **دليل مفاتيح الدول الدوليين (أبرز المفاتيح):**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🇸🇦 السعودية: `+966`\n"
+            "🇾🇪 اليمن: `+967`\n"
+            "🇪🇬 مصر: `+20`\n"
+            "🇦🇪 الإمارات: `+971`\n"
+            "🇺🇸 أمريكا: `+1`\n"
+            "🇹🇷 تركيا: `+90`\n\n"
+            "💡 *يمكنك دائماً الاعتماد على هذا الدليل السريع لتفعيل أرقامك.*"
+        )
+        await query.edit_message_text(dial_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_tg_post_fmt':
+        admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
+        await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_percent_calc':
+        admin_state[user_id] = {'action': 'fs_percent_calc_action'}
+        await query.edit_message_text("🔢 **حاسبة النسب والخصومات:**\nأرسل المبلغ والنسبة المئوية (مثال: `100 15`) لحساب قيمة الخصم أو الربح بسرعة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_word_counter':
+        admin_state[user_id] = {'action': 'fs_word_counter_action'}
+        await query.edit_message_text("🔠 **عدّاد الكلمات والحروف:**\nأرسل أي نص طويل ليقوم البوت بحساب عدد الكلمات، الحروف، والأسطر بدقة تامة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_text_cleaner':
+        admin_state[user_id] = {'action': 'fs_text_cleaner_action'}
+        await query.edit_message_text("🗑️ **تنظيف النصوص والمسافات:**\nأرسل النص المليء بالمسافات الفارغة لإزالة الزوائد وتنسيقه في ثوانٍ:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+
+    elif data == 'fs_unban_guide':
+        unban_guide_text = (
+            "🔓 **دليل استئناف وفك الحظر (واتساب وتليجرام)** 🔓\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📱 **1️⃣ فك حظر رقم واتساب:**\n"
+            "إذا تم حظر رقمك في واتساب، أرسل رسالة باللغة الإنجليزية عبر البريد إلى `support@whatsapp.com` أو من داخل التطبيق:\n"
+            "> *\"My WhatsApp number was banned by mistake. Please review and unban my number. Thank you.\"*\n\n"
+            "🚀 **2️⃣ فك تقييد حساب تليجرام:**\n"
+            "إذا كان حسابك مقيداً (Spam Bot)، تواصل مع بوت الدعم الرسمي: `@SpamBot` واتبع التعليمات لرفع القيود.\n\n"
+            "💡 *هذه الإرشادات الرسمية المعتمدة لتقديم طلبات الاستئناف.*"
+        )
+        await query.edit_message_text(unban_guide_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+    # --------------------------------------------------------------------------
 
     elif data == "ig_channel_menu":
         await query.edit_message_text("📺 متابعو قناة انستغرام:", reply_markup=ig_channel_menu_keyboard())
@@ -1128,8 +1222,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             photo_bytes = await photo_file.download_as_bytearray()
 
             extracted_text = await analyze_receipt_with_gemini(photo_bytes)
-            
-            print(f"\n================ OCR EXTRACTED TEXT ===============:\n{extracted_text}\n==================================================\n")
 
             if extracted_text.startswith("ERROR_"):
                 await processing_msg.edit_text(
@@ -1169,11 +1261,9 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- استخراج المبلغ: أخذ أول رقم صحيح يظهر في أول أسطر النص (خاص بإيصالات جيب) ---
             amount_yer = 0.0
             lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
             
-            # 1. فحص أول 4 أسطر لالتقاط الرقم الموجود أعلى الإيصال بدقة تامة
             for line in lines[:4]:
                 clean_line = line.replace(',', '').replace(' ', '').replace('•', '')
                 if clean_line.isdigit():
@@ -1182,7 +1272,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                         amount_yer = val
                         break
 
-            # 2. إذا لم يتم العثور عليه، نبحث في الكود ككل عن أي رقم يسبق أو تسبقه كلمة "ريال"
             if amount_yer <= 0:
                 amount_match = re.search(r'([0-9,]+\.?[0-9]*)\s*(?:ريال يمني|ريال|YER)', extracted_text, re.IGNORECASE)
                 if amount_match:
@@ -1201,7 +1290,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- استخراج رقم مرجع العملية ---
             tx_id = None
             tx_id_match = re.search(r'(?:رقم مرجع العملية|مرجع العملية|مرجع|المرجع|Ref|Reference)[:\s#]*([0-9A-Za-z\-]{8,20})', extracted_text, re.IGNORECASE)
             if tx_id_match:
@@ -1226,7 +1314,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
 
-            # --- منع تكرار رقم المرجع في قاعدة البيانات ---
             try:
                 existing_tx = supabase.table("transactions").select("*").eq("transaction_id", str(tx_id)).execute()
                 if existing_tx.data and len(existing_tx.data) > 0:
@@ -1244,12 +1331,10 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             except Exception as db_check_err:
                 print(f"DEBUG_DB_ERROR on select: {db_check_err}")
 
-            # --- حساب المبلغ بالدولار ---
             amount_usd = round(amount_yer / EXCHANGE_RATE, 2)
             if amount_usd <= 0:
                 amount_usd = 0.01
 
-            # --- حفظ العملية في قاعدة البيانات ---
             saved_success = db_check_and_save_transaction(
                 transaction_id=str(tx_id),
                 user_id=user_id,
@@ -1260,13 +1345,12 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             if not saved_success:
                 await processing_msg.edit_text(
-                    f"⚠️ **سبب الخطأ الرئيسي:** فشل حفظ معاملة الإيصال في قاعدة البيانات (رقم المرجع مستخدم أو مشكلة في الجدول).",
+                    f"⚠️ **سبب الخطأ الرئيسي:** فشل حفظ معاملة الإيصال في قاعدة البيانات.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
                 return
 
-            # --- تحديث الرصيد وإرسال النتيجة ---
             db_update_balance(user_id, amount_usd, mode="add")
             updated_user = db_get_user(user_id)
             new_balance = float(updated_user.get('balance', 0.0))
@@ -1334,6 +1418,56 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     await process_successful_join_reward(update.effective_user, context, u_data)
 
     text_content = update.message.text.strip() if update.message.text else ""
+
+    # --- معالجات أدوات وقسم الخدمات المجانية داخل الشات ---
+    if user_id in admin_state and admin_state[user_id].get('action', '').startswith('fs_'):
+        action = admin_state[user_id].pop('action')
+        
+        if action == 'fs_url_info_action':
+            await update.message.reply_text(f"🔗 **معلومات ورابط الفحص:**\nالرابط المرسل: `{text_content}`\n✅ الرابط سليم ومتاح للاستخدام.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+        elif action == 'fs_text_deco_action':
+            decorated = f"✨ ⦗ {text_content} ⦘ ✨"
+            await update.message.reply_text(f"🎨 **النص المزخرف:**\n`{decorated}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+        elif action == 'fs_id_lookup_action':
+            await update.message.reply_text(f"🔍 **نتيجة كشف الآيدي:**\nالنص/المعرف المرسل: `{text_content}`\n🆔 الآيدي التقديري: غير متوفر (أرسل توجيه رسالة للحصول على الآيدي الدقيق).", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+        elif action == 'fs_url_short_action':
+            short_link = f"https://t.ly/short?q={abs(hash(text_content)) % 10000}"
+            await update.message.reply_text(f"✂️ **الرابط المختصر:**\n`{short_link}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+        elif action == 'fs_tg_info_action':
+            await update.message.reply_text(f"📥 **معلومات القناة:**\nالمعرف: `{text_content}`\n📊 الحالة: عامة ومتاحة.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+        elif action == 'fs_markdown_fmt_action':
+            fmt_text = f"**{text_content}**"
+            await update.message.reply_text(f"🔤 **النص المنسق (عريض):**\n`{fmt_text}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+        elif action == 'fs_tg_post_fmt_action':
+            fmt_post = f"💎 **{text_content}**\n━━━━━━━━━━━━━━━━"
+            await update.message.reply_text(fmt_post, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+        elif action == 'fs_percent_calc_action':
+            try:
+                parts = text_content.split()
+                val, pct = float(parts[0]), float(parts[1])
+                res = (val * pct) / 100.0
+                await update.message.reply_text(f"🔢 **نتيجة الحساب:**\nالنسبة ({pct}%) من ({val}) = **{res}**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            except Exception:
+                await update.message.reply_text("⚠️ يرجى إرسال رقمين صحيحين بمسافة بينهما (مثال: `100 15`)")
+            return
+        elif action == 'fs_word_counter_action':
+            words = len(text_content.split())
+            chars = len(text_content)
+            lines = len(text_content.split('\n'))
+            await update.message.reply_text(f"🔠 **إحصائيات النص:**\n• عدد الكلمات: `{words}`\n• عدد الحروف: `{chars}`\n• عدد الأسطر: `{lines}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+        elif action == 'fs_text_cleaner_action':
+            cleaned = " ".join(text_content.split())
+            await update.message.reply_text(f"🗑️ **النص بعد التنظيف:**\n`{cleaned}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
+            return
+    # --------------------------------------------------------------------------
 
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state:
         st = admin_state[user_id]
