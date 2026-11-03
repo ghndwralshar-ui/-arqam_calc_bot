@@ -30,7 +30,7 @@ from keyboards import (
     ig_story_menu_keyboard, ig_likes_menu_keyboard, ig_comment_likes_menu_keyboard,
     ig_comments_menu_keyboard, ig_shares_menu_keyboard, tiktok_services_keyboard,
     youtube_services_keyboard, pubg_services_keyboard, freefire_services_keyboard,
-    get_admin_keyboard, get_free_services_keyboard
+    get_admin_keyboard, get_free_services_keyboard, get_forced_subscription_keyboard
 )
 
 admin_state = {}
@@ -44,6 +44,14 @@ KREEMI_ACCOUNT = "3105004949"
 
 VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
+
+# النص الاحترافي المعتمد لرسالة الاشتراك الإجباري
+FORCED_SUB_MESSAGE = (
+    "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    "عذراً عزيزي العميل، لتفعيل حسابك والبدء في استخدام كافة خدمات البوت (الأرقام الافتراضية، والرشق، وشحن الألعاب)، يجب عليك أولاً الاشتراك في قناة البوت الرسمية.\n\n"
+    "👇 **اشترك الآن عبر الأزرار أدناه، ثم اضغط على زر التحقق للمتابعة:**"
+)
 
 def get_subadmin_keyboard():
     return InlineKeyboardMarkup([
@@ -64,12 +72,6 @@ async def check_user_subscription(user_id: int, context: ContextTypes.DEFAULT_TY
         print(f"Subscription check error: {e}")
         return True
     return False
-
-async def get_forced_subscription_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 اضغط هنا للانضمام إلى القناة", url=FORCED_CHANNEL_URL)],
-        [InlineKeyboardButton("✅ اشتركت، تحقق من الاشتراك 🔄", callback_data="check_subscription")]
-    ])
 
 async def process_successful_join_reward(user, context, u_data):
     """منح مكافأة الإحالة وإشعار المُحيل بعد التحقق من الاشتراك بنجاح"""
@@ -396,8 +398,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not await check_user_subscription(user.id, context):
         await update.message.reply_text(
-            f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
-            parse_mode='Markdown', reply_markup=await get_forced_subscription_keyboard()
+            FORCED_SUB_MESSAGE,
+            parse_mode='Markdown', reply_markup=get_forced_subscription_keyboard()
         )
         return
 
@@ -476,8 +478,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("⚠️ يجب عليك الاشتراك في القناة أولاً لاستخدام البوت!", show_alert=True)
         try:
             await query.edit_message_text(
-                f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
-                parse_mode='Markdown', reply_markup=await get_forced_subscription_keyboard()
+                FORCED_SUB_MESSAGE,
+                parse_mode='Markdown', reply_markup=get_forced_subscription_keyboard()
             )
         except Exception:
             pass
@@ -1557,8 +1559,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if not await check_user_subscription(user_id, context):
         await update.message.reply_text(
-            f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
-            parse_mode='Markdown', reply_markup=await get_forced_subscription_keyboard()
+            FORCED_SUB_MESSAGE,
+            parse_mode='Markdown', reply_markup=get_forced_subscription_keyboard()
         )
         return
 
