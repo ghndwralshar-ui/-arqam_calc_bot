@@ -904,12 +904,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         u_data = db_get_user(user_id)
         free_text = (
-            "💎 **قسم ربح الأرصدة مجاناً وأكواد الهدية:**\n\n"
-            "1️⃣ **رابط الإحالة الخاص بك:**\n"
-            f"`{ref_link}`\n"
-            f"👥 عدد الدعوات: `{u_data['referrals']} شخص` | ⭐ الأرباح: `${u_data['referrals'] * 0.10:.2f}`\n\n"
-            "2️⃣ **شحن عبر كود هدية (Promo Code):**\n"
-            "إذا كان لديك كود هدية، **قم بإرساله مباشرة في هذه المحادثة**!"
+            "💎 **اربح رصيد مجاني في بوت ديجيتال هب!** 🎁\n\n"
+            "💬 **قم بدعوة الأصدقاء، وكل شخص ينظم للبوت عن طريقك سوف تحصل على `0.10$` دولار!**\n\n"
+            "🔗 **رابط الدعوة الخاص بك:**\n"
+            f"`{ref_link}`\n\n"
+            "*(انسخ الرابط أعلاه وشاركه مع أصدقائك وفي المجموعات)*\n\n"
+            "📊 **أرقامك الحالية:**\n"
+            f"👥 عدد الأشخاص الذين دعوتهم: `{u_data['referrals']} شخص`\n"
+            f"⭐ إجمالي رصيدك المكتسب: `${u_data['referrals'] * 0.10:.2f}`\n\n"
+            "💡 **كيف تربح؟**\n"
+            "لكل شخص يدخل إلى البوت ويشترك عبر رابطك الخاص، **سيتم إضافة الرصيد إلى محفظتك تلقائياً!** كلما نشرت رابطك أكثر، زاد رصيدك أكثر 🚀"
         )
         await query.edit_message_text(free_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
@@ -1445,25 +1449,3 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         ])
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
         return
-
-    if text_content and not (is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state):
-        try:
-            res = supabase.table("promo_codes").select("*").eq("code", text_content).execute()
-            rows = res.data if hasattr(res, 'data') else []
-            if rows:
-                promo = rows[0]
-                amount, max_uses, used_count = float(promo["amount"]), int(promo["max_uses"]), int(promo["used_count"])
-                if used_count >= max_uses:
-                    await update.message.reply_text("❌ **عذراً، هذا الكود استنفد الحد الأقصى.**")
-                    return
-                used_check = supabase.table("user_promo_uses").select("*").eq("user_id", user_id).eq("code", text_content).execute()
-                if used_check.data:
-                    await update.message.reply_text("⚠️ **لقد قمت باستخدام هذا الكود مسبقاً.**")
-                    return
-                db_update_balance(user_id, amount, mode="add")
-                supabase.table("promo_codes").update({"used_count": used_count + 1}).eq("code", text_content).execute()
-                supabase.table("user_promo_uses").insert({"user_id": user_id, "code": text_content}).execute()
-                await update.message.reply_text(f"🎉 **تهانينا! تم تفعيل كود الهدية وإضافة `${amount:.2f}` إلى رصيدك.**", parse_mode='Markdown')
-                return
-        except Exception:
-            pass
