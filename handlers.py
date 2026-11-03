@@ -2,15 +2,14 @@ import logging
 import asyncio
 import re
 import httpx
-from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
-# استيراد الإعدادات ومفتاح OCR من ملف config
+# استيراد الإعدادات ومفاتيح الربط من ملف config
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
     FORCED_CHANNEL_URL, LOG_CHANNEL_ID, HMCARD_API_URL, HMCARD_API_KEY, 
-    HEADERS, COUNTRY_INFO, STATIC_COUNTRIES, OCR_SPACE_API_KEY
+    HEADERS, COUNTRY_INFO, OCR_SPACE_API_KEY
 )
 
 from database import (
@@ -37,7 +36,7 @@ from keyboards import (
 admin_state = {}
 user_selected_service = {}
 user_order_data = {}
-active_numbers_cache = {}  # لتتبع حالة الأكواد الواصلة لكل طلب رقم
+active_numbers_cache = {}
 
 EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
@@ -224,7 +223,6 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     )
 
 async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str, service_param: str):
-    """إرسال الإشعارات لقناة الطلبات الرسمية مع زرين: الدخول للبوت وطلب نفس الخدمة"""
     bot_username = context.bot.username
     start_url = f"https://t.me/{bot_username}?start=start"
     service_url = f"https://t.me/{bot_username}?start={service_param}"
@@ -705,12 +703,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "main_rashq":
         await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
 
-    # === معالجات أقسام تليجرام وقوائمها الفرعية بالتكامل التام ===
     elif data == "sec_telegram":
         await query.edit_message_text("🚀 خدمات تليجرام الرئيسية:\nاختر القسم المطلوب:", reply_markup=telegram_services_keyboard())
 
     elif data == "tg_arab_menu":
-        await query.edit_message_text("🇸🇦 أعضاء تيليجرام العرب:\nاختر الباقة المطلوبة:", reply_markup=tg_arab_menu_keyboard())
+        await query.edit_message_text("🇸🇦 أعضاء تيليجرام عرب:\nاختر الباقة المطلوبة:", reply_markup=tg_arab_menu_keyboard())
 
     elif data == "tg_foreign_menu":
         await query.edit_message_text("🌍 أعضاء تيليجرام أجانب:\nاختر الباقة المطلوبة:", reply_markup=tg_foreign_menu_keyboard())
@@ -1333,7 +1330,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'admin_broadcast':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_broadcast'}
-        await query.edit_message_text("📢 أرسل الآن رسالة الإذاعة الشاملة (نص، صورة، أو وسائط):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        await query.edit_message_text("📢 **إذاعة شاملة ضخمة:**\nأرسل الآن نص الإذاعة، الصورة، أو أي وسائط تريد إرسالها لجميع المشتركين:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
 async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
@@ -1379,8 +1376,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"❌ **خطأ تقني في قراءة الإيصال:**\n`{extracted_text}`\n\n"
                     f"💡 يرجى المحاولة مرة أخرى بصورة أضرح أو أوضح.",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 return
 
             if "❌" in extracted_text or len(extracted_text.strip()) < 5:
@@ -1388,8 +1384,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"❌ **سبب الخطأ الرئيسي:** تعذر قراءة الحروف من الصورة بوضوح تام.\n"
                     f"📌 **الإجراء:** يرجى إرسال لقطة شاشة (Screenshot) واضحة ومباشرة للإيصال لنفس الرقم `{target_acc}`.",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 return
 
             clean_text = re.sub(r'[\s\-\_\:\,]', '', extracted_text)
@@ -1408,8 +1403,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"{reason_str}\n\n"
                     f"🔍 **النص الذي تم قراءته من صورتك:**\n`{extracted_text[:250]}`",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 return
 
             amount_yer = 0.0
@@ -1437,8 +1431,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"❌ **سبب الخطأ الرئيسي:** تعذر تحديد مبلغ التحويل بالريال اليمني بوضوح من الإيصال.\n"
                     f"🔍 **النص المستخرج:**\n`{extracted_text[:250]}`",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 return
 
             tx_id = None
@@ -1461,8 +1454,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"❌ **سبب الخطأ الرئيسي:** لم يتم العثور على (رقم مرجع العملية) في تفاصيل الإيصال.\n"
                     f"🔍 **النص المستخرج:**\n`{extracted_text[:250]}`",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 return
 
             try:
@@ -1476,8 +1468,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                         f"💰 المبلغ السابق: `{prev_amount:,.0f} ريال يمني`\n"
                         f"❌ عذراً، لا يمكن استخدام نفس الإيصال أكثر من مرة.",
                         parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                    )
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                     return
             except Exception as db_check_err:
                 print(f"DEBUG_DB_ERROR on select: {db_check_err}")
@@ -1498,8 +1489,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 await processing_msg.edit_text(
                     f"⚠️ **سبب الخطأ الرئيسي:** فشل حفظ معاملة الإيصال في قاعدة البيانات.",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 return
 
             db_update_balance(user_id, amount_usd, mode="add")
@@ -1563,6 +1553,40 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     await process_successful_join_reward(update.effective_user, context, u_data)
 
     text_content = update.message.text.strip() if update.message.text else ""
+
+    # === معالجة قسم الإذاعة الشاملة المحدث والآمن بالكامل ===
+    if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_broadcast':
+        admin_state.pop(user_id, None)
+        all_users = db_get_all_users()
+        
+        status_msg = await update.message.reply_text(
+            f"📢 **بدء إرسال الإذاعة لـ ({len(all_users)}) مشترك...**\n⏳ يرجى الانتظار حتى اكتمال الإرسال.",
+            parse_mode='Markdown'
+        )
+        
+        success_count = 0
+        fail_count = 0
+        
+        for u in all_users:
+            uid = u.get("user_id")
+            if not uid:
+                continue
+            try:
+                await update.message.copy(chat_id=uid)
+                success_count += 1
+                await asyncio.sleep(0.05) # تجنب حدود السرعة في تليجرام (Rate Limits)
+            except Exception:
+                fail_count += 1
+                
+        await status_msg.edit_text(
+            f"✅ **اكتملت الإذاعة بنجاح تام!** 🚀\n\n"
+            f"👥 إجمالي المستخدمين: `{len(all_users)}`\n"
+            f"📨 تم الإرسال بنجاح: `{success_count}`\n"
+            f"❌ فشل الإرسال (حظروا البوت): `{fail_count}`",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة التحكم", callback_data='admin_panel')]])
+        )
+        return
 
     if user_id in admin_state and admin_state[user_id].get('action', '').startswith('fs_'):
         action = admin_state[user_id].pop('action')
