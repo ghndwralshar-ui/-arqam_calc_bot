@@ -1530,8 +1530,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             await processing_msg.edit_text(
                 success_reply,
                 parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-            )
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
 
             log_msg = (
                 "📥 **عملية شحن رصيد ناجحة وموثقة عبر الإيصال!** ✅\n"
@@ -1568,18 +1567,20 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # === معالجة الإذاعة الشاملة المحسنة والمصممة لتفادي التعليق أو الأخطاء تماماً ===
+    # === معالجة الإذاعة الشاملة مع إرسال السبب الحقيقي للخطأ لك (كمالكة للبوت) ===
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_broadcast':
         admin_state.pop(user_id, None)
         
         try:
             all_users = db_get_all_users()
         except Exception as db_err:
-            print(f"Broadcast DB fetch error: {db_err}")
-            all_users = []
+            error_reason = f"خطأ في جلب قاعدة البيانات (Supabase): {str(db_err)}"
+            print(f"Broadcast DB Error: {db_err}")
+            await update.message.reply_text(f"❌ **فشلت الإذاعة بسبب قاعدة البيانات:**\n`{error_reason}`", parse_mode='Markdown')
+            return
 
         if not all_users:
-            await update.message.reply_text("⚠️ عذراً، لا يوجد أي مستخدمين مسجلين في قاعدة البيانات حالياً.")
+            await update.message.reply_text("⚠️ جدول المستخدمين في قاعدة البيانات فارغ تماماً أو لم يتم جلب أي آيديهات.")
             return
 
         status_msg = await update.message.reply_text(
@@ -1589,42 +1590,46 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         
         success_count = 0
         fail_count = 0
+        last_error_reason = "لا يوجد أخطاء"
         
-        for u in all_users:
+        for item in all_users:
             uid = None
-            if isinstance(u, dict):
-                uid = u.get("user_id")
-            elif isinstance(u, (list, tuple)) and len(u) > 0:
-                uid = u[0]
+            if isinstance(item, dict):
+                uid = item.get("user_id")
+            elif isinstance(item, (int, str)):
+                uid = item
+            elif isinstance(item, (list, tuple)) and len(item) > 0:
+                uid = item[0]
             
             if not uid:
                 continue
                 
             try:
+                target_chat_id = int(uid)
                 if update.message.photo:
                     await context.bot.send_photo(
-                        chat_id=int(uid),
+                        chat_id=target_chat_id,
                         photo=update.message.photo[-1].file_id,
                         caption=update.message.caption,
                         parse_mode='Markdown'
                     )
                 elif update.message.video:
                     await context.bot.send_video(
-                        chat_id=int(uid),
+                        chat_id=target_chat_id,
                         video=update.message.video.file_id,
                         caption=update.message.caption,
                         parse_mode='Markdown'
                     )
                 elif update.message.document:
                     await context.bot.send_document(
-                        chat_id=int(uid),
+                        chat_id=target_chat_id,
                         document=update.message.document.file_id,
                         caption=update.message.caption,
                         parse_mode='Markdown'
                     )
-                elif update.message.text:
+                else:
                     await context.bot.send_message(
-                        chat_id=int(uid),
+                        chat_id=target_chat_id,
                         text=update.message.text,
                         parse_mode='Markdown'
                     )
@@ -1632,15 +1637,22 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 success_count += 1
                 await asyncio.sleep(0.03)
             except Exception as broadcast_err:
-                print(f"Skipped user {uid} due to broadcast error: {broadcast_err}")
                 fail_count += 1
+                last_error_reason = str(broadcast_err)
+                print(f"Broadcast error for ID {uid}: {broadcast_err}")
                 
+        # إرسال تقرير مفصل لك (مالك البوت) بالنتيجة والسبب الحقيقي لأي فشل إن وجد
+        report_text = (
+            f"✅ **اكتملت الإذاعة الشاملة!** 🚀\n\n"
+            f"👥 إجمالي المستهدفين: `{len(all_users)}`\n"
+            f"📨 تم الإرسال بنجاح: `{success_count}`\n"
+            f"❌ فشل الإرسال: `{fail_count}`\n\n"
+            f"🔍 **السبب الرئيسي لأحدث خطأ واجهه البوت:**\n`{last_error_reason}`"
+        )
+        
         try:
             await status_msg.edit_text(
-                f"✅ **اكتملت الإذاعة بنجاح تام!** 🚀\n\n"
-                f"👥 إجمالي المستخدمين: `{len(all_users)}`\n"
-                f"📨 تم الإرسال بنجاح: `{success_count}`\n"
-                f"❌ فشل الإرسال (حظروا البوت أو حُذفت حساباتهم): `{fail_count}`",
+                report_text,
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة التحكم", callback_data='admin_panel')]])
             )
