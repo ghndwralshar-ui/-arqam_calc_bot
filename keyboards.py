@@ -1,4 +1,11 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from config import FORCED_CHANNEL_URL
+
+def get_forced_subscription_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 اضغط هنا للإشتراك في قناة البوت", url=FORCED_CHANNEL_URL)],
+        [InlineKeyboardButton("✅ تحقق من الإشتراك 🔄", callback_data="check_subscription")]
+    ])
 
 def get_main_keyboard(user_id, is_admin_func):
     buttons = [
