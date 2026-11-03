@@ -102,16 +102,12 @@ def telegram_services_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🇸🇦 أعضاء تليجرام عرب", callback_data="tg_arab_menu")],
         [InlineKeyboardButton("🌍 أعضاء تليجرام أجانب (Zero Drop)", callback_data="tg_foreign_menu")],
-        [InlineKeyboardButton("🥷 أعضاء تليجرام حسابات محذوفة", callback_data="tg_deleted_652")],
         [InlineKeyboardButton("⭐ أعضاء تليجرام بريميوم (Premium)", callback_data="tg_prem_menu")],
-        [InlineKeyboardButton("🔍 معرفة رقم هاتفك تليجرام", callback_data="tg_phone_960")],
         [InlineKeyboardButton("👁️ مشاهدات منشورات تليجرام", callback_data="tg_views_menu")],
         [InlineKeyboardButton("⚡ مشاهدات وتفاعلات تلقائية للمنشور الجديد", callback_data="tg_auto_menu")],
         [InlineKeyboardButton("🎯 تفاعلات إيموجي وقصص تليجرام", callback_data="tg_react_menu")],
         [InlineKeyboardButton("🗳️ تصويتات مسابقات تليجرام", callback_data="tg_polls_menu")],
-        [InlineKeyboardButton("📊 بوست تصويت استطلاع رأي تليجرام", callback_data="tg_poll_boost_667")],
         [InlineKeyboardButton("🚀 تعزيزات قناة أو مجموعة تليجرام (Boosts)", callback_data="tg_boost_menu")],
-        [InlineKeyboardButton("💬 تعليقات مخصصة تليجرام", callback_data="tg_comment_647")],
         [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
     ])
 
