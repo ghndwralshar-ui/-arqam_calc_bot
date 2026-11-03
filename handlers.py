@@ -262,7 +262,6 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     sms_code = sms_list[0].get('code', 'لا يوجد كود')
                     full_text = sms_list[0].get('text', '')
                     
-                    # التحقق مما إذا تم اللوج مسبقاً لمنع التكرار
                     already_logged = active_numbers_cache.get(order_id, {}).get('has_sms', False)
                     active_numbers_cache[order_id] = {'has_sms': True, 'code': sms_code}
                     
@@ -276,7 +275,6 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         await query.answer(f"✅ الكود وصل بالفعل: {sms_code}", show_alert=True)
                         
-                    # إرسال لوج الطلب المكتمل لقناة البوت فور وصول الكود فقط
                     if not already_logged:
                         cached = active_numbers_cache.get(order_id, {})
                         sec_ar = cached.get('sec_name_ar', 'رقم افتراضي')
@@ -345,7 +343,6 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                         except Exception:
                             pass
 
-                        # إرسال لوج الطلب المكتمل للقناة فقط عند وصول الكود لأول مرة
                         if not already_logged:
                             log_msg = (
                                 "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
@@ -414,6 +411,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
     elif arg_param == 'main_rashq':
         await update.message.reply_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
+    elif arg_param == 'sec_telegram':
+        await update.message.reply_text("🚀 خدمات تليجرام الرئيسية:\nاختر القسم المطلوب:", reply_markup=telegram_services_keyboard())
     else:
         await update.message.reply_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user.id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
 
@@ -574,7 +573,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     db_update_balance(user_id, country_price, mode="deduct")
                     
-                    # حفظ معلومات الطلب في الكاش للرجوع إليها عند وصول الكود
                     active_numbers_cache[str(order_id)] = {
                         'has_sms': False, 
                         'service': service, 
@@ -707,11 +705,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "main_rashq":
         await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
 
+    # === معالجات أقسام تليجرام وقوائمها الفرعية بالتكامل التام ===
+    elif data == "sec_telegram":
+        await query.edit_message_text("🚀 خدمات تليجرام الرئيسية:\nاختر القسم المطلوب:", reply_markup=telegram_services_keyboard())
+
+    elif data == "tg_arab_menu":
+        await query.edit_message_text("🇸🇦 أعضاء تيليجرام العرب:\nاختر الباقة المطلوبة:", reply_markup=tg_arab_menu_keyboard())
+
+    elif data == "tg_foreign_menu":
+        await query.edit_message_text("🌍 أعضاء تيليجرام أجانب:\nاختر الباقة المطلوبة:", reply_markup=tg_foreign_menu_keyboard())
+
+    elif data == "tg_prem_menu":
+        await query.edit_message_text("⭐ أعضاء تيليجرام بريميوم:\nاختر الباقة المطلوبة:", reply_markup=tg_prem_menu_keyboard())
+
+    elif data == "tg_views_menu":
+        await query.edit_message_text("👁️ مشاهدات ومشاركات تليجرام:\nاختر الخدمة المطلوبة:", reply_markup=tg_views_menu_keyboard())
+
+    elif data == "tg_auto_menu":
+        await query.edit_message_text("⚡ خدمات التفاعل والمشاهدات التلقائية:\nاختر الخدمة المطلوبة:", reply_markup=tg_auto_menu_keyboard())
+
+    elif data == "tg_react_menu":
+        await query.edit_message_text("⭐ تفاعلات إيموجي تليجرام:\nاختر نوع التفاعل المطلوب:", reply_markup=tg_react_menu_keyboard())
+
+    elif data == "tg_polls_menu":
+        await query.edit_message_text("🗳️ تصويتات واستطلاعات تليجرام:\nاختر نوع التصويت المطلوب:", reply_markup=tg_polls_menu_keyboard())
+
+    elif data == "tg_boost_menu":
+        await query.edit_message_text("🚀 تعزيزات قنوات ومجموعات تليجرام (Boosts):\nاختر المدة المطلوبة:", reply_markup=tg_boost_menu_keyboard())
+
     elif data == "sec_whatsapp":
         await query.edit_message_text("🟢 خدمات واتساب:\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
-
-    elif data == "sec_telegram":
-        await query.edit_message_text("🚀 خدمات تليجرام:\nاختر القسم الفرعي المطلوب:", reply_markup=telegram_services_keyboard())
 
     elif data == "sec_facebook":
         await query.edit_message_text("📘 خدمات فيسبوك:", reply_markup=facebook_services_keyboard())
@@ -789,7 +812,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🇸🇦 السعودية: `+966`\n"
             "🇾🇪 اليمن: `+967`\n"
-            "🇪🇬 مصر: `+20`\n"
+            "🇪 مصر: `+20`\n"
             "🇦🇪 الإمارات: `+971`\n"
             "🇺🇸 أمريكا: `+1`\n"
             "🇹🇷 تركيا: `+90`\n\n"
@@ -947,22 +970,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_selected_service[user_id] = {"service_id": service_ids.get(data, 730), "name": names.get(data, "واتساب"), "price": prices.get(data, 1.0), "min": 10, "max": 100000000, "type": "channel"}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
-    elif data.startswith("tg_t_") or data.startswith("fb_f_") or data.startswith("ig_f_"):
+    elif data.startswith("tg_t_") or data.startswith("fb_f_") or data.startswith("ig_f_") or data.startswith("tg_v_") or data.startswith("tg_a_") or data.startswith("tg_r_") or data.startswith("tg_p_"):
         service_ids = {
             "tg_t_653": 653, "tg_t_654": 654, "tg_t_659": 659, "tg_t_660": 660, "tg_t_661": 661, "tg_t_662": 662,
             "tg_t_613": 613, "tg_t_614": 614, "tg_t_646": 646, "tg_t_893": 893, "tg_t_894": 894, "tg_t_895": 895,
-            "fb_f_745": 745, "fb_f_746": 746, "fb_f_747": 747, "fb_f_748": 748, "fb_f_774": 774, "fb_f_775": 775,
-            "fb_f_776": 776, "fb_f_777": 777, "fb_f_750": 750, "fb_f_751": 751, "fb_f_752": 752, "fb_f_753": 753,
-            "fb_f_754": 754, "fb_f_755": 755, "fb_f_756": 756, "fb_f_788": 788, "fb_f_789": 789, "fb_f_790": 790,
-            "fb_f_791": 791, "fb_f_792": 792, "fb_f_793": 793, "fb_f_794": 794, "fb_f_778": 778, "fb_f_779": 779,
-            "fb_f_787": 787, "fb_f_795": 795, "ig_f_799": 799, "ig_f_800": 800, "ig_f_801": 801, "ig_f_802": 802,
-            "ig_f_803": 803, "ig_f_804": 804, "ig_f_757": 757, "ig_f_762": 762, "ig_f_766": 1.50, "ig_f_785": 0.30,
+            "tg_v_628": 628, "tg_v_668": 668, "tg_v_669": 669, "tg_v_670": 670, "tg_v_671": 671,
+            "tg_a_702": 702, "tg_a_703": 703, "tg_a_704": 704, "tg_a_705": 705, "tg_a_706": 706, "tg_a_707": 707, "tg_a_708": 708, "tg_a_709": 709, "tg_a_710": 710, "tg_a_711": 711,
+            "tg_r_620": 620, "tg_r_621": 621, "tg_r_622": 622, "tg_r_623": 623, "tg_r_624": 624, "tg_r_625": 625, "tg_r_626": 626, "tg_r_690": 690,
+            "tg_p_665": 665, "tg_p_666": 666,
+            "fb_f_745": 745, "fb_f_746": 746, "fb_f_747": 747, "fb_f_748": 748, "fb_f_774": 1.02, "fb_f_775": 1.08,
+            "fb_f_776": 1.10, "fb_f_777": 1.12, "fb_f_750": 0.28, "fb_f_751": 0.28, "fb_f_752": 0.28, "fb_f_753": 0.28,
+            "fb_f_754": 0.28, "fb_f_755": 0.28, "fb_f_756": 0.28, "fb_f_788": 2.80, "fb_f_789": 2.80, "fb_f_790": 2.80,
+            "fb_f_791": 2.80, "fb_f_792": 2.80, "fb_f_793": 2.80, "fb_f_794": 2.80, "fb_f_778": 1.81, "fb_f_779": 1.05,
+            "fb_f_787": 0.10, "fb_f_795": 1.01, "ig_f_799": 2.06, "ig_f_800": 2.06, "ig_f_801": 2.06, "ig_f_802": 2.06,
+            "ig_f_803": 2.06, "ig_f_804": 2.06, "ig_f_757": 0.0054, "ig_f_762": 0.004, "ig_f_766": 1.50, "ig_f_785": 0.30,
             "ig_f_767": 0.50, "ig_f_953": 0.20, "ig_f_954": 0.20, "ig_f_955": 0.20, "ig_f_956": 0.20, "ig_f_957": 0.22,
             "ig_f_724": 724, "ig_f_771": 771, "ig_f_772": 772, "ig_f_773": 773, "ig_f_769": 769, "ig_f_770": 770
         }
         prices = {
             "tg_t_653": 2.46, "tg_t_654": 2.80, "tg_t_659": 2.00, "tg_t_660": 5.40, "tg_t_661": 5.60, "tg_t_662": 6.00,
             "tg_t_613": 4.00, "tg_t_614": 8.00, "tg_t_646": 30.00, "tg_t_893": 116.00, "tg_t_894": 196.00, "tg_t_895": 316.00,
+            "tg_v_628": 0.04, "tg_v_668": 0.02, "tg_v_669": 0.10, "tg_v_670": 0.60, "tg_v_671": 1.22,
+            "tg_a_702": 0.76, "tg_a_703": 1.54, "tg_a_704": 3.84, "tg_a_705": 7.68, "tg_a_706": 0.08, "tg_a_707": 0.28, "tg_a_708": 0.72, "tg_a_709": 1.42, "tg_a_710": 2.86, "tg_a_711": 8.30,
+            "tg_r_620": 0.20, "tg_r_621": 0.06, "tg_r_622": 0.06, "tg_r_623": 0.06, "tg_r_624": 0.06, "tg_r_625": 0.06, "tg_r_626": 0.06, "tg_r_690": 0.10,
+            "tg_p_665": 4.00, "tg_p_666": 18.00,
             "fb_f_745": 0.55, "fb_f_746": 0.59, "fb_f_747": 0.61, "fb_f_748": 0.62, "fb_f_774": 1.02, "fb_f_775": 1.08,
             "fb_f_776": 1.10, "fb_f_777": 1.12, "fb_f_750": 0.28, "fb_f_751": 0.28, "fb_f_752": 0.28, "fb_f_753": 0.28,
             "fb_f_754": 0.28, "fb_f_755": 0.28, "fb_f_756": 0.28, "fb_f_788": 2.80, "fb_f_789": 2.80, "fb_f_790": 2.80,
@@ -977,6 +1008,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "tg_t_660": "أعضاء عرب 180 يوم", "tg_t_661": "أعضاء عرب 365 يوم", "tg_t_662": "أعضاء عرب مدى الحياة",
             "tg_t_613": "بريميوم 15 يوم", "tg_t_614": "بريميوم 30 يوم", "tg_t_646": "تعزيزات 2 يوم",
             "tg_t_893": "تعزيزات 7 أيام", "tg_t_894": "تعزيزات 14 يوم", "tg_t_895": "تعزيزات 30 يوم",
+            "tg_v_628": "مشاركات ومشاهدات", "tg_v_668": "مشاهدات سريعة 1", "tg_v_669": "مشاهدات سريعة 10", "tg_v_670": "مشاهدات سريعة 50", "tg_v_671": "مشاهدات سريعة 100",
+            "tg_a_702": "ردود فعل تليجرام (5)", "tg_a_703": "ردود فعل تليجرام (20)", "tg_a_704": "ردود فعل تليجرام (50)", "tg_a_705": "ردود فعل تليجرام (100)",
+            "tg_a_706": "مشاهدات تلقائية (5)", "tg_a_707": "مشاهدات تلقائية (20)", "tg_a_708": "مشاهدات تلقائية (50)", "tg_a_709": "مشاهدات تلقائية (100)", "tg_a_710": "مشاهدات تلقائية (200)", "tg_a_711": "مشاهدات تلقائية (500)",
+            "tg_r_620": "تفاعلات تليجرام مختلطة", "tg_r_621": "إعجاب تليجرام", "tg_r_622": "عدم إعجاب", "tg_r_623": "قلب تليجرام", "tg_r_624": "نار تليجرام", "tg_r_625": "عيون قلبية", "tg_r_626": "مذهلة", "tg_r_690": "تفاعلات ومشاهدات",
+            "tg_p_665": "تصويت تليجرام عادي", "tg_p_666": "تصويت اشتراك إجباري",
             "fb_f_745": "متابعين فيسبوك 30 يوم", "fb_f_746": "متابعين فيسبوك 90 يوم", "fb_f_747": "متابعين فيسبوك 365 يوم",
             "fb_f_748": "متابعين فيسبوك مدى الحياة", "fb_f_774": "إعجابات صفحة + متابعين", "fb_f_775": "صفحة 90 يوم",
             "fb_f_776": "صفحة 365 يوم", "fb_f_777": "صفحة مدى الحياة", "fb_f_750": "إعجاب فيسبوك", "fb_f_751": "حب فيسبوك",
@@ -994,58 +1030,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         s_id = service_ids.get(data, 730)
         stype = "post"
-        if data in ["ig_f_799", "ig_f_800", "ig_f_801", "ig_f_802", "ig_f_803", "ig_f_804"]: stype = "channel"
+        if data.startswith("tg_t_") or data in ["ig_f_799", "ig_f_800", "ig_f_801", "ig_f_802", "ig_f_803", "ig_f_804"]: stype = "channel"
         elif data in ["ig_f_724", "ig_f_771"]: stype = "comment"
         elif data in ["ig_f_772", "ig_f_773"]: stype = "comment_text"
+        elif data.startswith("tg_p_"): stype = "poll"
 
         user_selected_service[user_id] = {"service_id": s_id, "name": names.get(data, "خدمة"), "price": prices.get(data, 1.0), "min": 10, "max": 100000000, "type": stype, "callback_data": data}
-        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
-
-    elif data.startswith("react_") or data.startswith("tg_r_"):
-        service_ids = {
-            "react_random": 733, "react_like": 814, "react_heart": 815, "react_haha": 736, "react_wow": 737, "react_sad": 738, "react_pray": 739,
-            "tg_r_620": 620, "tg_r_621": 621, "tg_r_622": 622, "tg_r_623": 623, "tg_r_624": 624, "tg_r_625": 625, "tg_r_626": 626, "tg_r_690": 690
-        }
-        names = {
-            "react_random": "تفاعلات عشوائية", "react_like": "إعجاب", "react_heart": "حب", "react_haha": "ضحك", "react_wow": "واو", "react_sad": "حزن", "react_pray": "دعاء",
-            "tg_r_620": "تفاعلات تليجرام مختلطة", "tg_r_621": "إعجاب تليجرام", "tg_r_622": "عدم إعجاب", "tg_r_623": "قلب تليجرام", "tg_r_624": "نار تليجرام", "tg_r_625": "عيون قلبية", "tg_r_626": "مذهلة", "tg_r_690": "تفاعلات ومشاهدات"
-        }
-        s_id = service_ids.get(data, 733)
-        price = 0.20 if s_id in range(733, 740) else 0.06
-        user_selected_service[user_id] = {"service_id": s_id, "name": names.get(data, "تفاعلات"), "price": price, "min": 10, "max": 100000, "type": "post", "callback_data": data}
-        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
-
-    elif data.startswith("auto_") or data.startswith("tg_a_"):
-        service_ids = {
-            "auto_10": 712, "auto_25": 713, "auto_50": 714, "auto_100": 715,
-            "tg_a_702": 702, "tg_a_703": 703, "tg_a_704": 704, "tg_a_705": 705,
-            "tg_a_706": 706, "tg_a_707": 707, "tg_a_708": 708, "tg_a_709": 709, "tg_a_710": 710, "tg_a_711": 711
-        }
-        prices = {
-            "auto_10": 15.44, "auto_25": 30.88, "auto_50": 61.74, "auto_100": 123.50,
-            "tg_a_702": 0.76, "tg_a_703": 1.54, "tg_a_704": 3.84, "tg_a_705": 7.68,
-            "tg_a_706": 0.08, "tg_a_707": 0.28, "tg_a_708": 0.72, "tg_a_709": 1.42, "tg_a_710": 2.86, "tg_a_711": 8.30
-        }
-        names = {
-            "auto_10": "تفاعلات تلقائية (10)", "auto_25": "تفاعلات تلقائية (25)", "auto_50": "تفاعلات تلقائية (50)", "auto_100": "تفاعلات تلقائية (100)",
-            "tg_a_702": "ردود فعل تليجرام (5)", "tg_a_703": "ردود فعل تليجرام (20)", "tg_a_704": "ردود فعل تليجرام (50)", "tg_a_705": "ردود فعل تليجرام (100)",
-            "tg_a_706": "مشاهدات تلقائية (5)", "tg_a_707": "مشاهدات تلقائية (20)", "tg_a_708": "مشاهدات تلقائية (50)", "tg_a_709": "مشاهدات تلقائية (100)", "tg_a_710": "مشاهدات تلقائية (200)", "tg_a_711": "مشاهدات تلقائية (500)"
-        }
-        user_selected_service[user_id] = {"service_id": service_ids.get(data, 712), "name": names.get(data, "تلقائي"), "price": prices.get(data, 1.0), "min": 10, "max": 100000, "type": "channel", "callback_data": data}
-        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
-
-    elif data.startswith("poll_") or data.startswith("tg_p_"):
-        service_ids = {"poll_1": 725, "poll_2": 726, "poll_3": 727, "poll_4": 728, "tg_p_665": 665, "tg_p_666": 666}
-        prices = {"poll_1": 4.00, "poll_2": 4.00, "poll_3": 4.00, "poll_4": 4.00, "tg_p_665": 4.00, "tg_p_666": 18.00}
-        names = {"poll_1": "تصويت 1", "poll_2": "تصويت 2", "poll_3": "تصويت 3", "poll_4": "تصويت 4", "tg_p_665": "تصويت تليجرام عادي", "tg_p_666": "تصويت اشتراك إجباري"}
-        user_selected_service[user_id] = {"service_id": service_ids.get(data, 725), "name": names.get(data, "تصويت"), "price": prices.get(data, 4.00), "min": 10, "max": 100000, "type": "poll", "callback_data": data}
-        prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
-
-    elif data.startswith("tg_v_"):
-        service_ids = {"tg_v_628": 628, "tg_v_668": 668, "tg_v_669": 669, "tg_v_670": 670, "tg_v_671": 671}
-        prices = {"tg_v_628": 0.04, "tg_v_668": 0.02, "tg_v_669": 0.10, "tg_v_670": 0.60, "tg_v_671": 1.22}
-        names = {"tg_v_628": "مشاركات ومشاهدات", "tg_v_668": "مشاهدات سريعة 1", "tg_v_669": "مشاهدات سريعة 10", "tg_v_670": "مشاهدات سريعة 50", "tg_v_671": "مشاهدات سريعة 100"}
-        user_selected_service[user_id] = {"service_id": service_ids.get(data, 628), "name": names.get(data, "مشاهدات"), "price": prices.get(data, 0.05), "min": 10, "max": 100000000, "type": "post", "callback_data": data}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
     elif data == "confirm_final_order":
@@ -1101,7 +1091,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                             )
                             
-                            # إرسال إشعار طلب الرشق لقناة الطلبات مع زر الدخول وزر طلب نفس الخدمة
                             service_name = service.get('name', 'خدمة رقمية')
                             cb_param = service.get('callback_data', 'main_rashq')
                             log_msg = (
@@ -1145,7 +1134,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• قم بإرسال رابط الحساب/المنشور أو آيدي اللاعب (Player ID) ثم حدد الكمية لتأكيد الطلب.\n\n"
             "💳 **3️⃣ شحن الرصيد التلقائي والآلي:**\n"
             "• يمكنك شحن حسابك عبر محفظة **جيب (Jaib)** أو **بنك الكريمي** بسعر صرف ثابت (1$ = 550 ريال يمني).\n"
-            "• **كيف يعمل الشحن؟** عند إرسالك صورة إيصال التحويل، يقوم النظام بالتأكد التلقائي والآلي المباشر من محفظة جيب/الكريمي للتحقق من وجود العملية ومطابقتها ورصد الرصيد في محفظتك في ثوانٍ معدودة!\n\n"
+            "• **كيف يعمل الشحن؟** عند إرسالك صورة إيصال التحويل، يتم التحقق التلقائي والآلي المباشر من محفظة جيب/الكريمي للتحقق من وجود العملية ومطابقتها ورصد الرصيد في محفظتك في ثوانٍ معدودة!\n\n"
             "🎁 **4️⃣ الرصيد المجاني:**\n"
             "• شارك رابط الإحالة الخاص بك واكسب **0.10$** دولار مجاناً فور انضمام كل صديق من خلالك.\n\n"
             "> 💡 *تتم معالجة وتنفيذ جميع خدماتك بأقصى سرعة وأعلى أمان!* 👇"
@@ -1539,7 +1528,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
             )
 
-            # إرسال إشعار الشحن لقناة الطلبات مع زر الدخول وزر طلب نفس الخدمة
             log_msg = (
                 "📥 **عملية شحن رصيد ناجحة وموثقة عبر الإيصال!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
