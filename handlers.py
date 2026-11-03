@@ -72,6 +72,7 @@ async def get_forced_subscription_keyboard():
     ])
 
 async def process_successful_join_reward(user, context, u_data):
+    """منح مكافأة الإحالة وإشعار المُحيل فقط بعد التحقق من الاشتراك بنجاح"""
     try:
         if u_data.get("reward_claimed", 0) == 1:
             return
@@ -83,7 +84,7 @@ async def process_successful_join_reward(user, context, u_data):
                 await context.bot.send_message(
                     chat_id=ADMIN_ID,
                     text=(
-                        f"👤 **مستخدم جديد انضم إلى البوت! (رقم {seq_num})**\n\n"
+                        f"👤 **مستخدم جديد انضم إلى البوت واجتاز التحقق! (رقم {seq_num})**\n\n"
                         f"▫️ الاسم: {user.full_name}\n"
                         f"▫️ المعرف: @{user.username if user.username else 'لا يوجد'}\n"
                         f"▫️ الآيدي: `{user.id}`"
@@ -99,6 +100,21 @@ async def process_successful_join_reward(user, context, u_data):
             ref_info = db_get_user(referrer_id)
             new_ref_count = ref_info["referrals"] + 1
             supabase.table("users").update({"referrals": new_ref_count}).eq("user_id", referrer_id).execute()
+            
+            # إرسال رسالة إشعار تفصيلية للمُحيل بعد تحقق المستخدم الجديد من اشتراكه
+            try:
+                await context.bot.send_message(
+                    chat_id=referrer_id,
+                    text=(
+                        f"🎉 **مبروك! انضم شخص جديد عبر رابط الإحالة الخاص بك وأتم التحقق بنجاح.** 🚀\n\n"
+                        f"👤 اسم المستخدم: {user.full_name}\n"
+                        f"💰 تمت إضافة **0.10$** إلى رصيدك المتاح!\n"
+                        f"📊 إجمالي عدد الدعوات الناجحة: `{new_ref_count}` 🌟"
+                    ),
+                    parse_mode='Markdown'
+                )
+            except Exception as ref_notify_err:
+                print(f"Error notifying referrer: {ref_notify_err}")
     except Exception as e:
         print(f"process_successful_join_reward Error: {e}")
 
@@ -369,13 +385,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ **عذراً، لقد تم حظرك من استخدام هذا البوت بواسطة الإدارة.**", parse_mode='Markdown')
         return
 
-    if not await check_user_subscription(user.id, context):
-        await update.message.reply_text(
-            f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
-            parse_mode='Markdown', reply_markup=await get_forced_subscription_keyboard()
-        )
-        return
-
+    # حفظ معرّف الإحالة إن وجد في قاعدة البيانات للمستخدم الجديد
     args = context.args
     arg_param = args[0] if args else None
 
@@ -386,6 +396,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", user.id).execute()
                 u_data['referred_by'] = referrer_id
 
+    # التحقق من اشتراك القناة أولاً
+    if not await check_user_subscription(user.id, context):
+        await update.message.reply_text(
+            f"💎 ديجيتال هب | Digital Hub:\n🚀 To use this bot, you must join our channel {FORCED_CHANNEL_URL}",
+            parse_mode='Markdown', reply_markup=await get_forced_subscription_keyboard()
+        )
+        return
+
+    # إذا اشترك واجتاز الفحص، يتم منح المكافأة للمُحيل هنا
     await process_successful_join_reward(user, context, u_data)
 
     welcome_text = (
@@ -441,7 +460,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await check_user_subscription(user_id, context):
             await query.answer("✅ تم التحقق من اشتراكك بنجاح! أهلاً بك.", show_alert=True)
             u_data = db_get_user(user_id)
+            # عند ضغط التحقق واجتياز الاشتراك، يتم تفعيل مكافأة الإحالة وإشعار المُحيل
             await process_successful_join_reward(query.from_user, context, u_data)
+            
             welcome_text = (
                 f"💎 **مرحباً بك عزيزي {query.from_user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -471,7 +492,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == 'main_menu':
         u_data = db_get_user(user_id)
-        await process_successful_join_reward(query.from_user, context, u_data)
         admin_state.pop(user_id, None)
         welcome_text = (
             f"💎 **مرحباً بك عزيزي {query.from_user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -1376,7 +1396,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"❌ **خطأ تقني في قراءة الإيصال:**\n`{extracted_text}`\n\n"
                     f"💡 يرجى المحاولة مرة أخرى بصورة أضرح أو أوضح.",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
                 return
 
             if "❌" in extracted_text or len(extracted_text.strip()) < 5:
@@ -1384,7 +1405,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"❌ **سبب الخطأ الرئيسي:** تعذر قراءة الحروف من الصورة بوضوح تام.\n"
                     f"📌 **الإجراء:** يرجى إرسال لقطة شاشة (Screenshot) واضحة ومباشرة للإيصال لنفس الرقم `{target_acc}`.",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
                 return
 
             clean_text = re.sub(r'[\s\-\_\:\,]', '', extracted_text)
@@ -1403,7 +1425,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"{reason_str}\n\n"
                     f"🔍 **النص الذي تم قراءته من صورتك:**\n`{extracted_text[:250]}`",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
                 return
 
             amount_yer = 0.0
@@ -1431,7 +1454,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"❌ **سبب الخطأ الرئيسي:** تعذر تحديد مبلغ التحويل بالريال اليمني بوضوح من الإيصال.\n"
                     f"🔍 **النص المستخرج:**\n`{extracted_text[:250]}`",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
                 return
 
             tx_id = None
@@ -1454,7 +1478,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"❌ **سبب الخطأ الرئيسي:** لم يتم العثور على (رقم مرجع العملية) في تفاصيل الإيصال.\n"
                     f"🔍 **النص المستخرج:**\n`{extracted_text[:250]}`",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
                 return
 
             try:
@@ -1468,7 +1493,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                         f"💰 المبلغ السابق: `{prev_amount:,.0f} ريال يمني`\n"
                         f"❌ عذراً، لا يمكن استخدام نفس الإيصال أكثر من مرة.",
                         parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
                     return
             except Exception as db_check_err:
                 print(f"DEBUG_DB_ERROR on select: {db_check_err}")
@@ -1489,7 +1515,8 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
                 await processing_msg.edit_text(
                     f"⚠️ **سبب الخطأ الرئيسي:** فشل حفظ معاملة الإيصال في قاعدة البيانات.",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
                 return
 
             db_update_balance(user_id, amount_usd, mode="add")
@@ -1554,7 +1581,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # === معالجة قسم الإذاعة الشاملة المحدث والآمن بالكامل ===
+    # === معالجة قسم الإذاعة الشاملة بشكل كامل وآمن ومباشر لجميع المستخدمين ===
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_broadcast':
         admin_state.pop(user_id, None)
         all_users = db_get_all_users()
@@ -1572,10 +1599,38 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             if not uid:
                 continue
             try:
-                await update.message.copy(chat_id=uid)
+                if update.message.photo:
+                    await context.bot.send_photo(
+                        chat_id=uid,
+                        photo=update.message.photo[-1].file_id,
+                        caption=update.message.caption,
+                        parse_mode='Markdown'
+                    )
+                elif update.message.video:
+                    await context.bot.send_video(
+                        chat_id=uid,
+                        video=update.message.video.file_id,
+                        caption=update.message.caption,
+                        parse_mode='Markdown'
+                    )
+                elif update.message.document:
+                    await context.bot.send_document(
+                        chat_id=uid,
+                        document=update.message.document.file_id,
+                        caption=update.message.caption,
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=uid,
+                        text=update.message.text,
+                        parse_mode='Markdown'
+                    )
+                
                 success_count += 1
-                await asyncio.sleep(0.05) # تجنب حدود السرعة في تليجرام (Rate Limits)
-            except Exception:
+                await asyncio.sleep(0.04) # تأخير بسيط لتجنب تقييد تليجرام (FloodWait)
+            except Exception as broadcast_err:
+                print(f"Broadcast error for user {uid}: {broadcast_err}")
                 fail_count += 1
                 
         await status_msg.edit_text(
