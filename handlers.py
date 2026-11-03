@@ -37,6 +37,7 @@ from keyboards import (
 admin_state = {}
 user_selected_service = {}
 user_order_data = {}
+active_numbers_cache = {}  # لتتبع حالة الأكواد الواصلة لكل طلب رقم
 
 EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
@@ -77,7 +78,6 @@ async def process_successful_join_reward(user, context, u_data):
             return
         supabase.table("users").update({"reward_claimed": 1}).eq("user_id", user.id).execute()
 
-        # إرسال إشعار انضمام المستخدم الجديد لمالك البوت حصرياً في الخاص
         if user.id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
@@ -238,8 +238,11 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if sms_list:
                     sms_code = sms_list[0].get('code', 'لا يوجد كود')
                     full_text = sms_list[0].get('text', '')
-                    current_text = query.message.text
                     
+                    # تحديث حالة الكود الواصل في الكاش
+                    active_numbers_cache[order_id] = {'has_sms': True, 'code': sms_code}
+                    
+                    current_text = query.message.text
                     if "🔑 **الكود الواصل:**" not in current_text:
                         updated_text = current_text + f"\n\n🔑 **الكود الواصل:** `{sms_code}`\n💬 **النص الكامل:** `{full_text}`"
                         await query.edit_message_text(
@@ -257,6 +260,8 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, order_id: str, phone: str, price: float, service: str, user_id: int, bot_username: str, section_name: str, country_name: str, dial_code: str):
     url = f"https://5sim.net/v1/user/check/{order_id}"
+    active_numbers_cache[order_id] = {'has_sms': False, 'code': None, 'service': service, 'country_code': country_name}
+    
     async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
         for _ in range(300):
             await asyncio.sleep(3)
@@ -269,6 +274,8 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                         sms_code = sms_list[0].get('code', 'لا يوجد كود')
                         full_text = sms_list[0].get('text', '')
                         
+                        active_numbers_cache[order_id] = {'has_sms': True, 'code': sms_code}
+                        
                         success_msg = (
                             f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
                             f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -280,7 +287,7 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                             f"⭐ **المبلغ المخصوم:** `${price:.2f}`\n\n"
                             f"🔑 **الكود الواصل:** `{sms_code}`\n"
                             f"💬 **النص الكامل:** `{full_text}`\n\n"
-                            f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
+                            f"💡 *تم وصول الكود بنجاح! لا يمكن إلغاء الرقم أو تغييره الآن.* 🚀"
                         )
                         try:
                             await context.bot.edit_message_text(
@@ -502,6 +509,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     db_update_balance(user_id, country_price, mode="deduct")
                     
+                    # حفظ معلومات الطلب للتمكين من إعادة الشراء عند تغيير الرقم
+                    active_numbers_cache[str(order_id)] = {
+                        'has_sms': False, 
+                        'service': service, 
+                        'country_code': country_code, 
+                        'price': country_price,
+                        'user_id': user_id
+                    }
+
                     success_msg = (
                         f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -520,10 +536,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([
                             [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{order_id}")],
+                            [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{order_id}_{service}_{country_code}_{country_price}")],
                             [InlineKeyboardButton("❌ إلغاء الرقم واسترداد الرصيد", callback_data=f"cnl_paid_{order_id}_{country_price}")]
                         ])
                     )
                     
+                    # إرسال إشعار شراء الرقم لقناة اللوجز الرسمية
+                    try:
+                        await context.bot.send_message(
+                            chat_id=LOG_CHANNEL_ID,
+                            text=(
+                                "📱 **شراء رقم افتراضي جديد!** ✅\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"👤 **آيدي العميل:** `{user_id}`\n"
+                                f"📦 **الخدمة:** `{sec_name_ar}`\n"
+                                f"🌍 **الدولة:** {c_name_ar}\n"
+                                f"📞 **الرقم:** `{phone}`\n"
+                                f"💰 **المبلغ المخصوم:** `${country_price:.2f}`\n"
+                                f"🆔 **رقم الطلب:** `{order_id}`"
+                            ),
+                            parse_mode='Markdown'
+                        )
+                    except Exception as log_err:
+                        print(f"Error sending number purchase log: {log_err}")
+
                     asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username, sec_name_ar, c_name_ar, c_dial))
                 else:
                     await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
@@ -534,9 +570,85 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await check_sms_manual(update, context)
         return
 
+    elif data.startswith('change_num_'):
+        parts = data.split('_')
+        old_order_id, service, country_code, price_str = parts[2], parts[3], parts[4], float(parts[5])
+        
+        # التحقق مما إذا وصل كود أم لا
+        order_status_info = active_numbers_cache.get(old_order_id, {})
+        if order_status_info.get('has_sms', False):
+            await query.answer("⚠️ عذراً، لا يمكن تغيير الرقم أو إلغاؤه لأنه قد وصل كود التحقق بالفعل!", show_alert=True)
+            return
+
+        await query.answer("🔄 جاري إلغاء الرقم الحالي واستخراج رقم جديد...", show_alert=False)
+        
+        async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
+            try:
+                # إلغاء الرقم القديم واسترداد سعره
+                await client.get(f"https://5sim.net/v1/user/cancel/{old_order_id}")
+                db_update_balance(user_id, price_str, mode="add")
+
+                # شراء رقم جديد من نفس الدولة والخدمة
+                res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/any/{service}")
+                if res.status_code == 200:
+                    res_data = res.json()
+                    new_phone, new_order_id = res_data.get('phone'), res_data.get('id')
+                    
+                    if not new_phone or not new_order_id:
+                        await query.edit_message_text("❌ عذراً، نفدت أرقام هذه الدولة مؤقتاً أثناء التغيير وتم إعادة رصيدك لمحفظتك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                        return
+
+                    db_update_balance(user_id, price_str, mode="deduct")
+                    
+                    active_numbers_cache[str(new_order_id)] = {
+                        'has_sms': False, 
+                        'service': service, 
+                        'country_code': country_code, 
+                        'price': price_str,
+                        'user_id': user_id
+                    }
+
+                    section_names_ar = {'whatsapp': 'واتساب', 'telegram': 'تليجرام', 'instagram': 'انستغرام', 'facebook': 'فيسبوك'}
+                    sec_name_ar = section_names_ar.get(service, service.upper())
+                    c_info = COUNTRY_INFO.get(country_code, {"name_ar": country_code, "dial": "+?"})
+
+                    success_msg = (
+                        f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"✅ **تم تغيير الرقم واستبداله بنجاح!**\n\n"
+                        f"📦 **القسم:** `{sec_name_ar}`\n"
+                        f"🌍 **الدولة:** {c_info['name_ar']}\n"
+                        f"📞 **مفتاح الدولة:** `{c_info['dial']}`\n"
+                        f"📱 **الرقم الجديد:** `{new_phone}`\n"
+                        f"⭐ **السعر:** `${price_str:.2f}`\n\n"
+                        f"⏳ **جاري رصد الكود تلقائياً للرقم الجديد...** 🚀"
+                    )
+
+                    sent_msg = await query.edit_message_text(
+                        success_msg,
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{new_order_id}")],
+                            [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{new_order_id}_{service}_{country_code}_{price_str}")],
+                            [InlineKeyboardButton("❌ إلغاء الرقم واسترداد الرصيد", callback_data=f"cnl_paid_{new_order_id}_{price_str}")]
+                        ])
+                    )
+                    asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(new_order_id), new_phone, price_str, service, user_id, context.bot.username, sec_name_ar, c_info['name_ar'], c_info['dial']))
+                else:
+                    await query.edit_message_text("❌ عذراً، فشل توفير رقم بديل حالياً وتم إعادة رصيدك لمحفظتك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+            except Exception as e:
+                await query.edit_message_text(f"⚠️ خطأ أثناء استبدال الرقم: `{str(e)[:50]}`", parse_mode='Markdown')
+
     elif data.startswith('cnl_'):
         parts = data.split('_')
         cancel_type, order_id, price = parts[1], parts[2], float(parts[3])
+        
+        # التحقق مما إذا وصل كود أم لا قبل الإلغاء
+        order_status_info = active_numbers_cache.get(order_id, {})
+        if order_status_info.get('has_sms', False):
+            await query.answer("⚠️ عذراً، لا يمكن إلغاء الرقم واسترداد الرصيد لأنه قد وصل كود التحقق بالفعل!", show_alert=True)
+            return
+
         async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
             res = await client.get(f"https://5sim.net/v1/user/cancel/{order_id}")
             if res.status_code == 200 or res.status_code == 400:
@@ -575,7 +687,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("⚠️ عذراً، لا توجد خدمات متاحة في هذه الفئة حالياً.", show_alert=True)
         return
 
-    # --- معالجات قائمة الخدمات المجانية والدعم الاحترافي (14 خدمة) ---
     elif data == 'free_services_menu':
         free_services_main_text = (
             "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
@@ -630,7 +741,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🇸🇦 السعودية: `+966`\n"
             "🇾🇪 اليمن: `+967`\n"
-            "🇪🇬 مصر: `+20`\n"
+            "🇪 مصر: `+20`\n"
             "🇦🇪 الإمارات: `+971`\n"
             "🇺🇸 أمريكا: `+1`\n"
             "🇹🇷 تركيا: `+90`\n\n"
@@ -666,7 +777,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💡 *هذه الإرشادات الرسمية المعتمدة لتقديم طلبات الاستئناف.*"
         )
         await query.edit_message_text(unban_guide_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-    # --------------------------------------------------------------------------
 
     elif data == "ig_channel_menu":
         await query.edit_message_text("📺 متابعو قناة انستغرام:", reply_markup=ig_channel_menu_keyboard())
@@ -798,8 +908,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "fb_f_754": 754, "fb_f_755": 755, "fb_f_756": 756, "fb_f_788": 788, "fb_f_789": 789, "fb_f_790": 790,
             "fb_f_791": 791, "fb_f_792": 792, "fb_f_793": 793, "fb_f_794": 794, "fb_f_778": 778, "fb_f_779": 779,
             "fb_f_787": 787, "fb_f_795": 795, "ig_f_799": 799, "ig_f_800": 800, "ig_f_801": 801, "ig_f_802": 802,
-            "ig_f_803": 803, "ig_f_804": 804, "ig_f_757": 757, "ig_f_762": 762, "ig_f_766": 766, "ig_f_785": 785,
-            "ig_f_767": 767, "ig_f_953": 953, "ig_f_954": 954, "ig_f_955": 955, "ig_f_956": 956, "ig_f_957": 957,
+            "ig_f_803": 803, "ig_f_804": 804, "ig_f_757": 757, "ig_f_762": 762, "ig_f_766": 1.50, "ig_f_785": 0.30,
+            "ig_f_767": 0.50, "ig_f_953": 0.20, "ig_f_954": 0.20, "ig_f_955": 0.20, "ig_f_956": 0.20, "ig_f_957": 0.22,
             "ig_f_724": 724, "ig_f_771": 771, "ig_f_772": 772, "ig_f_773": 773, "ig_f_769": 769, "ig_f_770": 770
         }
         prices = {
@@ -943,6 +1053,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                             )
                             
+                            # إرسال إشعار طلب الرشق المكتمل لقناة اللوجز الرسمية فوراً
                             try:
                                 service_name = service.get('name', 'خدمة رقمية')
                                 await context.bot.send_message(
@@ -979,14 +1090,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'bot_instructions':
         instructions_text = (
-            "💎 **دليل استخدام بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
+            "💎 **دليل الشامل لاستخدام بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة في مكان واحد وبأفضل الأسعار! 🌟\n\n"
-            "📱 **1️⃣ قسم الأرقام الافتراضية:**\n"
-            "• احصل فوراً على أرقام لتفعيل (واتساب، تليجرام، انستغرام، فيسبوك، وغيرها) من مختلف دول العالم.\n\n"
-            "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
-            "• اطلب خدمات زيادة المتابعين والتفاعلات لجميع المنصات بكل سهولة.\n\n"
-            "> 💡 *انقر على الزر أدناه للعودة للقائمة الرئيسية واستكشاف خدماتنا فوراً!* 👇"
+            "مرحباً بك عزيزي العميل في دليلك الشامل لاستخدام كافة خدمات البوت من الألف إلى الياء! 🌟\n\n"
+            "📱 **1️⃣ قسم الأرقام الافتراضية والتفعيل:**\n"
+            "• اختر من القائمة الرئيسية (🛒 شراء رقم افتراضي)، ثم حدد التطبيق (واتساب، تليجرام، انستغرام، إلخ).\n"
+            "• اختر الدولة المطلوبة ليتم خصم السعر فوراً وعرض الرقم.\n"
+            "• يمكنك استخدام زر (🔄 طلب الكود) لجلب رسالة التحقق، أو (🔄 تغيير الرقم) لاستبدال الرقم الحالي برقم آخر في حال لم يصل الكود، أو (❌ إلغاء الرقم واسترداد الرصيد) لاستعادة أموالك.\n\n"
+            "🔭 **2️⃣ قسم الرشق وشحن الألعاب (متابعون، تفاعلات، شدات):**\n"
+            "• اضغط على (🔭 قسم الرشق والألعاب)، ثم اختر القسم المناسب (تليجرام، انستغرام، فيسبوك، ببجي، فري فاير).\n"
+            "• أرسل الرابط المطلوب أو آيدي اللاعب (Player ID) ثم حدد الكمية لتأكيد الطلب.\n\n"
+            "💳 **3️⃣ شحن الرصيد:**\n"
+            "• يمكنك شحن محفظتك بالدولار ($) عبر محفظة جيب (Jaib)، بنك الكريمي (Al-Kuraimi)، أو نجوم تليجرام (Stars) بسعر صرف ثابت (1 دولار = 550 ريال يمني).\n"
+            "• إرسال صورة إيصال التحويل (Screenshot) سيقوم النظام الآلي المدعوم بالذكاء الاصطناعي بقراءته وشحن رصيدك تلقائياً.\n\n"
+            "🎁 **4️⃣ الخدمات المجانية والإحالات:**\n"
+            "• احصل على رصيد مجاني عبر دعوة الأصدقاء من خلال رابط الإحالة الخاص بك (0.10$ لكل صديق ينضم).\n"
+            "• استخدم قسم الخدمات المجانية لمعالجة الروابط، زخرفة النصوص، وتوليد كلمات المرور الآمنة.\n\n"
+            "> 💡 *جميع الطلبات المكتملة يتم إرسال إشعاراتها الموثقة فوراً إلى قناة اللوجز الرسمية!* 👇"
         )
         await query.edit_message_text(
             instructions_text, parse_mode='Markdown',
@@ -1419,7 +1539,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # --- معالجات أدوات وقسم الخدمات المجانية داخل الشات ---
     if user_id in admin_state and admin_state[user_id].get('action', '').startswith('fs_'):
         action = admin_state[user_id].pop('action')
         
@@ -1467,7 +1586,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             cleaned = " ".join(text_content.split())
             await update.message.reply_text(f"🗑️ **النص بعد التنظيف:**\n`{cleaned}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='free_services_menu')]]))
             return
-    # --------------------------------------------------------------------------
 
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state:
         st = admin_state[user_id]
