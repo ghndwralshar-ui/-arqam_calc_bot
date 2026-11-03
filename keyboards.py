@@ -6,6 +6,7 @@ def get_main_keyboard(user_id, is_admin_func):
         [InlineKeyboardButton("✈️ عروض Telegram", callback_data='deals_telegram'), InlineKeyboardButton("💬 عروض WhatsApp", callback_data='deals_whatsapp')],
         [InlineKeyboardButton("🎲 • شحـن الرصيـد •", callback_data='deposit_menu'), InlineKeyboardButton("🎳 • الأكثر توفراً •", callback_data='most_available')],
         [InlineKeyboardButton("✨ الخدمات الرقمية وشحن الألعاب ⚡", callback_data='main_rashq')],
+        [InlineKeyboardButton("✨ ⦗ الخـدمـات المجـانيـة والدعـم ⦘ ✨", callback_data='free_services_menu')],
         [InlineKeyboardButton("💎 • ربـح الأرصدة مجـانـاً (أكواد وهدايا) •", callback_data='free_points')],
         [InlineKeyboardButton("🔄 • تحويـل الرصيـد •", callback_data='transfer_balance'), InlineKeyboardButton("📞 • الدعم •", url="https://t.me/benti")],
         [InlineKeyboardButton("📖 • تعليمات وطريقة استخدام البوت •", callback_data='bot_instructions')],
@@ -14,6 +15,18 @@ def get_main_keyboard(user_id, is_admin_func):
     if is_admin_func(user_id):
         buttons.append([InlineKeyboardButton("⚙️ لـوحـة تحكـم الأدمن الاحترافية", callback_data='admin_panel')])
     return InlineKeyboardMarkup(buttons)
+
+def get_free_services_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔗 فحص ومعالجة الروابط", callback_data='fs_url_info'), InlineKeyboardButton("🎨 زخرفة النصوص والأسماء", callback_data='fs_text_deco')],
+        [InlineKeyboardButton("🔍 كشف الآيدي والمعرفات", callback_data='fs_id_lookup'), InlineKeyboardButton("📌 مولد كلمات السر الآمنة", callback_data='fs_password_gen')],
+        [InlineKeyboardButton("📊 حاسبة أسعار الرشق", callback_data='fs_price_calc'), InlineKeyboardButton("✂️ اختصار الروابط السريع", callback_data='fs_url_short')],
+        [InlineKeyboardButton("📥 معلومات القنوات العامة", callback_data='fs_tg_info'), InlineKeyboardButton("🔤 منسق النصوص والمخفي", callback_data='fs_markdown_fmt')],
+        [InlineKeyboardButton("🌐 دليل مفاتيح الدول", callback_data='fs_dial_codes'), InlineKeyboardButton("🔤 تنسيق منشورات تليجرام", callback_data='fs_tg_post_fmt')],
+        [InlineKeyboardButton("🔢 حاسبة النسب والخصومات", callback_data='fs_percent_calc'), InlineKeyboardButton("🔠 عدّاد الكلمات والحروف", callback_data='fs_word_counter')],
+        [InlineKeyboardButton("🗑️ تنظيف النصوص والمسافات", callback_data='fs_text_cleaner'), InlineKeyboardButton("🔓 دليل فك الحظر والاستئناف", callback_data='fs_unban_guide')],
+        [InlineKeyboardButton("🔙 عـودة للقائمـة الرئيسيـة", callback_data='main_menu')]
+    ])
 
 def get_virtual_services_keyboard():
     return InlineKeyboardMarkup([
