@@ -46,6 +46,45 @@ def db_get_user(user_id):
         print(f"db_get_user Error: {e}")
         return {"balance": 0.0, "referrals": 0, "referred_by": 0, "is_banned": 0, "user_sequence": 1, "reward_claimed": 0}
 
+def db_set_referrer(user_id: int, referrer_id: int) -> bool:
+    """حفظ آيدي الشخص المُحيل للمستخدم الجديد فور دخوله لأول مرة عبر الرابط"""
+    try:
+        if user_id == referrer_id:
+            return False
+        
+        user = db_get_user(user_id)
+        # إذا لم يتم تعيين مُحيل له مسبقاً (وكانت القيمة 0)
+        if user.get("referred_by", 0) == 0:
+            supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", user_id).execute()
+            return True
+    except Exception as e:
+        print(f"db_set_referrer Error: {e}")
+    return False
+
+def db_claim_referral_reward(user_id: int) -> bool:
+    """التحقق من عدم استلام مكافأة الانضمام مسبقاً وتحديثها لمنع التكرار (Anti-Cheat)"""
+    try:
+        user = db_get_user(user_id)
+        if user.get("reward_claimed", 0) == 1:
+            return False # تم استلام المكافأة مسبقاً
+        
+        supabase.table("users").update({"reward_claimed": 1}).eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"db_claim_referral_reward Error: {e}")
+        return False
+
+def db_increment_referral_count(referrer_id: int) -> int:
+    """زيادة عدد الإحالات الناجحة للمُحيل وإرجاع العدد الجديد"""
+    try:
+        ref_user = db_get_user(referrer_id)
+        new_count = int(ref_user.get("referrals", 0)) + 1
+        supabase.table("users").update({"referrals": new_count}).eq("user_id", referrer_id).execute()
+        return new_count
+    except Exception as e:
+        print(f"db_increment_referral_count Error: {e}")
+        return 0
+
 def db_update_balance(user_id, amount, mode="add"):
     u = db_get_user(user_id)
     current_bal = float(u.get("balance", 0.0))
@@ -98,7 +137,6 @@ def db_get_all_users():
     try:
         res = supabase.table("users").select("user_id").execute()
         rows = res.data if hasattr(res, 'data') else []
-        # إذا وجد عمود is_banned يتم استثناء المحظورين، وإذا حدث أي خطأ يتم جلب الكل ضماناً للإذاعة
         users_list = []
         for row in rows:
             uid = row.get("user_id")
