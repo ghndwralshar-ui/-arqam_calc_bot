@@ -1,4 +1,3 @@
-import logging
 import asyncio
 import re
 import httpx
@@ -15,7 +14,7 @@ from config import (
 from database import (
     db_get_user, db_update_balance, db_get_advanced_stats, 
     db_get_all_users, is_admin_or_sub, get_all_sub_admins,
-    db_check_and_save_transaction, supabase
+    db_check_and_save_transaction, supabase, db_set_referrer, db_claim_referral_reward, db_increment_referral_count
 )
 from keyboards import (
     get_main_keyboard, get_virtual_services_keyboard, sections_menu_keyboard,
@@ -74,12 +73,13 @@ async def check_user_subscription(user_id: int, context: ContextTypes.DEFAULT_TY
     return False
 
 async def process_successful_join_reward(user, context, u_data):
-    """منح مكافأة الإحالة وإشعار المُحيل بعد التحقق من الاشتراك بنجاح"""
+    """منح مكافأة الإحالة وإشعار المُحيل والمستخدم والأدمن بعد التحقق من الاشتراك بنجاح دون تكرار"""
     try:
-        if u_data.get("reward_claimed", 0) == 1:
+        # التحقق من عدم استلام المكافأة مسبقاً لمنع التكرار
+        if not db_claim_referral_reward(user.id):
             return
-        supabase.table("users").update({"reward_claimed": 1}).eq("user_id", user.id).execute()
 
+        # إشعار الأدمن بمستخدم جديد
         if user.id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
@@ -96,21 +96,30 @@ async def process_successful_join_reward(user, context, u_data):
             except Exception as admin_notify_err:
                 print(f"Error notifying admin about new user: {admin_notify_err}")
 
+        # معالجة نظام الإحالات وهدايا الدعوات
         referrer_id = u_data.get("referred_by", 0)
         if referrer_id > 0 and referrer_id != user.id:
             db_update_balance(referrer_id, 0.10, mode="add")
+            new_ref_count = db_increment_referral_count(referrer_id)
             ref_info = db_get_user(referrer_id)
-            new_ref_count = ref_info["referrals"] + 1
-            supabase.table("users").update({"referrals": new_ref_count}).eq("user_id", referrer_id).execute()
             
             try:
+                # جلب اسم المُحيل أو استخدام اسمه الأول
+                ref_first_name = "صديقنا"
+                try:
+                    chat_info = await context.bot.get_chat(referrer_id)
+                    if chat_info and chat_info.first_name:
+                        ref_first_name = chat_info.first_name
+                except Exception:
+                    pass
+
                 await context.bot.send_message(
                     chat_id=referrer_id,
                     text=(
-                        f"🎉 **مبروك! انضم شخص جديد عبر رابط الإحالة الخاص بك وأتم التحقق بنجاح.** 🚀\n\n"
-                        f"👤 اسم المستخدم: {user.full_name}\n"
-                        f"💰 تمت إضافة **0.10$** إلى رصيدك المتاح!\n"
-                        f"📊 إجمالي عدد الدعوات الناجحة: `{new_ref_count}` 🌟"
+                        f"🎉 **مبروك يا {ref_first_name}! انضم شخص جديد عبر رابط الدعوة الخاص بك وأتم التحقق بنجاح.** 🚀\n\n"
+                        f"👤 اسم الصديق: {user.full_name}\n"
+                        f"💰 تمت إضافة هدية الدعوة بقيمة **0.10$** إلى رصيدك المتاح!\n"
+                        f"📊 إجمالي عدد الدعوات الناجحة لديك: `{new_ref_count}` 🌟"
                     ),
                     parse_mode='Markdown'
                 )
@@ -389,13 +398,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     arg_param = args[0] if args else None
 
+    # حفظ آيدي المُحيل فوراً عند الدخول عبر رابط الإحالة (حتى قبل فحص الاشتراك)
     if arg_param and arg_param.isdigit():
         referrer_id = int(arg_param)
         if referrer_id != user.id:
-            if u_data.get('referred_by', 0) == 0:
-                supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", user.id).execute()
-                u_data['referred_by'] = referrer_id
+            db_set_referrer(user.id, referrer_id)
+            u_data = db_get_user(user.id) # تحديث بيانات المستخدم محلياً
 
+    # فحص الاشتراك الإجباري
     if not await check_user_subscription(user.id, context):
         await update.message.reply_text(
             FORCED_SUB_MESSAGE,
@@ -403,7 +413,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # منح مكافأة الإحالة وإرسال الإشعارات إذا كان مشتركاً بالفعل من قبل
     await process_successful_join_reward(user, context, u_data)
+    u_data = db_get_user(user.id) # تحديث الرصيد بعد المكافأة
 
     welcome_text = (
         f"💎 **مرحباً بك عزيزي {user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -459,6 +471,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("✅ تم التحقق من اشتراكك بنجاح! أهلاً بك.", show_alert=True)
             u_data = db_get_user(user_id)
             await process_successful_join_reward(query.from_user, context, u_data)
+            u_data = db_get_user(user_id) # تحديث الرصيد
             
             welcome_text = (
                 f"💎 **مرحباً بك عزيزي {query.from_user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
