@@ -180,18 +180,28 @@ async def get_available_countries_for_service(service: str):
                         if country_code not in COUNTRY_INFO:
                             continue
                         has_stock = False
+                        best_operator = None
+                        max_success_rate = -1.0
                         min_price = 999.0
+
                         if isinstance(country_info, dict):
                             for operator, op_data in country_info.items():
                                 if isinstance(op_data, dict):
                                     count = op_data.get("count", 0)
                                     cost = op_data.get("cost", 0)
+                                    rate = op_data.get("rate", 0.0) # نسبة النجاح من 5sim إن وجدت
                                     if count > 0 and cost is not None:
                                         has_stock = True
-                                        base_price = float(cost)
-                                        if base_price < min_price:
+                                        base_price = float(base_price_val := float(cost))
+                                        success_val = float(rate) if rate is not None else 0.0
+                                        
+                                        # خوارزمية اختيار المشغل الأفضل: الأولوية لأعلى نسبة نجاح ثم الأرخص
+                                        if success_val > max_success_rate or (success_val == max_success_rate and base_price < min_price):
+                                            max_success_rate = success_val
                                             min_price = base_price
-                        if has_stock and min_price < 999.0:
+                                            best_operator = operator
+
+                        if has_stock and min_price < 999.0 and best_operator:
                             doubled_price = round(min_price * 2.0, 2)
                             c_meta = COUNTRY_INFO[country_code]
                             available_countries.append({
@@ -199,7 +209,8 @@ async def get_available_countries_for_service(service: str):
                                 "name_ar": c_meta["name_ar"],
                                 "flag": c_meta["flag"],
                                 "dial": c_meta["dial"],
-                                "price": doubled_price
+                                "price": doubled_price,
+                                "operator": best_operator
                             })
         except Exception as e:
             print(f"Error fetching countries for {service}: {e}")
@@ -210,7 +221,7 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     query = update.callback_query
     user_id = query.from_user.id
     
-    await query.answer("⏳ جاري فحص الدول المتوفرة والأسعار المحدثة...", show_alert=False)
+    await query.answer("⏳ جاري فحص الدول المتوفرة وأفضل المشغلين بنجاح...", show_alert=False)
     available_countries = await get_available_countries_for_service(service_code)
     
     if not available_countries:
@@ -230,7 +241,8 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     row = []
     for c in available_countries:
         btn_text = f"{c['flag']} {c['name_ar']} • ${c['price']:.2f}"
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}_{c['price']}"))
+        # تمرير المشغل الأفضل ذو نسبة النجاح الأعلى في الـ callback_data
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}_{c['price']}_{c['operator']}"))
         if len(row) == 2:
             buttons.append(row)
             row = []
@@ -241,7 +253,7 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     u_data = db_get_user(user_id)
     
     await query.edit_message_text(
-        f"🔹 **• الدول المتوفرة حالياً لأرقام ({service_title}) •**\n"
+        f"🔹 **• الدول المتوفرة بأعلى نسب نجاح لأرقام ({service_title}) •**\n"
         f"⭐ رصيدك: `${u_data['balance']:.2f}`\n\n"
         "👇 **اختر الدولة المطلوبة:**",
         parse_mode='Markdown',
@@ -398,14 +410,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     arg_param = args[0] if args else None
 
-    # حفظ آيدي المُحيل فوراً عند الدخول عبر رابط الإحالة (حتى قبل فحص الاشتراك)
     if arg_param and arg_param.isdigit():
         referrer_id = int(arg_param)
         if referrer_id != user.id:
             db_set_referrer(user.id, referrer_id)
-            u_data = db_get_user(user.id) # تحديث بيانات المستخدم محلياً
+            u_data = db_get_user(user.id)
 
-    # فحص الاشتراك الإجباري
     if not await check_user_subscription(user.id, context):
         await update.message.reply_text(
             FORCED_SUB_MESSAGE,
@@ -413,9 +423,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # منح مكافأة الإحالة وإرسال الإشعارات إذا كان مشتركاً بالفعل من قبل
     await process_successful_join_reward(user, context, u_data)
-    u_data = db_get_user(user.id) # تحديث الرصيد بعد المكافأة
+    u_data = db_get_user(user.id)
 
     welcome_text = (
         f"💎 **مرحباً بك عزيزي {user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -471,7 +480,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("✅ تم التحقق من اشتراكك بنجاح! أهلاً بك.", show_alert=True)
             u_data = db_get_user(user_id)
             await process_successful_join_reward(query.from_user, context, u_data)
-            u_data = db_get_user(user_id) # تحديث الرصيد
+            u_data = db_get_user(user_id)
             
             welcome_text = (
                 f"💎 **مرحباً بك عزيزي {query.from_user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -555,6 +564,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parts = data.split('_')
         service, country_code, country_price_str = parts[2], parts[3], parts[4]
         country_price = float(country_price_str)
+        # استخراج المشغل الأفضل الممرر في البصمة أو الاعتماد على الافتراضي
+        operator_name = parts[5] if len(parts) > 5 else "any"
         
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
@@ -583,10 +594,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
         )
 
-        await query.answer("🔄 جاري الشراء وتجهيز الرقم...", show_alert=False)
+        await query.answer("🔄 جاري الشراء وتجهيز الرقم من أفضل مشغل...", show_alert=False)
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
-                res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/any/{service}")
+                # استخدام المشغل ذو نسبة النجاح الأعلى بدلاً من العشوائي any
+                res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/{operator_name}/{service}")
                 if res.status_code == 200:
                     try:
                         res_data = res.json()
@@ -609,13 +621,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         'user_id': user_id,
                         'phone': phone,
                         'sec_name_ar': sec_name_ar,
-                        'country_name': c_name_ar
+                        'country_name': c_name_ar,
+                        'operator': operator_name
                     }
 
                     success_msg = (
                         f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"✅ **تم شراء الرقم بنجاح تام!**\n\n"
+                        f"✅ **تم شراء الرقم بنجاح تام من أفضل مشغل ({operator_name})!**\n\n"
                         f"📦 **القسم:** `{sec_name_ar}`\n"
                         f"🌍 **الدولة:** {c_name_ar}\n"
                         f"📞 **مفتاح الدولة:** `{c_dial}`\n"
@@ -630,7 +643,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([
                             [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{order_id}")],
-                            [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{order_id}_{service}_{country_code}_{country_price}")],
+                            [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{order_id}_{service}_{country_code}_{country_price}_{operator_name}")],
                             [InlineKeyboardButton("❌ إلغاء الرقم واسترداد الرصيد", callback_data=f"cnl_paid_{order_id}_{country_price}")]
                         ])
                     )
@@ -648,20 +661,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith('change_num_'):
         parts = data.split('_')
         old_order_id, service, country_code, price_str = parts[2], parts[3], parts[4], float(parts[5])
+        operator_name = parts[6] if len(parts) > 6 else "any"
         
         order_status_info = active_numbers_cache.get(old_order_id, {})
         if order_status_info.get('has_sms', False):
             await query.answer("⚠️ عذراً، لا يمكن تغيير الرقم أو إلغاؤه لأنه قد وصل كود التحقق بالفعل!", show_alert=True)
             return
 
-        await query.answer("🔄 جاري إلغاء الرقم الحالي واستخراج رقم جديد...", show_alert=False)
+        await query.answer("🔄 جاري إلغاء الرقم الحالي واستخراج رقم جديد بأعلى نسبة نجاح...", show_alert=False)
         
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
                 await client.get(f"https://5sim.net/v1/user/cancel/{old_order_id}")
                 db_update_balance(user_id, price_str, mode="add")
 
-                res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/any/{service}")
+                res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/{operator_name}/{service}")
                 if res.status_code == 200:
                     res_data = res.json()
                     new_phone, new_order_id = res_data.get('phone'), res_data.get('id')
@@ -684,7 +698,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         'user_id': user_id,
                         'phone': new_phone,
                         'sec_name_ar': sec_name_ar,
-                        'country_name': c_info['name_ar']
+                        'country_name': c_info['name_ar'],
+                        'operator': operator_name
                     }
 
                     success_msg = (
@@ -704,7 +719,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([
                             [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{new_order_id}")],
-                            [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{new_order_id}_{service}_{country_code}_{price_str}")],
+                            [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{new_order_id}_{service}_{country_code}_{price_str}_{operator_name}")],
                             [InlineKeyboardButton("❌ إلغاء الرقم واسترداد الرصيد", callback_data=f"cnl_paid_{new_order_id}_{price_str}")]
                         ])
                     )
@@ -997,8 +1012,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_selected_service[user_id] = {"service_id": service_ids.get(data, 730), "name": names.get(data, "واتساب"), "price": prices.get(data, 1.0), "min": 10, "max": 100000000, "type": "channel"}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
-    elif data.startswith("tg_t_") or data.startswith("fb_f_") or data.startswith("ig_f_") or data.startswith("tg_v_") or data.startswith("tg_a_") or data.startswith("tg_r_") or data.startswith("tg_p_"):
+    # === إصلاح وتفعيل معالجة خدمات رشق واتساب التفاعلات والإيموجي وتوابعها ===
+    elif data.startswith("wa_r_") or data.startswith("wa_a_") or data.startswith("wa_p_") or data.startswith("tg_t_") or data.startswith("fb_f_") or data.startswith("ig_f_") or data.startswith("tg_v_") or data.startswith("tg_a_") or data.startswith("tg_r_") or data.startswith("tg_p_"):
         service_ids = {
+            "wa_r_1": 712, "wa_r_2": 713, "wa_r_3": 714, "wa_r_4": 715, "wa_r_5": 716, "wa_r_6": 717,
             "tg_t_653": 653, "tg_t_654": 654, "tg_t_659": 659, "tg_t_660": 660, "tg_t_661": 661, "tg_t_662": 662,
             "tg_t_613": 613, "tg_t_614": 614, "tg_t_646": 646, "tg_t_893": 893, "tg_t_894": 894, "tg_t_895": 895,
             "tg_v_628": 628, "tg_v_668": 668, "tg_v_669": 669, "tg_v_670": 670, "tg_v_671": 671,
@@ -1015,6 +1032,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "ig_f_724": 724, "ig_f_771": 771, "ig_f_772": 772, "ig_f_773": 773, "ig_f_769": 769, "ig_f_770": 770
         }
         prices = {
+            "wa_r_1": 0.50, "wa_r_2": 0.50, "wa_r_3": 0.50, "wa_r_4": 0.50, "wa_r_5": 0.50, "wa_r_6": 0.50,
             "tg_t_653": 2.46, "tg_t_654": 2.80, "tg_t_659": 2.00, "tg_t_660": 5.40, "tg_t_661": 5.60, "tg_t_662": 6.00,
             "tg_t_613": 4.00, "tg_t_614": 8.00, "tg_t_646": 30.00, "tg_t_893": 116.00, "tg_t_894": 196.00, "tg_t_895": 316.00,
             "tg_v_628": 0.04, "tg_v_668": 0.02, "tg_v_669": 0.10, "tg_v_670": 0.60, "tg_v_671": 1.22,
@@ -1031,6 +1049,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "ig_f_724": 3.40, "ig_f_771": 4.54, "ig_f_772": 1.874, "ig_f_773": 13.36, "ig_f_769": 0.032, "ig_f_770": 0.40
         }
         names = {
+            "wa_r_1": "تفاعلات واتساب - إيموجي 1", "wa_r_2": "تفاعلات واتساب - إيموجي 2", "wa_r_3": "تفاعلات واتساب - إيموجي 3",
+            "wa_r_4": "تفاعلات واتساب - إيموجي 4", "wa_r_5": "تفاعلات واتساب - إيموجي 5", "wa_r_6": "تفاعلات واتساب - إيموجي 6",
             "tg_t_653": "أعضاء Zero Drop", "tg_t_654": "أعضاء مدى الحياة", "tg_t_659": "أعضاء عرب 10 أيام",
             "tg_t_660": "أعضاء عرب 180 يوم", "tg_t_661": "أعضاء عرب 365 يوم", "tg_t_662": "أعضاء عرب مدى الحياة",
             "tg_t_613": "بريميوم 15 يوم", "tg_t_614": "بريميوم 30 يوم", "tg_t_646": "تعزيزات 2 يوم",
@@ -1055,14 +1075,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "ig_f_957": "إعجابات مدى الحياة", "ig_f_724": "إعجاب تعليق", "ig_f_771": "إعجابات تعليقات اقتصادية",
             "ig_f_772": "تعليقات مخصصة وحقيقية", "ig_f_773": "تعليقات مخصصة مدى الحياة", "ig_f_769": "مشاركة انستغرام", "ig_f_770": "مشاركة مدى الحياة"
         }
-        s_id = service_ids.get(data, 730)
+        s_id = service_ids.get(data, 712)
         stype = "post"
         if data.startswith("tg_t_") or data in ["ig_f_799", "ig_f_800", "ig_f_801", "ig_f_802", "ig_f_803", "ig_f_804"]: stype = "channel"
         elif data in ["ig_f_724", "ig_f_771"]: stype = "comment"
         elif data in ["ig_f_772", "ig_f_773"]: stype = "comment_text"
         elif data.startswith("tg_p_"): stype = "poll"
 
-        user_selected_service[user_id] = {"service_id": s_id, "name": names.get(data, "خدمة"), "price": prices.get(data, 1.0), "min": 10, "max": 100000000, "type": stype, "callback_data": data}
+        user_selected_service[user_id] = {"service_id": s_id, "name": names.get(data, "خدمة واتساب"), "price": prices.get(data, 0.50), "min": 10, "max": 100000000, "type": stype, "callback_data": data}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
     elif data == "confirm_final_order":
@@ -1154,10 +1174,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "مرحباً بك عزيزي العميل في دليلك الكامل لاستخدام خدمات البوت المتطورة من الألف إلى الياء! 🌟\n\n"
             "📱 **1️⃣ قسم الأرقام الافتراضية والتفعيل:**\n"
             "• اختر من القائمة الرئيسية (🛒 شراء رقم افتراضي)، ثم حدد التطبيق (واتساب، تليجرام، انستغرام، إلخ).\n"
-            "• اختر الدولة المطلوبة ليتم تخصيص الرقم لك فوراً.\n"
+            "• اختر الدولة المطلوبة ليتم تخصيص الرقم لك فوراً بأعلى نسبة نجاح.\n"
             "• استخدم زر (🔄 طلب الكود) لاستلام الرسالة، أو (🔄 تغيير الرقم) لاستبداله في حال لم يصل الكود، أو (❌ إلغاء الرقم) لاستعادة الرصيد كامل محفظتك.\n\n"
             "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
-            "• اضغط على (🔭 قسم الرشق والألعاب)، واختر المنصة (تليجرام، انستغرام، فيسبوك، ببجي، فري فاير).\n"
+            "• اضغط على (🔭 قسم الرشق والألعاب)، واختر المنصة (واتساب، تليجرام، انستغرام، فيسبوك، ببجي، فري فاير).\n"
             "• قم بإرسال رابط الحساب/المنشور أو آيدي اللاعب (Player ID) ثم حدد الكمية لتأكيد الطلب.\n\n"
             "💳 **3️⃣ شحن الرصيد التلقائي والآلي:**\n"
             "• يمكنك شحن حسابك عبر محفظة **جيب (Jaib)** أو **بنك الكريمي** بسعر صرف ثابت (1$ = 550 ريال يمني).\n"
@@ -1582,7 +1602,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # === معالجة الإذاعة الشاملة مع إرسال السبب الحقيقي للخطأ لك (كمالكة للبوت) ===
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_broadcast':
         admin_state.pop(user_id, None)
         
@@ -1656,7 +1675,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 last_error_reason = str(broadcast_err)
                 print(f"Broadcast error for ID {uid}: {broadcast_err}")
                 
-        # إرسال تقرير مفصل لك (مالك البوت) بالنتيجة والسبب الحقيقي لأي فشل إن وجد
         report_text = (
             f"✅ **اكتملت الإذاعة الشاملة!** 🚀\n\n"
             f"👥 إجمالي المستهدفين: `{len(all_users)}`\n"
