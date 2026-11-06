@@ -1,4 +1,4 @@
-Import asyncio
+import asyncio
 import re
 import httpx
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
