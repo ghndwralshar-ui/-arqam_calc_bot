@@ -1081,27 +1081,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "confirm_final_order":
         order = user_order_data.get(user_id)
         service = user_selected_service.get(user_id)
-        if order and service:
-            qty = order.get('count', 1)
-            fixed_cost = order.get('fixed_cost', 0.0)
-            calc_cost = order.get('calc_cost', 0.0)
-            final_cost = fixed_cost if fixed_cost > 0 else calc_cost
+        
+        if not order or not service:
+            await query.answer("⚠️ انتهت صلاحية الطلب أو حدث خطأ، يرجى إعادة محاولة الطلب من جديد.", show_alert=True)
+            return
 
-            u_data = db_get_user(user_id)
-            current_balance = float(u_data.get('balance', 0.0))
-            if current_balance <= 0 or current_balance < final_cost:
-                await query.edit_message_text(
-                    f"❌ **عذراً، رصيدك غير كافٍ أو صفر لإتمام الطلب!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 التكلفة المطلوبة: `${final_cost:.2f}`",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-                return
+        qty = order.get('count', 1)
+        fixed_cost = order.get('fixed_cost', 0.0)
+        calc_cost = order.get('calc_cost', 0.0)
+        final_cost = fixed_cost if fixed_cost > 0 else calc_cost
 
-            # تم تحديث الاتصال بـ الرؤوس (Headers) لتجاوز خطأ 403 Forbidden
+        # التحقق من الحد الأدنى للخدمة لمنع توقف الطلب
+        min_limit = service.get('min', 10)
+        if qty < min_limit:
+            await query.answer(f"❌ عذراً، الحد الأدنى لهذه الخدمة هو {min_limit:,}!", show_alert=True)
+            return
+
+        u_data = db_get_user(user_id)
+        current_balance = float(u_data.get('balance', 0.0))
+        if current_balance <= 0 or current_balance < final_cost:
+            await query.edit_message_text(
+                f"❌ **عذراً، رصيدك غير كافٍ أو صفر لإتمام الطلب!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 التكلفة المطلوبة: `${final_cost:.2f}`",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+            )
+            return
+
+        await query.answer("⏳ جاري إرسال الطلب إلى المنصة وتأكيده...", show_alert=False)
+
+        try:
             async with httpx.AsyncClient(headers={
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'application/json, text/plain, */*',
                 'Referer': 'https://hmcard.online/'
-            }, timeout=20.0) as client:
+            }, timeout=15.0) as client:
                 payload = {
                     'key': HMCARD_API_KEY,
                     'action': 'add',
@@ -1109,58 +1121,75 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'link': order['link'],
                     'quantity': qty
                 }
-                try:
-                    res = await client.post(HMCARD_API_URL, data=payload)
-                    if res.status_code == 200:
-                        try:
-                            resp_data = res.json()
-                        except Exception:
-                            text_resp = res.text
-                            await query.edit_message_text(
-                                f"❌ **عذراً، موقع الرشق يرسل صفحة حماية أو خطأ.**\n🔍 الرد: `{text_resp[:150]}`",
-                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-                            )
-                            return
+                
+                res = await client.post(HMCARD_API_URL, data=payload)
+                
+                if res.status_code == 200:
+                    try:
+                        resp_data = res.json()
+                    except Exception:
+                        text_resp = res.text
+                        await query.edit_message_text(
+                            f"❌ **عذراً، موقع الرشق يرسل رد غير متوقع أو صفحة حماية.**\n🔍 الرد: `{text_resp[:150]}`",
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                        )
+                        return
 
-                        if isinstance(resp_data, dict) and "order" in resp_data:
-                            order_id = resp_data["order"]
-                            db_update_balance(user_id, final_cost, mode="deduct")
-                            
-                            await query.edit_message_text(
-                                f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
-                                f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
-                                f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
-                                f"📦 **الكمية:** `{qty:,}`\n"
-                                f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
-                                parse_mode='Markdown',
-                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                            )
-                            
-                            service_name = service.get('name', 'خدمة رقمية')
-                            cb_param = service.get('callback_data', 'main_rashq')
-                            log_msg = (
-                                "🔥 **تم تنفيذ طلب رشق جديد بنجاح!** ✅\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                f"👤 **آيدي العميل:** `{user_id}`\n"
-                                f"🛍️ **الخدمة:** `{service_name}`\n"
-                                f"🔗 **الرابط/الآيدي:** `{mask_link(order['link'])}`\n"
-                                f"📊 **الكمية:** `{qty:,}`\n"
-                                f"🆔 **رقم الطلب:** `{order_id}`\n"
-                                f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
-                                f"⭐ **الحالة:** تم الإرسال للمنصة بنجاح 🚀"
-                            )
-                            await send_log_to_channel(context, log_msg, cb_param)
-                            return
-                        else:
-                            api_error = resp_data.get("error", resp_data.get("message", "خطأ غير معروف"))
-                            await query.edit_message_text(
-                                f"❌ **عذراً، رفض موقع الرشق تنفيذ الطلب!**\n\n💬 **السبب:** `{api_error}`",
-                                parse_mode='Markdown',
-                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                            )
-                            return
-                except Exception as api_err:
-                    await query.edit_message_text(f"❌ **استثناء أثناء الاتصال:** `{str(api_err)[:100]}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                    if isinstance(resp_data, dict) and "order" in resp_data:
+                        order_id = resp_data["order"]
+                        db_update_balance(user_id, final_cost, mode="deduct")
+                        
+                        await query.edit_message_text(
+                            f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
+                            f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
+                            f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
+                            f"📦 **الكمية:** `{qty:,}`\n"
+                            f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
+                            parse_mode='Markdown',
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                        )
+                        
+                        service_name = service.get('name', 'خدمة رقمية')
+                        cb_param = service.get('callback_data', 'main_rashq')
+                        log_msg = (
+                            "🔥 **تم تنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                            "━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"👤 **آيدي العميل:** `{user_id}`\n"
+                            f"🛍️ **الخدمة:** `{service_name}`\n"
+                            f"🔗 **الرابط/الآيدي:** `{mask_link(order['link'])}`\n"
+                            f"📊 **الكمية:** `{qty:,}`\n"
+                            f"🆔 **رقم الطلب:** `{order_id}`\n"
+                            f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
+                            f"⭐ **الحالة:** تم الإرسال للمنصة بنجاح 🚀"
+                        )
+                        await send_log_to_channel(context, log_msg, cb_param)
+                        return
+                    else:
+                        api_error = resp_data.get("error", resp_data.get("message", "خطأ غير معروف من المنصة"))
+                        await query.edit_message_text(
+                            f"❌ **عذراً، رفض موقع الرشق تنفيذ الطلب!**\n\n💬 **السبب:** `{api_error}`",
+                            parse_mode='Markdown',
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                        )
+                        return
+                else:
+                    await query.edit_message_text(
+                        f"❌ **خطأ في الاتصال بموقع الرشق (رمز الاستجابة: {res.status_code})**",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                    )
+        except httpx.TimeoutException:
+            await query.edit_message_text(
+                "❌ **انتهت مهلة الاتصال (Timeout)**\nموقع الرشق يطيل الاستجابة، يرجى المحاولة لاحقاً.",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+            )
+        except Exception as api_err:
+            await query.edit_message_text(
+                f"❌ **استثناء أثناء الاتصال:**\n`{str(api_err)[:100]}`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+            )
 
     elif data == "cancel_order":
         await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
@@ -1360,7 +1389,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_reset_balances':
-        # تم تطبيق حماية المالك الصارمة هنا لمنع أي تلاعب خارجي
         if not is_owner(user_id):
             await query.answer("⛔ عذراً، هذا الإجراء مخصص للمالك الأساسي فقط ولا يمكن لأي جهة أخرى تنفيذه!", show_alert=True)
             return
