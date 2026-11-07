@@ -662,7 +662,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("⚠️ عذراً، لا يمكن تغيير الرقم أو إلغاؤه لأنه قد وصل كود التحقق بالفعل!", show_alert=True)
             return
 
-        await query.answer("🔄 جاري إلغاء الرقم الحالي واستخرج رقم جديد بأعلى نسبة نجاح...", show_alert=False)
+        await query.answer("🔄 جاري إلغاء الرقم الحالي واستخراج رقم جديد بأعلى نسبة نجاح...", show_alert=False)
         
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
@@ -1108,7 +1108,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("⏳ جاري إرسال الطلب إلى المنصة وتأكيده عبر الوسيط الآمن...", show_alert=False)
 
         try:
-            # 🛡️ تجاوز حظر الـ 403 باستخدام بروكسبات وسيطة مجانية
             proxy_urls = [
                 "https://corsproxy.io/?",
                 "https://api.allorigins.win/raw?url="
@@ -1126,7 +1125,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             success_request = False
 
             async with httpx.AsyncClient(timeout=20.0) as client:
-                # المحاولة المباشرة أولاً
                 try:
                     res = await client.post(HMCARD_API_URL, data=payload, headers={
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -1141,7 +1139,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
 
-                # المحاولة باستخدام البروكسي الوسيط إذا فشلت المباشرة
                 if not success_request:
                     for p_prefix in proxy_urls:
                         try:
@@ -1648,7 +1645,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # 🎁 معالجة إنشاء أكواد الهدايا من لوحة الأدمن بمرونة ذكية جداً تمنع الأخطاء البرمجية
+    # 🎁 معالجة إنشاء أكواد الهدايا بمعالجة آمنة تماماً تمنع أخطاء الـ Markdown
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_promo_details':
         admin_state.pop(user_id, None)
         try:
@@ -1680,12 +1677,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             promo_link = f"https://t.me/{bot_username}?start=promo_{promo_code}"
 
             promo_announcement = (
-                f"🎁 **كود هدية جديد ومجاني من ديجيتال هب!** 🌟\n"
+                f"🎁 كود هدية جديد ومجاني من ديجيتال هب!\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🎟️ **الكود:** `{promo_code}`\n"
-                f"💰 **قيمة الهدية:** `${promo_amount:.2f}`\n"
-                f"👥 **عدد المستفيدين المسموح:** `{promo_max} شخص`\n\n"
-                f"👇 **اضغط على الرابط أدناه لشحن الهدية فوراً لمحفظتك:**\n"
+                f"🎟️ الكود: {promo_code}\n"
+                f"💰 قيمة الهدية: ${promo_amount:.2f}\n"
+                f"👥 عدد المستفيدين: {promo_max} شخص\n\n"
+                f"👇 اضغط على الرابط أدناه لشحن الهدية فوراً:\n"
                 f"{promo_link}"
             )
 
@@ -1696,12 +1693,11 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             ])
 
             await update.message.reply_text(
-                f"✅ **تم إنشاء كود الهدية وحفظه في النظام بنجاح!**\n\n{promo_announcement}\n\n👇 **اختر طريقة النشر المناسبة:**",
-                parse_mode='Markdown',
+                f"✅ تم إنشاء كود الهدية وحفظه في النظام بنجاح!\n\n{promo_announcement}\n\n👇 اختر طريقة النشر المناسبة:",
                 reply_markup=keyboard
             )
         except Exception as e:
-            await update.message.reply_text(f"❌ حدث خطأ أثناء إنشاء كود الهدية: `{str(e)[:100]}`", parse_mode='Markdown')
+            await update.message.reply_text(f"❌ حدث خطأ أثناء إنشاء كود الهدية: {str(e)[:100]}")
         return
 
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_broadcast':
