@@ -44,6 +44,10 @@ KREEMI_ACCOUNT = "3105004949"
 VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
+# دالة أمان صارمة للتحقق من المالك الأساسي حصرياً
+def is_owner(user_id: int) -> bool:
+    return user_id == ADMIN_ID
+
 # النص الاحترافي المعتمد لرسالة الاشتراك الإجباري
 FORCED_SUB_MESSAGE = (
     "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
@@ -75,11 +79,9 @@ async def check_user_subscription(user_id: int, context: ContextTypes.DEFAULT_TY
 async def process_successful_join_reward(user, context, u_data):
     """منح مكافأة الإحالة وإشعار المُحيل والمستخدم والأدمن بعد التحقق من الاشتراك بنجاح دون تكرار"""
     try:
-        # التحقق من عدم استلام المكافأة مسبقاً لمنع التكرار
         if not db_claim_referral_reward(user.id):
             return
 
-        # إشعار الأدمن بمستخدم جديد
         if user.id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
@@ -96,15 +98,12 @@ async def process_successful_join_reward(user, context, u_data):
             except Exception as admin_notify_err:
                 print(f"Error notifying admin about new user: {admin_notify_err}")
 
-        # معالجة نظام الإحالات وهدايا الدعوات
         referrer_id = u_data.get("referred_by", 0)
         if referrer_id > 0 and referrer_id != user.id:
             db_update_balance(referrer_id, 0.10, mode="add")
             new_ref_count = db_increment_referral_count(referrer_id)
-            ref_info = db_get_user(referrer_id)
             
             try:
-                # جلب اسم المُحيل أو استخدام اسمه الأول
                 ref_first_name = "صديقنا"
                 try:
                     chat_info = await context.bot.get_chat(referrer_id)
@@ -189,13 +188,12 @@ async def get_available_countries_for_service(service: str):
                                 if isinstance(op_data, dict):
                                     count = op_data.get("count", 0)
                                     cost = op_data.get("cost", 0)
-                                    rate = op_data.get("rate", 0.0) # نسبة النجاح من 5sim إن وجدت
+                                    rate = op_data.get("rate", 0.0)
                                     if count > 0 and cost is not None:
                                         has_stock = True
-                                        base_price = float(base_price_val := float(cost))
+                                        base_price = float(cost)
                                         success_val = float(rate) if rate is not None else 0.0
                                         
-                                        # خوارزمية اختيار المشغل الأفضل: الأولوية لأعلى نسبة نجاح ثم الأرخص
                                         if success_val > max_success_rate or (success_val == max_success_rate and base_price < min_price):
                                             max_success_rate = success_val
                                             min_price = base_price
@@ -219,7 +217,6 @@ async def get_available_countries_for_service(service: str):
 
 async def show_available_countries_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, service_code: str, service_title: str):
     query = update.callback_query
-    user_id = query.from_user.id
     
     await query.answer("⏳ جاري فحص الدول المتوفرة وأفضل المشغلين بنجاح...", show_alert=False)
     available_countries = await get_available_countries_for_service(service_code)
@@ -241,7 +238,6 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     row = []
     for c in available_countries:
         btn_text = f"{c['flag']} {c['name_ar']} • ${c['price']:.2f}"
-        # تمرير المشغل الأفضل ذو نسبة النجاح الأعلى في الـ callback_data
         row.append(InlineKeyboardButton(btn_text, callback_data=f"buy_num_{service_code}_{c['code']}_{c['price']}_{c['operator']}"))
         if len(row) == 2:
             buttons.append(row)
@@ -250,7 +246,7 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
         buttons.append(row)
 
     buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
-    u_data = db_get_user(user_id)
+    u_data = db_get_user(query.from_user.id)
     
     await query.edit_message_text(
         f"🔹 **• الدول المتوفرة بأعلى نسب نجاح لأرقام ({service_title}) •**\n"
@@ -564,7 +560,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parts = data.split('_')
         service, country_code, country_price_str = parts[2], parts[3], parts[4]
         country_price = float(country_price_str)
-        # استخراج المشغل الأفضل الممرر في البصمة أو الاعتماد على الافتراضي
         operator_name = parts[5] if len(parts) > 5 else "any"
         
         u_data = db_get_user(user_id)
@@ -597,7 +592,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("🔄 جاري الشراء وتجهيز الرقم من أفضل مشغل...", show_alert=False)
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
-                # استخدام المشغل ذو نسبة النجاح الأعلى بدلاً من العشوائي any
                 res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/{operator_name}/{service}")
                 if res.status_code == 200:
                     try:
@@ -1012,7 +1006,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_selected_service[user_id] = {"service_id": service_ids.get(data, 730), "name": names.get(data, "واتساب"), "price": prices.get(data, 1.0), "min": 10, "max": 100000000, "type": "channel"}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
-    # === إصلاح وتفعيل معالجة خدمات رشق واتساب التفاعلات والإيموجي وتوابعها ===
     elif data.startswith("wa_r_") or data.startswith("wa_a_") or data.startswith("wa_p_") or data.startswith("tg_t_") or data.startswith("fb_f_") or data.startswith("ig_f_") or data.startswith("tg_v_") or data.startswith("tg_a_") or data.startswith("tg_r_") or data.startswith("tg_p_"):
         service_ids = {
             "wa_r_1": 712, "wa_r_2": 713, "wa_r_3": 714, "wa_r_4": 715, "wa_r_5": 716, "wa_r_6": 717,
@@ -1103,7 +1096,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
-            async with httpx.AsyncClient(headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}, timeout=20.0) as client:
+            # تم تحديث الاتصال بـ الرؤوس (Headers) لتجاوز خطأ 403 Forbidden
+            async with httpx.AsyncClient(headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Referer': 'https://hmcard.online/'
+            }, timeout=20.0) as client:
                 payload = {
                     'key': HMCARD_API_KEY,
                     'action': 'add',
@@ -1362,15 +1360,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
 
     elif data == 'admin_reset_balances':
-        if user_id != ADMIN_ID: return
+        # تم تطبيق حماية المالك الصارمة هنا لمنع أي تلاعب خارجي
+        if not is_owner(user_id):
+            await query.answer("⛔ عذراً، هذا الإجراء مخصص للمالك الأساسي فقط ولا يمكن لأي جهة أخرى تنفيذه!", show_alert=True)
+            return
+            
         try:
             res = supabase.table("users").select("user_id").execute()
             for u in (res.data if hasattr(res, 'data') else []):
                 supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
         except Exception:
             pass
-        await query.answer("✅ تمت التصفير بنجاح!", show_alert=True)
-        await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بنجاح.", reply_markup=get_admin_keyboard())
+        await query.answer("✅ تمت التصفير بأمان تام بواسطة المالك!", show_alert=True)
+        await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بناءً على طلب المالك حصرياً.", reply_markup=get_admin_keyboard())
 
     elif data == 'admin_ban_user':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
