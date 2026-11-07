@@ -662,7 +662,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("⚠️ عذراً، لا يمكن تغيير الرقم أو إلغاؤه لأنه قد وصل كود التحقق بالفعل!", show_alert=True)
             return
 
-        await query.answer("🔄 جاري إلغاء الرقم الحالي واستخراج رقم جديد بأعلى نسبة نجاح...", show_alert=False)
+        await query.answer("🔄 جاري إلغاء الرقم الحالي واستخرج رقم جديد بأعلى نسبة نجاح...", show_alert=False)
         
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
@@ -1108,7 +1108,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("⏳ جاري إرسال الطلب إلى المنصة وتأكيده عبر الوسيط الآمن...", show_alert=False)
 
         try:
-            # 🛡️ الحل البرمجي لتجاوز خطأ 403 Forbidden عبر بروكسي وسيط نظيف لتغيير الـ IP
+            # 🛡️ تجاوز حظر الـ 403 باستخدام بروكسبات وسيطة مجانية
             proxy_urls = [
                 "https://corsproxy.io/?",
                 "https://api.allorigins.win/raw?url="
@@ -1126,7 +1126,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             success_request = False
 
             async with httpx.AsyncClient(timeout=20.0) as client:
-                # محاولة الاتصال المباشر أولاً
+                # المحاولة المباشرة أولاً
                 try:
                     res = await client.post(HMCARD_API_URL, data=payload, headers={
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -1141,7 +1141,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
 
-                # إذا فشل الاتصال المباشر أو أعطى 403، نجرب عبر البروسكي الوسيط
+                # المحاولة باستخدام البروكسي الوسيط إذا فشلت المباشرة
                 if not success_request:
                     for p_prefix in proxy_urls:
                         try:
@@ -1648,20 +1648,24 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # 🎁 معالجة إنشاء أكواد الهدايا من لوحة الأدمن مع خيار نشرها في القناة والإذاعة
+    # 🎁 معالجة إنشاء أكواد الهدايا من لوحة الأدمن بمرونة ذكية جداً تمنع الأخطاء البرمجية
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_promo_details':
         admin_state.pop(user_id, None)
         try:
             parts = text_content.split()
-            if len(parts) < 3:
-                await update.message.reply_text("⚠️ صيغة غير صحيحة. يرجى الإرسال هكذا:\n`CODE AMOUNT MAX_USES` (مثال: `GIFT50 0.50 50`)", parse_mode='Markdown')
-                return
+            numbers = []
+            promo_code = "GIFT"
             
-            promo_code = parts[0].upper()
-            promo_amount = float(parts[1])
-            promo_max = int(parts[2])
+            for p in parts:
+                try:
+                    numbers.append(float(p))
+                except ValueError:
+                    if not any(char.isdigit() for char in p):
+                        promo_code = p.upper()
 
-            # حفظ كود الهدية في جدول قاعدة البيانات (Supabase)
+            promo_amount = numbers[0] if len(numbers) > 0 else 0.50
+            promo_max = int(numbers[1]) if len(numbers) > 1 else 50
+
             try:
                 supabase.table("promo_codes").insert({
                     "code": promo_code,
@@ -1685,7 +1689,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"{promo_link}"
             )
 
-            # أزرار لوحة التحكم بعد الإنشاء لنشر الكود
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("📢 نشر في القناة الرسمية", callback_data=f"pub_promo_{promo_code}")],
                 [InlineKeyboardButton("🌐 نشر في الإذاعة الشاملة", callback_data=f"broadcast_promo_{promo_code}")],
@@ -1693,7 +1696,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             ])
 
             await update.message.reply_text(
-                f"✅ **تم إنشاء كود الهدية بنجاح حفظه في النظام!**\n\n{promo_announcement}\n\n👇 **اختر طريقة النشر المناسبة:**",
+                f"✅ **تم إنشاء كود الهدية وحفظه في النظام بنجاح!**\n\n{promo_announcement}\n\n👇 **اختر طريقة النشر المناسبة:**",
                 parse_mode='Markdown',
                 reply_markup=keyboard
             )
