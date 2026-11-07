@@ -12,7 +12,7 @@ LOG_CHANNEL_ID = -1004374640175
 
 # --- مفاتيح خدمات الرشق (HMCARD) - تم التحديث ---
 HMCARD_API_URL = "https://hmcard.online/api/v2"
-HMCARD_API_KEY = "2dc02ab06a989edb745b4a6d6b74fd86"
+HMCARD_API_KEY = "70cf52d28dc3f98483735f554ce7a994"
 
 # --- مفتاح محرك قراءة الإيصالات (OCR.space) ---
 OCR_SPACE_API_KEY = "K8801265751720788957"
