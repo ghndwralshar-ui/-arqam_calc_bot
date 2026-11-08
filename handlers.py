@@ -1285,9 +1285,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         calc_cost = order.get('calc_cost', 0.0)
         final_cost = fixed_cost if fixed_cost > 0 else calc_cost
 
-        min_limit = service.get('min', 10)
-        if qty < min_limit:
-            await query.answer(f"❌ عذراً، الحد الأدنى لهذه الخدمة هو {min_limit:,}!", show_alert=True)
+        min_limit = service.get('min', 1)
+        max_limit = service.get('max', 100000000)
+        
+        if qty < min_limit or qty > max_limit:
+            await query.answer(f"❌ عذراً، الكمية يجب أن تكون بين {min_limit:,} و {max_limit:,}!", show_alert=True)
             return
 
         u_data = db_get_user(user_id)
@@ -1302,10 +1304,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        await query.answer("⏳ جاري تجاوز حماية السيرفر وإرسال الطلب للمنصة...", show_alert=False)
+        await query.answer("⏳ جاري إرسال الطلب للمنصة وتأكيده...", show_alert=False)
 
         try:
-            # استخدام مكتبة cloudscraper لتجاوز حماية Cloudflare تماماً
             scraper = cloudscraper.create_scraper(
                 browser={
                     'browser': 'chrome',
@@ -1314,12 +1315,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
             )
 
+            # تجهيز البارامترات المطلوبة بدقة تامة لتجنب أخطاء Incorrect request
             payload = {
                 'key': HMCARD_API_KEY,
                 'action': 'add',
-                'service': service['service_id'],
-                'link': order['link'],
-                'quantity': qty
+                'service': int(service['service_id']),
+                'link': str(order['link']),
+                'quantity': int(qty)
             }
 
             resp_data = None
@@ -1330,12 +1332,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if response.status_code == 200:
                     try:
                         resp_data = response.json()
-                        if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or not resp_data.get("error")):
+                        if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or "id" in resp_data):
                             success_request = True
                     except Exception:
                         if response.text.strip().startswith('{'):
                             resp_data = json.loads(response.text)
-                            if "order" in resp_data or "order_id" in resp_data:
+                            if "order" in resp_data or "order_id" in resp_data or "id" in resp_data:
                                 success_request = True
                 else:
                     resp_data = {"error": f"رمز الاستجابة: {response.status_code}"}
@@ -1365,7 +1367,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 service_name = service.get('name', 'خدمة رقمية')
                 cb_param = service.get('callback_data', 'main_rashq')
                 log_msg = (
-                    "🔥 **تم تنفيذ طلب رشق جديد بنجاح عبر تجاوز الحماية!** ✅\n"
+                    "🔥 **تم تنفيذ طلب رشق جديد بنجاح!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"👤 **آيدي العميل:** `{user_id}`\n"
                     f"🛍️ **الخدمة:** `{service_name}`\n"
@@ -1378,13 +1380,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await send_log_to_channel(context, log_msg, cb_param)
                 return
             else:
-                api_error = "رفض الاتصال من الخادم"
+                api_error = "طلب غير صحيح أو الرابط غير صالح"
                 if isinstance(resp_data, dict):
                     api_error = resp_data.get("error", resp_data.get("message", api_error))
                 
                 try:
                     await query.edit_message_text(
-                        f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`",
+                        f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`\n\n💡 تأكد من صحة الرابط أو أن الكمية تلبي الحد الأدنى للخدمة.",
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                     )
