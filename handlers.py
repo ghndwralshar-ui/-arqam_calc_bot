@@ -2,6 +2,7 @@ import asyncio
 import re
 import json
 import httpx
+import cloudscraper
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
 
@@ -1301,16 +1302,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        await query.answer("⏳ جاري إرسال الطلب وتخطى جدار الحماية عبر البروكسي الآمن...", show_alert=False)
+        await query.answer("⏳ جاري تجاوز حماية السيرفر وإرسال الطلب للمنصة...", show_alert=False)
 
         try:
-            # قائمة بروكسيات وبوابات وسيطة لتجاوز حظر الأيبي وجدار الحماية
-            proxy_endpoints = [
-                "https://corsproxy.io/?",
-                "https://api.allorigins.win/raw?url=",
-                "https://thingproxy.freeboard.io/fetch/"
-            ]
-            
+            # استخدام مكتبة cloudscraper لتجاوز حماية Cloudflare تماماً
+            scraper = cloudscraper.create_scraper(
+                browser={
+                    'browser': 'chrome',
+                    'platform': 'windows',
+                    'desktop': True
+                }
+            )
+
             payload = {
                 'key': HMCARD_API_KEY,
                 'action': 'add',
@@ -1322,47 +1325,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             resp_data = None
             success_request = False
 
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                # 1️⃣ المحاولة الأولى مباشرة بالسيرفر الأساسي
-                try:
-                    res = await client.post(HMCARD_API_URL, data=payload, headers={
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Referer': 'https://hmcard.online/',
-                        'Accept': 'application/json'
-                    })
-                    if res.status_code == 200:
-                        try:
-                            resp_data = res.json()
-                            if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or not resp_data.get("error")):
+            try:
+                response = scraper.post(HMCARD_API_URL, data=payload, timeout=30)
+                if response.status_code == 200:
+                    try:
+                        resp_data = response.json()
+                        if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or not resp_data.get("error")):
+                            success_request = True
+                    except Exception:
+                        if response.text.strip().startswith('{'):
+                            resp_data = json.loads(response.text)
+                            if "order" in resp_data or "order_id" in resp_data:
                                 success_request = True
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-                # 2️⃣ إذا فشل الاتصال المباشر، نبدأ بتجربة البروكسيات وبوابات التجاوز تلقائياً
-                if not success_request:
-                    for p_prefix in proxy_endpoints:
-                        try:
-                            target_url = p_prefix + HMCARD_API_URL
-                            res = await client.post(target_url, data=payload, headers={
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                'Accept': 'application/json'
-                            })
-                            if res.status_code == 200:
-                                try:
-                                    resp_data = res.json()
-                                    if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data):
-                                        success_request = True
-                                        break
-                                except Exception:
-                                    if res.text.strip().startswith('{'):
-                                        resp_data = json.loads(res.text)
-                                        if "order" in resp_data or "order_id" in resp_data:
-                                            success_request = True
-                                            break
-                        except Exception:
-                            continue
+                else:
+                    resp_data = {"error": f"رمز الاستجابة: {response.status_code}"}
+            except Exception as sc_err:
+                resp_data = {"error": str(sc_err)[:100]}
 
             order_id = None
             if success_request and isinstance(resp_data, dict):
@@ -1387,7 +1365,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 service_name = service.get('name', 'خدمة رقمية')
                 cb_param = service.get('callback_data', 'main_rashq')
                 log_msg = (
-                    "🔥 **تم تنفيذ طلب رشق جديد بنجاح عبر نظام البروكسي الآمن!** ✅\n"
+                    "🔥 **تم تنفيذ طلب رشق جديد بنجاح عبر تجاوز الحماية!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"👤 **آيدي العميل:** `{user_id}`\n"
                     f"🛍️ **الخدمة:** `{service_name}`\n"
@@ -1400,13 +1378,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await send_log_to_channel(context, log_msg, cb_param)
                 return
             else:
-                api_error = "رفض الاتصال أو حماية السيرفر (Cloudflare/Firewall)"
+                api_error = "رفض الاتصال من الخادم"
                 if isinstance(resp_data, dict):
                     api_error = resp_data.get("error", resp_data.get("message", api_error))
                 
                 try:
                     await query.edit_message_text(
-                        f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`\n\n💡 *تم تفعيل نظام البروكسي، يرجى المحاولة مرة أخرى بعد قليل.*",
+                        f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`",
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                     )
@@ -1539,8 +1517,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
                 "⚡ *سيقوم النظام بالتحقق التلقائي والآلي المباشر من محفظة جيب واضافة رصيدك تلقائياً!*",
                 parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
-            )
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
         except Exception:
             pass
 
@@ -1554,8 +1531,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
                 "⚡ *سيقوم النظام بالتحقق التلقائي والآلي المباشر واضافة رصيدك تلقائياً!*",
                 parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
-            )
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
         except Exception:
             pass
 
@@ -1620,8 +1596,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "`الكود المبلغ عدد_الاستخدامات`\n\n"
                 "*(مثال: `WELCOME 0.50 100`)*",
                 parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]])
-            )
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
         except Exception:
             pass
 
