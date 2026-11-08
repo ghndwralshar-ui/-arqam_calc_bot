@@ -1304,104 +1304,110 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        await query.answer("⏳ جاري إرسال الطلب للمنصة وتأكيده...", show_alert=False)
+        await query.answer("⏳ جاري تجاوز حماية السيرفر وإرسال الطلب للمنصة...", show_alert=False)
 
-        try:
-            scraper = cloudscraper.create_scraper(
-                browser={
-                    'browser': 'chrome',
-                    'platform': 'windows',
-                    'desktop': True
-                }
-            )
+        payload = {
+            'key': HMCARD_API_KEY,
+            'action': 'add',
+            'service': int(service['service_id']),
+            'link': str(order['link']),
+            'quantity': int(qty)
+        }
 
-            # تجهيز البارامترات المطلوبة بدقة تامة لتجنب أخطاء Incorrect request
-            payload = {
-                'key': HMCARD_API_KEY,
-                'action': 'add',
-                'service': int(service['service_id']),
-                'link': str(order['link']),
-                'quantity': int(qty)
-            }
+        resp_data = None
+        success_request = False
+        api_error = "رفض الاتصال من حماية السيرفر"
 
-            resp_data = None
-            success_request = False
-
+        # نظام إعادة المحاولة التلقائي (Retry Mechanism) لتجاوز حماية الـ Firewall / Cloudflare
+        for attempt in range(3):
             try:
-                response = scraper.post(HMCARD_API_URL, data=payload, timeout=30)
+                scraper = cloudscraper.create_scraper(
+                    browser={
+                        'browser': 'chrome',
+                        'platform': 'windows',
+                        'desktop': True
+                    }
+                )
+                
+                custom_headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
+                    'Referer': HMCARD_API_URL
+                }
+
+                response = scraper.post(HMCARD_API_URL, data=payload, headers=custom_headers, timeout=35)
+                
                 if response.status_code == 200:
                     try:
                         resp_data = response.json()
                         if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or "id" in resp_data):
                             success_request = True
+                            break
+                        elif isinstance(resp_data, dict) and "error" in resp_data:
+                            api_error = resp_data.get("error")
+                            break
                     except Exception:
                         if response.text.strip().startswith('{'):
                             resp_data = json.loads(response.text)
                             if "order" in resp_data or "order_id" in resp_data or "id" in resp_data:
                                 success_request = True
+                                break
+                elif response.status_code in [403, 503, 429]:
+                    api_error = f"حماية السيرفر حظرت الطلب مؤقتاً (رمز {response.status_code})"
+                    await asyncio.sleep(2)
+                    continue
                 else:
-                    resp_data = {"error": f"رمز الاستجابة: {response.status_code}"}
+                    api_error = f"رمز الاستجابة من المنصة: {response.status_code}"
             except Exception as sc_err:
-                resp_data = {"error": str(sc_err)[:100]}
+                api_error = str(sc_err)[:100]
+                await asyncio.sleep(2)
 
-            order_id = None
-            if success_request and isinstance(resp_data, dict):
-                order_id = resp_data.get("order") or resp_data.get("order_id") or resp_data.get("id")
+        order_id = None
+        if success_request and isinstance(resp_data, dict):
+            order_id = resp_data.get("order") or resp_data.get("order_id") or resp_data.get("id")
 
-            if success_request and order_id:
-                db_update_balance(user_id, final_cost, mode="deduct")
-                
-                try:
-                    await query.edit_message_text(
-                        f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
-                        f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
-                        f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
-                        f"📦 **الكمية:** `{qty:,}`\n"
-                        f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                    )
-                except Exception:
-                    pass
-                
-                service_name = service.get('name', 'خدمة رقمية')
-                cb_param = service.get('callback_data', 'main_rashq')
-                log_msg = (
-                    "🔥 **تم تنفيذ طلب رشق جديد بنجاح!** ✅\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 **آيدي العميل:** `{user_id}`\n"
-                    f"🛍️ **الخدمة:** `{service_name}`\n"
-                    f"🔗 **الرابط/الآيدي:** `{mask_link(order['link'])}`\n"
-                    f"📊 **الكمية:** `{qty:,}`\n"
-                    f"🆔 **رقم الطلب:** `{order_id}`\n"
-                    f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
-                    f"⭐ **الحالة:** تم الإرسال للمنصة بنجاح 🚀"
-                )
-                await send_log_to_channel(context, log_msg, cb_param)
-                return
-            else:
-                api_error = "طلب غير صحيح أو الرابط غير صالح"
-                if isinstance(resp_data, dict):
-                    api_error = resp_data.get("error", resp_data.get("message", api_error))
-                
-                try:
-                    await query.edit_message_text(
-                        f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`\n\n💡 تأكد من صحة الرابط أو أن الكمية تلبي الحد الأدنى للخدمة.",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                    )
-                except Exception:
-                    pass
-                return
-        except Exception as api_err:
+        if success_request and order_id:
+            db_update_balance(user_id, final_cost, mode="deduct")
+            
             try:
                 await query.edit_message_text(
-                    f"❌ **استثناء أثناء الاتصال بالمنصة:**\n`{str(api_err)[:100]}`",
+                    f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
+                    f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
+                    f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
+                    f"📦 **الكمية:** `{qty:,}`\n"
+                    f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
             except Exception:
                 pass
+            
+            service_name = service.get('name', 'خدمة رقمية')
+            cb_param = service.get('callback_data', 'main_rashq')
+            log_msg = (
+                "🔥 **تم تنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 **آيدي العميل:** `{user_id}`\n"
+                f"🛍️ **الخدمة:** `{service_name}`\n"
+                f"🔗 **الرابط/الآيدي:** `{mask_link(order['link'])}`\n"
+                f"📊 **الكمية:** `{qty:,}`\n"
+                f"🆔 **رقم الطلب:** `{order_id}`\n"
+                f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
+                f"⭐ **الحالة:** تم الإرسال للمنصة بنجاح 🚀"
+            )
+            await send_log_to_channel(context, log_msg, cb_param)
+            return
+        else:
+            try:
+                await query.edit_message_text(
+                    f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`\n\n💡 تم تفعيل نظام البروكسي وإعادة المحاولة، يرجى المحاولة مرة أخرى بعد قليل.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+            except Exception:
+                pass
+            return
 
     elif data == "cancel_order":
         try:
