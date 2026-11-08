@@ -1,51 +1,67 @@
-# ==========================================
-# 💎 ملف إعدادات بوت ديجيتال هب (Digital Hub) 💎
-# ==========================================
+import os
 
-# 1. توكن البوت الجديد (محدث ونظيف 100%)
+# --- إعدادات البوت والآيديات الأساسية ---
 BOT_TOKEN = "8850483932:AAF-ZgsMtCi96OWybPL43ZQS2oeCmF72L68"
+ADMIN_ID = 6542718105
+SUPPORT_USERNAME = "benti"
 
-# 2. معلومات المشرف الأساسي والمالك
-ADMIN_ID = 6542718105  # آيدي المالك الأساسي
-SUPPORT_USERNAME = "benti"  # معرف الدعم
-
-# 3. إعدادات القناة الإجبارية (محدثة على قناتك حصرياً)
+# --- القناة الإجبارية ولॉग الأنشطة ---
 FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"
 FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"
+LOG_CHANNEL_ID = -1004374640175
 
-# 4. قناة السجلات والطلبات
-LOG_CHANNEL_ID = -1002425895743  # آيدي قناة السجلات
+# --- مفاتيح خدمات الرشق (HMCARD) - تم التحديث ---
+HMCARD_API_URL = "https://hmcard.online/api/v2"
+HMCARD_API_KEY = "70cf52d28dc3f98483735f554ce7a994"
 
-# 5. بيانات منصة HMCARD للرشق وشحن الألعاب
-HMCARD_API_URL = "https://hmcard.net/api/v2"
-HMCARD_API_KEY = "ضع_مفتاح_API_الخاص_بمنصة_hmcard_هنا"
+# --- مفتاح محرك قراءة الإيصالات (OCR.space) ---
+OCR_SPACE_API_KEY = "K8801265751720788957"
 
-# 6. بيانات ربط قاعدة البيانات السحابية (Supabase)
-SUPABASE_URL = "https://your-supabase-url.supabase.co"
-SUPABASE_KEY = "ضع_مفتاح_supabase_الخاص_بك_هنا"
+# --- بيانات قاعدة بيانات Supabase ---
+SUPABASE_URL = "https://odsrzvgjwvscsnlbkxgj.supabase.co"
+SUPABASE_KEY = "sb_publishable_ylZ_VSULVrr_Lb7PA4G1fg_sy2ko5TJ"
 
-# 7. مفتاح ربط خدمة قراءة الإيصالات (OCR)
-OCR_SPACE_API_KEY = "K84447385288957"
+# --- مفتاح وتهيئة 5SIM للأرقام الافتراضية ---
+FIVESIM_API_KEY = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MjE3OTQwNDQsImlhdCI6MTc5MDI1ODA0NCwicmF5IjoiZjQ5MGQ2ZDY1ZDk3YWQyYjI5YTZmMmZmMTA3MTE0YjMiLCJzdWIiOjQ1MjI3NTR9.a9hYtNcsLbGzOl-1lYckGNcywKS6K2GbjVvylCVAk6wRN2msqpd4P_iwjiSGhVRhgot5N_SBg7R-_g4WcwMFUQwOowZelELtux7Lc8fw_kMYXcSOtDPKuMY2O_w2kEEGQwITIIR98uUaQkv2r-obwBMvVfnUisJqVp93Qv_gg1f_if-Ogp7H0y9h-CdBBQqMNua-vMwV8-uN9LAJsz6hUkXrmOAG0WjRcdI2e5WiANF9w3wrAbJveP_b2J-JxSJKVs-T_oobDcmsadhlLpQB4hesY2sGyDSzD-KBFp18-PZsHPWVQ8pkNYRe5O4YAqaLACwbP3GOBsd518R7G_JOTA"
 
-# 8. إعدادات الاتصال بـ 5sim للأرقام الافتراضية
 HEADERS = {
-    "Authorization": "Bearer ضع_مفتاح_5sim_هنا",
-    "Accept": "application/json"
+    'Authorization': f'Bearer {FIVESIM_API_KEY}',
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
-# 9. قاموس الدول ومفاتيحها للأرقام الافتراضية
+# --- قاموس الدول المعتمدة للأرقام الافتراضية ---
 COUNTRY_INFO = {
     "russia": {"name_ar": "روسيا", "flag": "🇷🇺", "dial": "+7"},
     "usa": {"name_ar": "أمريكا", "flag": "🇺🇸", "dial": "+1"},
+    "uk": {"name_ar": "بريطانيا", "flag": "🇬🇧", "dial": "+44"},
+    "india": {"name_ar": "الهند", "flag": "🇮🇳", "dial": "+91"},
+    "indonesia": {"name_ar": "إندونيسيا", "flag": "🇮🇩", "dial": "+62"},
+    "brazil": {"name_ar": "البرازيل", "flag": "🇧🇷", "dial": "+55"},
+    "germany": {"name_ar": "ألمانيا", "flag": "🇩🇪", "dial": "+49"},
+    "turkey": {"name_ar": "تركيا", "flag": "🇹🇷", "dial": "+90"},
     "ukraine": {"name_ar": "أوكرانيا", "flag": "🇺🇦", "dial": "+380"},
     "kazakhstan": {"name_ar": "كازاخستان", "flag": "🇰🇿", "dial": "+7"},
-    "indonesia": {"name_ar": "إندونيسيا", "flag": "🇮🇩", "dial": "+62"},
-    "philippines": {"name_ar": "الفلبين", "flag": "🇵🇭", "dial": "+63"},
-    "malaysia": {"name_ar": "ماليزيا", "flag": "🇲🇾", "dial": "+60"},
     "vietnam": {"name_ar": "فيتنام", "flag": "🇻🇳", "dial": "+84"},
-    "kyrgyzstan": {"name_ar": "قيرغيزستان", "flag": "🇰🇬", "dial": "+996"},
-    "usa_virtual": {"name_ar": "أمريكا (فوري)", "flag": "🇺🇸", "dial": "+1"},
+    "philippines": {"name_ar": "الفلبين", "flag": "🇵🇭", "dial": "+63"},
+    "poland": {"name_ar": "بولندا", "flag": "🇵🇱", "dial": "+48"},
+    "colombia": {"name_ar": "كولومبيا", "flag": "🇨🇴", "dial": "+57"},
     "egypt": {"name_ar": "مصر", "flag": "🇪🇬", "dial": "+20"},
-    "iraq": {"name_ar": "العراق", "flag": "🇮🇶", "dial": "+964"},
-    "morocco": {"name_ar": "المغرب", "flag": "🇲🇦", "dial": "+212"}
+    "nigeria": {"name_ar": "نيجيريا", "flag": "🇳🇬", "dial": "+234"},
+    "kenya": {"name_ar": "كينيا", "flag": "🇰🇪", "dial": "+254"},
+    "southafrica": {"name_ar": "جنوب أفريقيا", "flag": "🇿🇦", "dial": "+27"},
+    "myanmar": {"name_ar": "ميانمار", "flag": "🇲🇲", "dial": "+95"},
+    "cambodia": {"name_ar": "كمبوديا", "flag": "🇰🇭", "dial": "+855"},
+    "bangladesh": {"name_ar": "بنغلاديش", "flag": "🇧🇩", "dial": "+880"},
+    "pakistan": {"name_ar": "باكستان", "flag": "🇵🇰", "dial": "+92"},
+    "malaysia": {"name_ar": "ماليزيا", "flag": "🇲🇾", "dial": "+60"},
+    "thailand": {"name_ar": "تايلاند", "flag": "🇹🇭", "dial": "+66"},
+    "mexico": {"name_ar": "المكسيك", "flag": "🇲🇽", "dial": "+52"},
+    "spain": {"name_ar": "إسبانيا", "flag": "🇪🇸", "dial": "+34"},
+    "france": {"name_ar": "فرنسا", "flag": "🇫🇷", "dial": "+33"},
+    "italy": {"name_ar": "إيطاليا", "flag": "🇮🇹", "dial": "+39"},
+    "canada": {"name_ar": "كندا", "flag": "🇨🇦", "dial": "+1"},
+    "yemen": {"name_ar": "اليمن", "flag": "🇾🇪", "dial": "+967"}
 }
+
+STATIC_COUNTRIES = [{"code": k, **v} for k, v in COUNTRY_INFO.items()]
