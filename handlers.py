@@ -227,11 +227,14 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
             "🇸🇦 نفدت أرقام هذه الدولة مؤقتاً بسبب الضغط الشديد.\n"
             "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
         )
-        await query.edit_message_text(
-            out_of_stock_msg,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')]])
-        )
+        try:
+            await query.edit_message_text(
+                out_of_stock_msg,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')]])
+            )
+        except Exception:
+            pass
         return
 
     buttons = []
@@ -248,13 +251,16 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     buttons.append([InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')])
     u_data = db_get_user(query.from_user.id)
     
-    await query.edit_message_text(
-        f"🔹 **• الدول المتوفرة بأعلى نسب نجاح لأرقام ({service_title}) •**\n"
-        f"⭐ رصيدك: `${u_data['balance']:.2f}`\n\n"
-        "👇 **اختر الدولة المطلوبة:**",
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
+    try:
+        await query.edit_message_text(
+            f"🔹 **• الدول المتوفرة بأعلى نسب نجاح لأرقام ({service_title}) •**\n"
+            f"⭐ رصيدك: `${u_data['balance']:.2f}`\n\n"
+            "👇 **اختر الدولة المطلوبة:**",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+    except Exception:
+        pass
 
 async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str, service_param: str):
     bot_username = context.bot.username
@@ -300,10 +306,13 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     current_text = query.message.text
                     if "🔑 **الكود الواصل:**" not in current_text:
                         updated_text = current_text + f"\n\n🔑 **الكود الواصل:** `{sms_code}`\n💬 **النص الكامل:** `{full_text}`"
-                        await query.edit_message_text(
-                            updated_text, parse_mode='Markdown',
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                        )
+                        try:
+                            await query.edit_message_text(
+                                updated_text, parse_mode='Markdown',
+                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                            )
+                        except Exception:
+                            pass
                     else:
                         await query.answer(f"✅ الكود وصل بالفعل: {sms_code}", show_alert=True)
                         
@@ -487,7 +496,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🌟 بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة، الأرقام الافتراضية، والرشق!\n\n"
                 "👇 **اختر ما يناسبك من القائمة أدناه:**"
             )
-            await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
+            try:
+                await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
+            except Exception:
+                pass
         else:
             await query.answer("❌ عذراً، لم تقم بالاشتراك في القناة بعد! يرجى الاشتراك ثم إعادة المحاولة.", show_alert=True)
         return
@@ -517,7 +529,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🌟 بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة، الأرقام الافتراضية، والرشق!\n\n"
             "👇 **اختر ما يناسبك من القائمة أدناه:**"
         )
-        await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
+        try:
+            await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
+        except Exception:
+            pass
 
     elif data == 'buy_virtual_number':
         u_data = db_get_user(user_id)
@@ -528,7 +543,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💖 **قناة التفعيلات الرسمية** 💖\n"
             "━━━━━━━━━━━━━━━━━━"
         )
-        await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
+        try:
+            await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
+        except Exception:
+            pass
 
     elif data == 'most_available':
         await show_available_countries_menu(update, context, "whatsapp", "واتساب")
@@ -565,11 +583,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
         if current_balance <= 0 or current_balance < country_price:
-            await query.edit_message_text(
-                f"❌ **عذراً، رصيدك غير كافٍ أو صفر لشراء الرقم!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 سعر الرقم: `${country_price:.2f}`",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-            )
+            try:
+                await query.edit_message_text(
+                    f"❌ **عذراً، رصيدك غير كافٍ أو صفر لشراء الرقم!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 سعر الرقم: `${country_price:.2f}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                )
+            except Exception:
+                pass
             return
 
         section_names_ar = {
@@ -597,12 +618,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     try:
                         res_data = res.json()
                     except Exception:
-                        await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        try:
+                            await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        except Exception:
+                            pass
                         return
 
                     phone, order_id = res_data.get('phone'), res_data.get('id')
                     if not phone or not order_id:
-                        await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        try:
+                            await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                        except Exception:
+                            pass
                         return
 
                     db_update_balance(user_id, country_price, mode="deduct")
@@ -644,9 +671,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username, sec_name_ar, c_name_ar, c_dial))
                 else:
-                    await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                    try:
+                        await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                    except Exception:
+                        pass
             except Exception as e:
-                await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
+                try:
+                    await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
+                except Exception:
+                    pass
 
     elif data.startswith('chk_sms_'):
         await check_sms_manual(update, context)
@@ -675,7 +708,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     new_phone, new_order_id = res_data.get('phone'), res_data.get('id')
                     
                     if not new_phone or not new_order_id:
-                        await query.edit_message_text("❌ عذراً، نفدت أرقام هذه الدولة مؤقتاً أثناء التغيير وتم إعادة رصيدك لمحفظتك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                        try:
+                            await query.edit_message_text("❌ عذراً، نفدت أرقام هذه الدولة مؤقتاً أثناء التغيير وتم إعادة رصيدك لمحفظتك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                        except Exception:
+                            pass
                         return
 
                     db_update_balance(user_id, price_str, mode="deduct")
@@ -719,9 +755,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(new_order_id), new_phone, price_str, service, user_id, context.bot.username, sec_name_ar, c_info['name_ar'], c_info['dial']))
                 else:
-                    await query.edit_message_text("❌ عذراً، فشل توفير رقم بديل حالياً وتم إعادة رصيدك لمحفظتك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                    try:
+                        await query.edit_message_text("❌ عذراً، فشل توفير رقم بديل حالياً وتم إعادة رصيدك لمحفظتك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                    except Exception:
+                        pass
             except Exception as e:
-                await query.edit_message_text(f"⚠️ خطأ أثناء استبدال الرقم: `{str(e)[:50]}`", parse_mode='Markdown')
+                try:
+                    await query.edit_message_text(f"⚠️ خطأ أثناء استبدال الرقم: `{str(e)[:50]}`", parse_mode='Markdown')
+                except Exception:
+                    pass
 
     elif data.startswith('cnl_'):
         parts = data.split('_')
@@ -737,58 +779,112 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if res.status_code == 200 or res.status_code == 400:
                 if cancel_type == 'paid': db_update_balance(user_id, price, mode="add")
                 await query.answer("✅ تم إلغاء الرقم واسترداد الرصيد بنجاح!", show_alert=True)
-                await query.edit_message_text("🚫 **تم إلغاء الرقم واسترداد مبلغ الرصيد إلى محفظتك بنجاح.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                try:
+                    await query.edit_message_text("🚫 **تم إلغاء الرقم واسترداد مبلغ الرصيد إلى محفظتك بنجاح.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                except Exception:
+                    pass
 
     elif data == "main_rashq":
-        await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
+        try:
+            await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "sec_telegram":
-        await query.edit_message_text("🚀 خدمات تليجرام الرئيسية:\nاختر القسم المطلوب:", reply_markup=telegram_services_keyboard())
+        try:
+            await query.edit_message_text("🚀 خدمات تليجرام الرئيسية:\nاختر القسم المطلوب:", reply_markup=telegram_services_keyboard())
+        except Exception:
+            pass
 
     elif data == "tg_arab_menu":
-        await query.edit_message_text("🇸🇦 أعضاء تيليجرام عرب:\nاختر الباقة المطلوبة:", reply_markup=tg_arab_menu_keyboard())
+        try:
+            await query.edit_message_text("🇸🇦 أعضاء تيليجرام عرب:\nاختر الباقة المطلوبة:", reply_markup=tg_arab_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "tg_foreign_menu":
-        await query.edit_message_text("🌍 أعضاء تيليجرام أجانب:\nاختر الباقة المطلوبة:", reply_markup=tg_foreign_menu_keyboard())
+        try:
+            await query.edit_message_text("🌍 أعضاء تيليجرام أجانب:\nاختر الباقة المطلوبة:", reply_markup=tg_foreign_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "tg_prem_menu":
-        await query.edit_message_text("⭐ أعضاء تيليجرام بريميوم:\nاختر الباقة المطلوبة:", reply_markup=tg_prem_menu_keyboard())
+        try:
+            await query.edit_message_text("⭐ أعضاء تيليجرام بريميوم:\nاختر الباقة المطلوبة:", reply_markup=tg_prem_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "tg_views_menu":
-        await query.edit_message_text("👁️ مشاهدات ومشاركات تليجرام:\nاختر الخدمة المطلوبة:", reply_markup=tg_views_menu_keyboard())
+        try:
+            await query.edit_message_text("👁️ مشاهدات ومشاركات تليجرام:\nاختر الخدمة المطلوبة:", reply_markup=tg_views_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "tg_auto_menu":
-        await query.edit_message_text("⚡ خدمات التفاعل والمشاهدات التلقائية:\nاختر الخدمة المطلوبة:", reply_markup=tg_auto_menu_keyboard())
+        try:
+            await query.edit_message_text("⚡ خدمات التفاعل والمشاهدات التلقائية:\nاختر الخدمة المطلوبة:", reply_markup=tg_auto_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "tg_react_menu":
-        await query.edit_message_text("⭐ تفاعلات إيموجي تليجرام:\nاختر نوع التفاعل المطلوب:", reply_markup=tg_react_menu_keyboard())
+        try:
+            await query.edit_message_text("⭐ تفاعلات إيموجي تليجرام:\nاختر نوع التفاعل المطلوب:", reply_markup=tg_react_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "tg_polls_menu":
-        await query.edit_message_text("🗳️ تصويتات واستطلاعات تليجرام:\nاختر نوع التصويت المطلوب:", reply_markup=tg_polls_menu_keyboard())
+        try:
+            await query.edit_message_text("🗳️ تصويتات واستطلاعات تليجرام:\nاختر نوع التصويت المطلوب:", reply_markup=tg_polls_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "tg_boost_menu":
-        await query.edit_message_text("🚀 تعزيزات قنوات ومجموعات تليجرام (Boosts):\nاختر المدة المطلوبة:", reply_markup=tg_boost_menu_keyboard())
+        try:
+            await query.edit_message_text("🚀 تعزيزات قنوات ومجموعات تليجرام (Boosts):\nاختر المدة المطلوبة:", reply_markup=tg_boost_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "sec_whatsapp":
-        await query.edit_message_text("🟢 خدمات واتساب:\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
+        try:
+            await query.edit_message_text("🟢 خدمات واتساب:\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
+        except Exception:
+            pass
 
     elif data == "sec_facebook":
-        await query.edit_message_text("📘 خدمات فيسبوك:", reply_markup=facebook_services_keyboard())
+        try:
+            await query.edit_message_text("📘 خدمات فيسبوك:", reply_markup=facebook_services_keyboard())
+        except Exception:
+            pass
 
     elif data == "sec_instagram":
-        await query.edit_message_text("📸 خدمات انستغرام:", reply_markup=instagram_services_keyboard())
+        try:
+            await query.edit_message_text("📸 خدمات انستغرام:", reply_markup=instagram_services_keyboard())
+        except Exception:
+            pass
 
     elif data == "sec_tiktok":
-        await query.edit_message_text("🎵 خدمات تيك توك:", reply_markup=tiktok_services_keyboard())
+        try:
+            await query.edit_message_text("🎵 خدمات تيك توك:", reply_markup=tiktok_services_keyboard())
+        except Exception:
+            pass
 
     elif data == "sec_youtube":
-        await query.edit_message_text("📺 خدمات يوتيوب:", reply_markup=youtube_services_keyboard())
+        try:
+            await query.edit_message_text("📺 خدمات يوتيوب:", reply_markup=youtube_services_keyboard())
+        except Exception:
+            pass
 
     elif data == "sec_pubg":
-        await query.edit_message_text("🎮 قسم شحن شدات ببجي موبايل:", reply_markup=pubg_services_keyboard())
+        try:
+            await query.edit_message_text("🎮 قسم شحن شدات ببجي موبايل:", reply_markup=pubg_services_keyboard())
+        except Exception:
+            pass
 
     elif data == "sec_freefire":
-        await query.edit_message_text("🔥 قسم شحن فري فاير:", reply_markup=freefire_services_keyboard())
+        try:
+            await query.edit_message_text("🔥 قسم شحن فري فاير:", reply_markup=freefire_services_keyboard())
+        except Exception:
+            pass
 
     elif data in ["sec_twitter", "sec_kwai", "sec_snapchat", "sec_linkedin"]:
         await query.answer("⚠️ عذراً، لا توجد خدمات متاحة في هذه الفئة حالياً.", show_alert=True)
@@ -802,19 +898,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "مرحباً بك عزيزي العميل في مركز الخدمات المجانية المتاحة لك بالكامل دون أي رسوم!\n\n"
             "👇 **اختر الأداة أو الخدمة المطلوبة من القائمة أدناه:**"
         )
-        await query.edit_message_text(free_services_main_text, parse_mode='Markdown', reply_markup=get_free_services_keyboard())
+        try:
+            await query.edit_message_text(free_services_main_text, parse_mode='Markdown', reply_markup=get_free_services_keyboard())
+        except Exception:
+            pass
 
     elif data == 'fs_url_info':
         admin_state[user_id] = {'action': 'fs_url_info_action'}
-        await query.edit_message_text("🔗 **فحص ومعالجة الروابط:**\nأرسل الآن الرابط المراد فحصه أو التحقق من صحته لتظهر لك تفاصيله بالكامل:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("🔗 **فحص ومعالجة الروابط:**\nأرسل الآن الرابط المراد فحصه أو التحقق من صحته لتظهر لك تفاصيله بالكامل:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_text_deco':
         admin_state[user_id] = {'action': 'fs_text_deco_action'}
-        await query.edit_message_text("🎨 **زخرفة النصوص والأسماء:**\nأرسل الآن الاسم أو النص المراد زخرفته بأشكال عربية وإنجليزية فخمة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("🎨 **زخرفة النصوص والأسماء:**\nأرسل الآن الاسم أو النص المراد زخرفته بأشكال عربية وإنجليزية فخمة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_id_lookup':
         admin_state[user_id] = {'action': 'fs_id_lookup_action'}
-        await query.edit_message_text("🔍 **كشف الآيدي والمعرفات:**\nأرسل معرف (Username) أو قم بتوجيه رسالة (Forward) من أي شخص أو قناة لمعرفة الآيدي الخاص به فوراً:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("🔍 **كشف الآيدي والمعرفات:**\nأرسل معرف (Username) أو قم بتوجيه رسالة (Forward) من أي شخص أو قناة لمعرفة الآيدي الخاص به فوراً:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_password_gen':
         import random, string
@@ -825,22 +933,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔑 كلمة المرور المقترحة:\n`{secure_pass}`\n\n"
             "*(انقر فوق الكود لنسخه واستخدامه لحماية حساباتك)*"
         )
-        await query.edit_message_text(pass_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 توليد كلمة أخرى", callback_data='fs_password_gen'), InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text(pass_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 توليد كلمة أخرى", callback_data='fs_password_gen'), InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_price_calc':
-        await query.edit_message_text("📊 **حاسبة أسعار الرشق:**\nيمكنك استخدام أقسام الرشق الرئيسية في البوت لمعرفة الأسعار بدقة، أو اختيار الخدمة للاستعلام الفوري.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("📊 **حاسبة أسعار الرشق:**\nيمكنك استخدام أقسام الرشق الرئيسية في البوت لمعرفة الأسعار بدقة، أو اختيار الخدمة للاستعلام الفوري.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_url_short':
         admin_state[user_id] = {'action': 'fs_url_short_action'}
-        await query.edit_message_text("✂️ **اختصار الروابط السريع:**\nأرسل الرابط الطويل المراد اختصاره وتوليد رابط نظيف ومختصر له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("✂️ **اختصار الروابط السريع:**\nأرسل الرابط الطويل المراد اختصاره وتوليد رابط نظيف ومختصر له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_tg_info':
         admin_state[user_id] = {'action': 'fs_tg_info_action'}
-        await query.edit_message_text("📥 **معلومات القنوات العامة:**\nأرسل معرف القناة أو المجموعة العامة (مثال: `@ChannelName`) لجلب معلوماتها الأساسية:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("📥 **معلومات القنوات العامة:**\nأرسل معرف القناة أو المجموعة العامة (مثال: `@ChannelName`) لجلب معلوماتها الأساسية:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_markdown_fmt':
         admin_state[user_id] = {'action': 'fs_markdown_fmt_action'}
-        await query.edit_message_text("🔤 **منسق النصوص والمخفي:**\nأرسل النص الذي تريد تنسيقه لتجهيزه بصيغة `Markdown` الخاصة بمنشوراتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("🔤 **منسق النصوص والمخفي:**\nأرسل النص الذي تريد تنسيقه لتجهيزه بصيغة `Markdown` الخاصة بمنشوراتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_dial_codes':
         dial_text = (
@@ -854,23 +977,38 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🇹🇷 تركيا: `+90`\n\n"
             "💡 *يمكنك دائماً الاعتماد على هذا الدليل السريع لتفعيل أرقامك.*"
         )
-        await query.edit_message_text(dial_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text(dial_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
-        await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_percent_calc':
         admin_state[user_id] = {'action': 'fs_percent_calc_action'}
-        await query.edit_message_text("🔢 **حاسبة النسب والخصومات:**\nأرسل المبلغ والنسبة المئوية (مثال: `100 15`) لحساب قيمة الخصم أو الربح بسرعة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("🔢 **حاسبة النسب والخصومات:**\nأرسل المبلغ والنسبة المئوية (مثال: `100 15`) لحساب قيمة الخصم أو الربح بسرعة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_word_counter':
         admin_state[user_id] = {'action': 'fs_word_counter_action'}
-        await query.edit_message_text("🔠 **عدّاد الكلمات والحروف:**\nأرسل أي نص طويل ليقوم البوت بحساب عدد الكلمات، الحروف، والأسطر بدقة تامة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("🔠 **عدّاد الكلمات والحروف:**\nأرسل أي نص طويل ليقوم البوت بحساب عدد الكلمات، الحروف، والأسطر بدقة تامة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_text_cleaner':
         admin_state[user_id] = {'action': 'fs_text_cleaner_action'}
-        await query.edit_message_text("🗑️ **تنظيف النصوص والمسافات:**\nأرسل النص المليء بالمسافات الفارغة لإزالة الزوائد وتنسيقه في ثوانٍ:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text("🗑️ **تنظيف النصوص والمسافات:**\nأرسل النص المليء بالمسافات الفارغة لإزالة الزوائد وتنسيقه في ثوانٍ:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'fs_unban_guide':
         unban_guide_text = (
@@ -883,28 +1021,52 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "إذا كان حسابك مقيداً (Spam Bot)، تواصل مع بوت الدعم الرسمي: `@SpamBot` واتبع التعليمات لرفع القيود.\n\n"
             "💡 *هذه الإرشادات الرسمية المعتمدة لتقديم طلبات الاستئناف.*"
         )
-        await query.edit_message_text(unban_guide_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        try:
+            await query.edit_message_text(unban_guide_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+        except Exception:
+            pass
 
     elif data == "ig_channel_menu":
-        await query.edit_message_text("📺 متابعو قناة انستغرام:", reply_markup=ig_channel_menu_keyboard())
+        try:
+            await query.edit_message_text("📺 متابعو قناة انستغرام:", reply_markup=ig_channel_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "ig_views_menu":
-        await query.edit_message_text("👁️ مشاهدات انستغرام:", reply_markup=ig_views_menu_keyboard())
+        try:
+            await query.edit_message_text("👁️ مشاهدات انستغرام:", reply_markup=ig_views_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "ig_story_menu":
-        await query.edit_message_text("📸 مشاهدات قصص انستغرام:", reply_markup=ig_story_menu_keyboard())
+        try:
+            await query.edit_message_text("📸 مشاهدات قصص انستغرام:", reply_markup=ig_story_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "ig_likes_menu":
-        await query.edit_message_text("👍 إعجابات انستغرام:", reply_markup=ig_likes_menu_keyboard())
+        try:
+            await query.edit_message_text("👍 إعجابات انستغرام:", reply_markup=ig_likes_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "ig_comment_likes_menu":
-        await query.edit_message_text("💬 إعجابات تعليقات انستغرام:", reply_markup=ig_comment_likes_menu_keyboard())
+        try:
+            await query.edit_message_text("💬 إعجابات تعليقات انستغرام:", reply_markup=ig_comment_likes_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "ig_comments_menu":
-        await query.edit_message_text("💬 تعليقات انستغرام مخصصة:", reply_markup=ig_comments_menu_keyboard())
+        try:
+            await query.edit_message_text("💬 تعليقات انستغرام مخصصة:", reply_markup=ig_comments_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "ig_shares_menu":
-        await query.edit_message_text("🔄 مشاركات انستغرام:", reply_markup=ig_shares_menu_keyboard())
+        try:
+            await query.edit_message_text("🔄 مشاركات انستغرام:", reply_markup=ig_shares_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "ig_f_961":
         user_selected_service[user_id] = {"service_id": 961, "name": "متابعين انستغرام فوري بدون ضمان", "price": 0.78, "min": 10, "max": 100000000, "type": "channel"}
@@ -966,38 +1128,68 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prompt_user_for_pubg_id(update.effective_message, user_selected_service[user_id], context)
 
     elif data == "fb_profile_menu":
-        await query.edit_message_text("👤 متابعو الملف الشخصي:", reply_markup=fb_profile_menu_keyboard())
+        try:
+            await query.edit_message_text("👤 متابعو الملف الشخصي:", reply_markup=fb_profile_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "fb_page_menu":
-        await query.edit_message_text("📘 متابعو الصفحة:", reply_markup=fb_page_menu_keyboard())
+        try:
+            await query.edit_message_text("📘 متابعو الصفحة:", reply_markup=fb_page_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "fb_group_744":
         user_selected_service[user_id] = {"service_id": 744, "name": "أعضاء مجموعة فيسبوك", "price": 0.72, "min": 10, "max": 100000, "type": "channel"}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
     elif data == "fb_react_menu":
-        await query.edit_message_text("👍 تفاعلات منشورات فيسبوك:", reply_markup=fb_react_menu_keyboard())
+        try:
+            await query.edit_message_text("👍 تفاعلات منشورات فيسبوك:", reply_markup=fb_react_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "fb_comment_react_menu":
-        await query.edit_message_text("💬 تفاعلات تعليقات فيسبوك:", reply_markup=fb_comment_react_menu_keyboard())
+        try:
+            await query.edit_message_text("💬 تفاعلات تعليقات فيسبوك:", reply_markup=fb_comment_react_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "fb_story_menu":
-        await query.edit_message_text("📸 مشاهدات قصة فيسبوك:", reply_markup=fb_story_menu_keyboard())
+        try:
+            await query.edit_message_text("📸 مشاهدات قصة فيسبوك:", reply_markup=fb_story_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "fb_share_menu":
-        await query.edit_message_text("🔄 مشاركات فيسبوك:", reply_markup=fb_share_menu_keyboard())
+        try:
+            await query.edit_message_text("🔄 مشاركات فيسبوك:", reply_markup=fb_share_menu_keyboard())
+        except Exception:
+            pass
 
     elif data == "wa_subscribers":
-        await query.edit_message_text("🟢 بروفايل وأعضاء واتساب:", reply_markup=channel_subscribers_keyboard())
+        try:
+            await query.edit_message_text("🟢 بروفايل وأعضاء واتساب:", reply_markup=channel_subscribers_keyboard())
+        except Exception:
+            pass
 
     elif data == "wa_reactions":
-        await query.edit_message_text("🟢 تفاعلات واتساب:", reply_markup=emoji_reactions_keyboard())
+        try:
+            await query.edit_message_text("🟢 تفاعلات واتساب:", reply_markup=emoji_reactions_keyboard())
+        except Exception:
+            pass
 
     elif data == "wa_auto_reactions":
-        await query.edit_message_text("🟢 تفاعلات تلقائية واتساب:", reply_markup=auto_reactions_keyboard())
+        try:
+            await query.edit_message_text("🟢 تفاعلات تلقائية واتساب:", reply_markup=auto_reactions_keyboard())
+        except Exception:
+            pass
 
     elif data == "wa_polls":
-        await query.edit_message_text("🟢 تصويتات واتساب:", reply_markup=polls_keyboard())
+        try:
+            await query.edit_message_text("🟢 تصويتات واتساب:", reply_markup=polls_keyboard())
+        except Exception:
+            pass
 
     elif data.startswith("sub_"):
         service_ids = {"sub_no_guarantee": 729, "sub_30d": 730, "sub_60d": 731, "sub_90d": 732, "sub_global": 805, "sub_arabic": 806}
@@ -1099,10 +1291,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
         if current_balance <= 0 or current_balance < final_cost:
-            await query.edit_message_text(
-                f"❌ **عذراً، رصيدك غير كافٍ أو صفر لإتمام الطلب!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 التكلفة المطلوبة: `${final_cost:.2f}`",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-            )
+            try:
+                await query.edit_message_text(
+                    f"❌ **عذراً، رصيدك غير كافٍ أو صفر لإتمام الطلب!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 التكلفة المطلوبة: `${final_cost:.2f}`",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+            except Exception:
+                pass
             return
 
         await query.answer("⏳ جاري إرسال الطلب إلى المنصة وتأكيده عبر الوسيط الآمن...", show_alert=False)
@@ -1157,15 +1352,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 order_id = resp_data["order"]
                 db_update_balance(user_id, final_cost, mode="deduct")
                 
-                await query.edit_message_text(
-                    f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
-                    f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
-                    f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
-                    f"📦 **الكمية:** `{qty:,}`\n"
-                    f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
+                try:
+                    await query.edit_message_text(
+                        f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
+                        f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
+                        f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
+                        f"📦 **الكمية:** `{qty:,}`\n"
+                        f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                except Exception:
+                    pass
                 
                 service_name = service.get('name', 'خدمة رقمية')
                 cb_param = service.get('callback_data', 'main_rashq')
@@ -1184,21 +1382,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             else:
                 api_error = resp_data.get("error", resp_data.get("message", "خطأ في الاتصال أو الحماية")) if isinstance(resp_data, dict) else "رفض الاتصال من الخادم"
+                try:
+                    await query.edit_message_text(
+                        f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                except Exception:
+                    pass
+                return
+        except Exception as api_err:
+            try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`",
+                    f"❌ **استثناء أثناء الاتصال بالمنصة:**\n`{str(api_err)[:100]}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
-                return
-        except Exception as api_err:
-            await query.edit_message_text(
-                f"❌ **استثناء أثناء الاتصال بالمنصة:**\n`{str(api_err)[:100]}`",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-            )
+            except Exception:
+                pass
 
     elif data == "cancel_order":
-        await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+        try:
+            await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'bot_instructions':
         instructions_text = (
@@ -1219,10 +1426,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• شارك رابط الإحالة الخاص بك واكسب **0.10$** دولار مجاناً فور انضمام كل صديق من خلالك.\n\n"
             "> 💡 *تتم معالجة وتنفيذ جميع خدماتك بأقصى سرعة وأعلى أمان!* 👇"
         )
-        await query.edit_message_text(
-            instructions_text, parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]])
-        )
+        try:
+            await query.edit_message_text(
+                instructions_text, parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]])
+            )
+        except Exception:
+            pass
 
     elif data == 'free_points':
         bot_username = context.bot.username
@@ -1240,12 +1450,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💡 **كيف تربح؟**\n"
             "لكل شخص يدخل إلى البوت ويشترك عبر رابطك الخاص، **سيتم إضافة الرصيد إلى محفظتك تلقائياً!** كلما نشرت رابطك أكثر، زاد رصيدك أكثر 🚀"
         )
-        await query.edit_message_text(free_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+        try:
+            await query.edit_message_text(free_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'transfer_balance':
         admin_state[user_id] = {'action': 'waiting_for_transfer_id'}
         u_data = db_get_user(user_id)
-        await query.edit_message_text(f"🔄 **تحويل الرصيد:**\n⭐ رصيدك الحالي: `${u_data['balance']:.2f}`\n\nأرسل الآن **آيدي (ID)** المستخدم المراد التحويل إليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
+        try:
+            await query.edit_message_text(f"🔄 **تحويل الرصيد:**\n⭐ رصيدك الحالي: `${u_data['balance']:.2f}`\n\nأرسل الآن **آيدي (ID)** المستخدم المراد التحويل إليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'deposit_menu':
         deposit_text = (
@@ -1263,7 +1479,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⭐ الشحن الفوري عبر نجوم تليجرام (Stars)", callback_data='dep_telegram_stars')],
             [InlineKeyboardButton("• عودة •", callback_data='main_menu')]
         ])
-        await query.edit_message_text(deposit_text, parse_mode='Markdown', reply_markup=deposit_keyboard)
+        try:
+            await query.edit_message_text(deposit_text, parse_mode='Markdown', reply_markup=deposit_keyboard)
+        except Exception:
+            pass
 
     elif data == 'dep_telegram_stars':
         stars_keyboard = InlineKeyboardMarkup([
@@ -1272,7 +1491,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⭐ شحن $20 (1000 نجمة)", callback_data='pay_stars_1000_20')],
             [InlineKeyboardButton("🔙 عودة", callback_data='deposit_menu')]
         ])
-        await query.edit_message_text("⭐ **اختر الباقة المناسبة لك لشحن رصيدك فوراً:**", parse_mode='Markdown', reply_markup=stars_keyboard)
+        try:
+            await query.edit_message_text("⭐ **اختر الباقة المناسبة لك لشحن رصيدك فوراً:**", parse_mode='Markdown', reply_markup=stars_keyboard)
+        except Exception:
+            pass
 
     elif data.startswith('pay_stars_'):
         _, _, stars_count, usd_amount = data.split('_')
@@ -1287,31 +1509,40 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'dep_jaib':
         admin_state[user_id] = {'action': 'waiting_for_jaib_deposit'}
-        await query.edit_message_text(
-            "💳 **تعليمات الشحن عبر محفظة جيب:**\n\n"
-            f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
-            f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
-            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "⚡ *سيقوم النظام بالتحقق التلقائي والآلي المباشر من محفظة جيب واضافة رصيدك تلقائياً!*",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
-        )
+        try:
+            await query.edit_message_text(
+                "💳 **تعليمات الشحن عبر محفظة جيب:**\n\n"
+                f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
+                f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
+                "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
+                "⚡ *سيقوم النظام بالتحقق التلقائي والآلي المباشر من محفظة جيب واضافة رصيدك تلقائياً!*",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
+            )
+        except Exception:
+            pass
 
     elif data == 'dep_kreemi':
         admin_state[user_id] = {'action': 'waiting_for_kreemi_deposit'}
-        await query.edit_message_text(
-            "🏦 **تعليمات الشحن عبر بنك الكريمي:**\n\n"
-            "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
-            f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
-            "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
-            "⚡ *سيقوم النظام بالتحقق التلقائي والآلي المباشر واضافة رصيدك تلقائياً!*",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
-        )
+        try:
+            await query.edit_message_text(
+                "🏦 **تعليمات الشحن عبر بنك الكريمي:**\n\n"
+                "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
+                f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
+                "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**\n"
+                "⚡ *سيقوم النظام بالتحقق التلقائي والآلي المباشر واضافة رصيدك تلقائياً!*",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]])
+            )
+        except Exception:
+            pass
 
     elif data == 'user_account':
         u_data = db_get_user(user_id)
-        await query.edit_message_text(f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
+        try:
+            await query.edit_message_text(f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_panel':
         if not is_admin_or_sub(user_id, ADMIN_ID):
@@ -1329,14 +1560,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🔗 **إجمالي الإحالات الكلية:** `{stats['total_referrals']} دعوة`\n\n"
                 "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
             )
-            await query.edit_message_text(panel_text, parse_mode='Markdown', reply_markup=get_admin_keyboard())
+            try:
+                await query.edit_message_text(panel_text, parse_mode='Markdown', reply_markup=get_admin_keyboard())
+            except Exception:
+                pass
         else:
             sub_panel_text = (
                 "🛡️ **• لوحة تحكم المشرف المساعد •** 🛡️\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للرد على المستخدمين وإدارة الأرصدة:"
             )
-            await query.edit_message_text(sub_panel_text, parse_mode='Markdown', reply_markup=get_subadmin_keyboard())
+            try:
+                await query.edit_message_text(sub_panel_text, parse_mode='Markdown', reply_markup=get_subadmin_keyboard())
+            except Exception:
+                pass
 
     elif data == 'admin_top_refs':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
@@ -1346,60 +1583,90 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if top_list:
             for idx, (uid, refs) in enumerate(top_list, 1): text += f"{idx}. الآيدي: `{uid}` ⟵ **{refs} دعوة** 🌟\n"
         else: text += "⚠️ لا توجد إحالات مسجلة حتى الآن."
-        await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_create_promo':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_promo_details'}
-        await query.edit_message_text(
-            "🎟️ **إنشاء كود هدية جديد:**\n"
-            "أرسل التفاصيل بالصيغة التالية:\n"
-            "`الكود المبلغ عدد_الاستخدامات`\n\n"
-            "*(مثال: `WELCOME 0.50 100`)*",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]])
-        )
+        try:
+            await query.edit_message_text(
+                "🎟️ **إنشاء كود هدية جديد:**\n"
+                "أرسل التفاصيل بالصيغة التالية:\n"
+                "`الكود المبلغ عدد_الاستخدامات`\n\n"
+                "*(مثال: `WELCOME 0.50 100`)*",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]])
+            )
+        except Exception:
+            pass
 
     elif data == 'admin_reply_user':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_reply_id'}
-        await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآن **آيدي المستخدم** المراد الرد عليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآن **آيدي المستخدم** المراد الرد عليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_send_gift_user':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_gift_id'}
-        await query.edit_message_text("🎁 **إرسال هدية مالية:**\nأرسل الآن **آيدي المستخدم** المراد إرسال الهدية له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("🎁 **إرسال هدية مالية:**\nأرسل الآن **آيدي المستخدم** المراد إرسال الهدية له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_add_balance':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_add_bal_id'}
-        await query.edit_message_text("➕ **إضافة رصيد:**\nأرسل الآن **آيدي المستخدم** المراد إضافة الرصيد له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("➕ **إضافة رصيد:**\nأرسل الآن **آيدي المستخدم** المراد إضافة الرصيد له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_deduct_balance':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_deduct_bal_id'}
-        await query.edit_message_text("➖ **خصم رصيد:**\nأرسل الآن **آيدي المستخدم** المراد الخصم من حسابه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("➖ **خصم رصيد:**\nأرسل الآن **آيدي المستخدم** المراد الخصم من حسابه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_manage_subadmins':
         if user_id != ADMIN_ID: return
         subs = get_all_sub_admins()
         subs_text = "👥 المشرفون المساعدون:\n" + ("\n".join([f"• `{sid}`" for sid in subs]) if subs else "لا يوجد مشرفين مساعدين.")
-        await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_sub'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_sub')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_sub'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_sub')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_add_sub':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_sub_id'}
-        await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_del_sub':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
-        await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_send_bonus':
         if user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_bonus_amount'}
-        await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_reset_balances':
         if not is_owner(user_id):
@@ -1413,17 +1680,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         await query.answer("✅ تمت التصفير بأمان تام بواسطة المالك!", show_alert=True)
-        await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بناءً على طلب المالك حصرياً.", reply_markup=get_admin_keyboard())
+        try:
+            await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بناءً على طلب المالك حصرياً.", reply_markup=get_admin_keyboard())
+        except Exception:
+            pass
 
     elif data == 'admin_ban_user':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_ban_id'}
-        await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر أو فك الحظر:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر أو فك الحظر:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
     elif data == 'admin_broadcast':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
         admin_state[user_id] = {'action': 'waiting_for_broadcast'}
-        await query.edit_message_text("📢 **إذاعة شاملة ضخمة:**\nأرسل الآن نص الإذاعة، الصورة، أو أي وسائط تريد إرسالها لجميع المشتركين:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        try:
+            await query.edit_message_text("📢 **إذاعة شاملة ضخمة:**\nأرسل الآن نص الإذاعة، الصورة، أو أي وسائط تريد إرسالها لجميع المشتركين:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
 
 async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
