@@ -1,5 +1,6 @@
 import asyncio
 import re
+import json
 import httpx
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes
@@ -1300,12 +1301,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        await query.answer("⏳ جاري إرسال الطلب إلى المنصة وتأكيده عبر الوسيط الآمن...", show_alert=False)
+        await query.answer("⏳ جاري إرسال الطلب وتخطى جدار الحماية عبر البروكسي الآمن...", show_alert=False)
 
         try:
-            proxy_urls = [
+            # قائمة بروكسيات وبوابات وسيطة لتجاوز حظر الأيبي وجدار الحماية
+            proxy_endpoints = [
                 "https://corsproxy.io/?",
-                "https://api.allorigins.win/raw?url="
+                "https://api.allorigins.win/raw?url=",
+                "https://thingproxy.freeboard.io/fetch/"
             ]
             
             payload = {
@@ -1319,37 +1322,53 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             resp_data = None
             success_request = False
 
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                # 1️⃣ المحاولة الأولى مباشرة بالسيرفر الأساسي
                 try:
                     res = await client.post(HMCARD_API_URL, data=payload, headers={
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Referer': 'https://hmcard.online/'
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://hmcard.online/',
+                        'Accept': 'application/json'
                     })
                     if res.status_code == 200:
                         try:
                             resp_data = res.json()
-                            success_request = True
+                            if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or not resp_data.get("error")):
+                                success_request = True
                         except Exception:
                             pass
                 except Exception:
                     pass
 
+                # 2️⃣ إذا فشل الاتصال المباشر، نبدأ بتجربة البروكسيات وبوابات التجاوز تلقائياً
                 if not success_request:
-                    for p_prefix in proxy_urls:
+                    for p_prefix in proxy_endpoints:
                         try:
                             target_url = p_prefix + HMCARD_API_URL
                             res = await client.post(target_url, data=payload, headers={
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                'Accept': 'application/json'
                             })
                             if res.status_code == 200:
-                                resp_data = res.json()
-                                success_request = True
-                                break
+                                try:
+                                    resp_data = res.json()
+                                    if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data):
+                                        success_request = True
+                                        break
+                                except Exception:
+                                    if res.text.strip().startswith('{'):
+                                        resp_data = json.loads(res.text)
+                                        if "order" in resp_data or "order_id" in resp_data:
+                                            success_request = True
+                                            break
                         except Exception:
                             continue
 
-            if success_request and isinstance(resp_data, dict) and "order" in resp_data:
-                order_id = resp_data["order"]
+            order_id = None
+            if success_request and isinstance(resp_data, dict):
+                order_id = resp_data.get("order") or resp_data.get("order_id") or resp_data.get("id")
+
+            if success_request and order_id:
                 db_update_balance(user_id, final_cost, mode="deduct")
                 
                 try:
@@ -1368,7 +1387,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 service_name = service.get('name', 'خدمة رقمية')
                 cb_param = service.get('callback_data', 'main_rashq')
                 log_msg = (
-                    "🔥 **تم تنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                    "🔥 **تم تنفيذ طلب رشق جديد بنجاح عبر نظام البروكسي الآمن!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"👤 **آيدي العميل:** `{user_id}`\n"
                     f"🛍️ **الخدمة:** `{service_name}`\n"
@@ -1381,10 +1400,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await send_log_to_channel(context, log_msg, cb_param)
                 return
             else:
-                api_error = resp_data.get("error", resp_data.get("message", "خطأ في الاتصال أو الحماية")) if isinstance(resp_data, dict) else "رفض الاتصال من الخادم"
+                api_error = "رفض الاتصال أو حماية السيرفر (Cloudflare/Firewall)"
+                if isinstance(resp_data, dict):
+                    api_error = resp_data.get("error", resp_data.get("message", api_error))
+                
                 try:
                     await query.edit_message_text(
-                        f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`",
+                        f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`\n\n💡 *تم تفعيل نظام البروكسي، يرجى المحاولة مرة أخرى بعد قليل.*",
                         parse_mode='Markdown',
                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                     )
@@ -1921,7 +1943,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # 🎁 معالجة إنشاء أكواد الهدايا بمعالجة آمنة تماماً تمنع أخطاء الـ Markdown
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_promo_details':
         admin_state.pop(user_id, None)
         try:
