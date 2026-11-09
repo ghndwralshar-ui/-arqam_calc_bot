@@ -5,7 +5,7 @@ import random
 import httpx
 import cloudscraper
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
-from telegram.ext import ContextTypes, CommandHandler
+from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
@@ -1930,6 +1930,45 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             await processing_msg.edit_text(f"❌ حدث خطأ غير متوقع: `{str(e)[:100]}`", parse_mode='Markdown')
         return
 
+# 📱 دالة مستقلة تماماً لاستلام وفحص جهة الاتصال وضمان نقل المستخدم للقائمة الرئيسية
+async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    contact = update.message.contact
+    
+    if contact and contact.user_id == user_id:
+        phone_num = str(contact.phone_number)
+        
+        arab_prefixes = ["967", "966", "20", "971", "965", "974", "968", "973", "962", "961", "964", "213", "212", "216", "249", "963", "970"]
+        is_arab = any(phone_num.startswith(prefix) or phone_num.replace("+", "").startswith(prefix) for prefix in arab_prefixes)
+        
+        if is_arab:
+            verification_cache[user_id] = "passed"
+            u_data = db_get_user(user_id)
+            
+            # 🎁 احتساب الإحالة، الهدية وإرسال الإشعارات فوراً
+            await process_successful_join_reward(update.effective_user, context, u_data)
+            u_data = db_get_user(user_id)
+
+            success_welcome = (
+                f"🎉 **تم التحقق بنجاح تام! أهلاً بك يا {update.effective_user.first_name} في عالم ديجيتال هب** 🚀✨\n\n"
+                f"👤 **الآيدي:** `{user_id}`\n"
+                f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
+                "🌟 تم تفعيل حسابك بنجاح وأصبحت جاهزاً لاستخدام كافة خدمات الأرقام والرشق!"
+            )
+            await update.message.reply_text(
+                success_welcome,
+                parse_mode='Markdown',
+                reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID))
+            )
+            return
+        else:
+            await update.message.reply_text(
+                "❌ **عذراً، نظام التحقق رصد أن رقم الهاتف غير عربي أو غير مدعوم!**\n"
+                "البوت مخصص للمستخدمين العرب فقط.",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            return
+
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
@@ -1962,43 +2001,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         else:
             await update.message.reply_text("❌ الإجابة خاطئة! حاول مجدداً، كم ناتج الجمع في المسألة الرياضية السابقة؟")
         return
-
-    # 🛡️ استلام جهة الاتصال، التحقق من كونها عربية، واحتساب الإحالة وإرسال الإشعارات فوراً
-    if update.message.contact:
-        contact = update.message.contact
-        if contact.user_id == user_id:
-            phone_num = str(contact.phone_number)
-            
-            arab_prefixes = ["967", "966", "20", "971", "965", "974", "968", "973", "962", "961", "964", "213", "212", "216", "249", "963", "970"]
-            is_arab = any(phone_num.startswith(prefix) or phone_num.replace("+", "").startswith(prefix) for prefix in arab_prefixes)
-            
-            if is_arab:
-                verification_cache[user_id] = "passed"
-                u_data = db_get_user(user_id)
-                
-                # 🎁 هنا يتم احتساب الإحالة وإرسال إشعار للداعي وللأدمن بعد نجاح التحقق بالكامل
-                await process_successful_join_reward(update.effective_user, context, u_data)
-                u_data = db_get_user(user_id)
-
-                success_welcome = (
-                    f"🎉 **تم التحقق بنجاح تام! أهلاً بك يا {update.effective_user.first_name} في عالم ديجيتال هب** 🚀✨\n\n"
-                    f"👤 **الآيدي:** `{user_id}`\n"
-                    f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
-                    "🌟 تم تفعيل حسابك بنجاح وأصبحت جاهزاً لاستخدام كافة خدمات الأرقام والرشق!"
-                )
-                await update.message.reply_text(
-                    success_welcome,
-                    parse_mode='Markdown',
-                    reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID))
-                )
-                return
-            else:
-                await update.message.reply_text(
-                    "❌ **عذراً، نظام التحقق رصد أن رقم الهاتف غير عربي أو غير مدعوم!**\n"
-                    "البوت مخصص للمستخدمين العرب فقط.",
-                    reply_markup=ReplyKeyboardRemove()
-                )
-                return
 
     u_data = db_get_user(user_id)
 
