@@ -3,8 +3,8 @@ import re
 import json
 import httpx
 import cloudscraper
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, CommandHandler
-from telegram.ext import ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram.ext import ContextTypes, CommandHandler
 
 # استيراد الإعدادات ومفاتيح الربط من ملف config
 from config import (
@@ -532,8 +532,12 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
     try:
         await query.answer()
         await query.edit_message_text(msg_text, parse_mode='Markdown', reply_markup=keyboard)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error in free_social_number_handler: {e}")
+        try:
+            await context.bot.send_message(chat_id=user_id, text=msg_text, parse_mode='Markdown', reply_markup=keyboard)
+        except Exception:
+            pass
 
 
 async def request_free_social_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1575,11 +1579,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "مرحباً بك عزيزي العميل في دليلك الكامل لاستخدام خدمات البوت المتطورة من الألف إلى الياء! 🌟\n\n"
             "📱 **1️⃣ قسم الأرقام الافتراضية والتفعيل:**\n"
             "• اختر من القائمة الرئيسية (🛒 شراء رقم افتراضي)، ثم حدد التطبيق (واتساب، تليجرام، انستغرام، إلخ).\n"
-            "• اختر الدولة المطلوبة ليتم تخصيص الرقم لك فوراً بأعلى نسبة نجاح.\n"
-            "• استخدم زر (🔄 طلب الكود) لاستلام الرسالة، أو (🔄 تغيير الرقم) لاستبداله في حال لم يصل الكود، أو (❌ إلغاء الرقم) لاستعادة الرصيد كامل محفظتك.\n\n"
+            "• اختر الدولة المطلوبة ليتم تخصيص الرقم لك فوراً بأعلى نسبة نجاح.\n\n"
             "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
-            "• اضغط على (🔭 قسم الرشق والألعاب)، واختر المنصة (واتساب، تليجرام، انستغرام، فيسبوك، ببجي، فري فاير).\n"
-            "• قم بإرسال رابط الحساب/المنشور أو آيدي اللاعب (Player ID) ثم حدد الكمية لتأكيد الطلب.\n\n"
+            "• اضغط على (🔭 قسم الرشق والألعاب)، واختر المنصة (واتساب، تليجرام، انستغرام، فيسبوك، ببجي، فري فاير).\n\n"
             "💳 **3️⃣ شحن الرصيد التلقائي والآلي:**\n"
             "• يمكنك شحن حسابك عبر محفظة **جيب (Jaib)** أو **بنك الكريمي** بسعر صرف ثابت (1$ = 550 ريال يمني).\n\n"
             "🎁 **4️⃣ الرصيد المجاني:**\n"
