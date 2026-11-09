@@ -445,20 +445,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 🛡️ فحص هل أكمل التحقق الأمني سابقاً؟
+    # 🛡️ التحقق الأمني (مسألة جمع فقط)
     v_status = verification_cache.get(user.id, "not_started")
     if v_status != "passed":
         verification_cache[user.id] = "waiting_math"
         n1 = random.randint(1, 9)
         n2 = random.randint(1, 9)
-        op = random.choice(["+", "-"])
-        correct_ans = n1 + n2 if op == "+" else n1 - n2
+        correct_ans = n1 + n2  # جمع فقط تماماً
         verification_cache[f"{user.id}_ans"] = correct_ans
 
         await update.message.reply_text(
             f"🛡️ **تحقق أمني ذكي لإثبات أنك بشري ولست روبوت (1/2):**\n\n"
             f"قم بحل المسألة الرياضية التالية لإكمال الدخول:\n"
-            f"🔹 كم ناتج: ` {n1} {op} {n2} = ? `\n\n"
+            f"🔹 كم ناتج: ` {n1} + {n2} = ? `\n\n"
             f"*(أرسل الرقم الناتج في رسالة الآن)*",
             parse_mode='Markdown',
             reply_markup=ReplyKeyboardRemove()
@@ -631,18 +630,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == 'check_subscription':
         if await check_user_subscription(user_id, context):
-            # 🛡️ إطلاق التحقق الذكي (الخطوة 1: المسألة الحسابية)
+            # 🛡️ إطلاق التحقق الذكي (المسألة الحسابية جمع فقط)
             verification_cache[user_id] = "waiting_math"
             n1 = random.randint(1, 9)
             n2 = random.randint(1, 9)
-            op = random.choice(["+", "-"])
-            correct_ans = n1 + n2 if op == "+" else n1 - n2
+            correct_ans = n1 + n2
             verification_cache[f"{user_id}_ans"] = correct_ans
 
             math_text = (
                 f"🛡️ **تحقق أمني ذكي لإثبات أنك بشري ولست روبوت (1/2):**\n\n"
                 f"قم بحل المسألة الرياضية التالية لإكمال الدخول:\n"
-                f"🔹 كم ناتج: ` {n1} {op} {n2} = ? `\n\n"
+                f"🔹 كم ناتج: ` {n1} + {n2} = ? `\n\n"
                 f"*(أرسل الرقم الناتج في رسالة الآن)*"
             )
             try:
@@ -1944,7 +1942,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # 🛡️ معالجة خطوة التحقق الذكي (المسألة الحسابية)
+    # 🛡️ معالجة خطوة التحقق الذكي (مسألة جمع فقط)
     v_status = verification_cache.get(user_id, "not_started")
     if v_status == "waiting_math":
         correct_ans = verification_cache.get(f"{user_id}_ans")
@@ -1962,10 +1960,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=contact_kb
             )
         else:
-            await update.message.reply_text("❌ الإجابة خاطئة! حاول مجدداً، كم ناتج المسألة الرياضية السابقة؟")
+            await update.message.reply_text("❌ الإجابة خاطئة! حاول مجدداً، كم ناتج الجمع في المسألة الرياضية السابقة؟")
         return
 
-    # 🛡️ معالجة استلام جهة الاتصال والتحقق من كونها عربية وإظهار القائمة الرئيسية فوراً
+    # 🛡️ استلام جهة الاتصال، التحقق من كونها عربية، واحتساب الإحالة وإرسال الإشعارات فوراً
     if update.message.contact:
         contact = update.message.contact
         if contact.user_id == user_id:
@@ -1977,6 +1975,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             if is_arab:
                 verification_cache[user_id] = "passed"
                 u_data = db_get_user(user_id)
+                
+                # 🎁 هنا يتم احتساب الإحالة وإرسال إشعار للداعي وللأدمن بعد نجاح التحقق بالكامل
                 await process_successful_join_reward(update.effective_user, context, u_data)
                 u_data = db_get_user(user_id)
 
@@ -1986,7 +1986,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
                     "🌟 تم تفعيل حسابك بنجاح وأصبحت جاهزاً لاستخدام كافة خدمات الأرقام والرشق!"
                 )
-                # إزالة زر جهة الاتصال وإظهار القائمة الرئيسية للبوت فوراً
                 await update.message.reply_text(
                     success_welcome,
                     parse_mode='Markdown',
