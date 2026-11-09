@@ -550,29 +550,30 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
     
     platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
     
+    # رسالة حلوة للمستخدم بعد الضغط على زر الحصول على رقم
     waiting_text = (
-        "⏳ **جاري الحصول على رقمك من فضلك يرجى الإنتظار قليلاً...**\n"
+        f"⏳ **جاري الحصول على رقمك من فضلك يرجى الإنتظار قليلاً...**\n\n"
         f"🔄 يتم الآن معالجة طلبك لاستخراج رقم مجاني لتطبيق ({platform}) بواسطة النظام ليتم إرساله إليك في أقرب وقت! 🚀"
     )
     
     try:
-        await query.answer("✅ تم إرسال طلبك بنجاح للمنصة!", show_alert=True)
+        await query.answer("✅ تم إرسال طلبك بنجاح!", show_alert=True)
         await query.edit_message_text(waiting_text, parse_mode='Markdown')
     except Exception:
         pass
         
-    # إشعار المالك مع زر "إرسال الرقم" التفاعلي السريع
+    # إشعار المالك بالطلب وتحته زر "إرسال الرقم للعميل"
     admin_notification = (
-        f"🚨 **طلب رقم مجاني جديد (إحالات)!** 🎁\n"
+        f"🚨 **طلب رقم مجاني جديد!** 🎁\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📱 **المنصة:** {platform}\n"
-        f"👤 **الاسم:** {user.full_name}\n"
+        f"📱 **المنصة المطلوبة:** {platform}\n"
+        f"👤 **اسم العميل:** {user.full_name}\n"
         f"🔗 **المعرف:** @{user.username if user.username else 'لا يوجد'}\n"
         f"🆔 **آيدي المستخدم:** `{user_id}`"
     )
     
     admin_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 إرسال الرقم والكود لهذا المستخدم", callback_data=f"admin_prep_send_{user_id}_{platform}")]
+        [InlineKeyboardButton("📤 إرسال الرقم للعميل", callback_data=f"admin_prep_send_{user_id}_{platform}")]
     ])
     
     try:
@@ -586,7 +587,7 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
         print(f"Error notifying admin: {e}")
 
 
-# أزرار الرد التفاعلي للمشرف (الخطوة 1 و 2)
+# أزرار الرد التفاعلي للمشرف (الخطوة 1: إرسال الرقم)
 async def admin_prep_send_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query.from_user.id != ADMIN_ID:
@@ -617,7 +618,7 @@ async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_
     platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
     
     try:
-        await query.answer("✅ تم إرسال طلب الكود إلى المالك بنجاح، يرجى الانتظار...", show_alert=True)
+        await query.answer("✅ تم طلب الكود بنجاح، يرجى الانتظار...", show_alert=True)
         await query.edit_message_text(
             query.message.text + "\n\n⏳ **تم طلب الكود من المنصة بنجاح. جاري إرساله من قبل الإدارة...**",
             parse_mode='Markdown',
@@ -626,12 +627,12 @@ async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_
     except Exception:
         pass
         
-    # إشعار المالك بأن العميل يطلب الكود الآن
+    # إشعار المالك بأن العميل طلب كود التفعيل للرقم وتحته زر "إرسال الكود للعميل"
     admin_msg = (
         "🔔 **تنبيه: العميل يطلب كود التفعيل الآن!** 🔑\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📱 **المنصة:** {platform}\n"
-        f"👤 **الاسم:** {user.full_name}\n"
+        f"👤 **اسم العميل:** {user.full_name}\n"
         f"🆔 **آيدي المستخدم:** `{user_id}`"
     )
     
@@ -650,6 +651,7 @@ async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_
         print(f"Error notifying admin for code: {e}")
 
 
+# أزرار الرد التفاعلي للمشرف (الخطوة 2: إرسال الكود)
 async def admin_prep_code_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query.from_user.id != ADMIN_ID:
@@ -664,7 +666,7 @@ async def admin_prep_code_handler(update: Update, context: ContextTypes.DEFAULT_
     try:
         await query.answer()
         await query.edit_message_text(
-            f"🔑 **أرسل الآن كود التحقق (SMS) المراد إرساله للمستخدم (آيدي: `{target_user_id}`):**",
+            f"🔑 **أرسل الآن كود التحقق (SMS) للمستخدم (آيدي: `{target_user_id}`):**",
             parse_mode='Markdown'
         )
     except Exception:
@@ -2016,7 +2018,7 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    # معالجة مراحل إرسال الرقم والكود التفاعلي للمالك
+    # معالجة مراحل إرسال الرقم والكود من قبل المالك خطوة بخطوة
     if user_id == ADMIN_ID and user_id in admin_state:
         state_info = admin_state[user_id]
         action = state_info.get('action')
@@ -2026,41 +2028,28 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             target_user_id = int(state_info.get('target_user_id'))
             platform = state_info.get('platform')
             
-            # حفظ الرقم مؤقتاً والانتقال لطلب الكود
+            # حفظ الرقم والانتقال للخطوة التالية بطلب الكود
             admin_state[ADMIN_ID] = {
                 'action': 'waiting_for_free_code',
                 'target_user_id': target_user_id,
                 'platform': platform,
                 'phone_number': text_content
             }
-            await update.message.reply_text(f"✅ تم حفظ الرقم (`{text_content}`).\n\n🔑 **أرسل الآن كود التحقق (SMS):**", parse_mode='Markdown')
-            return
-            
-        elif action == 'waiting_for_free_code':
-            target_user_id = int(state_info.get('target_user_id'))
-            platform = state_info.get('platform')
-            phone_number = state_info.get('phone_number')
-            sms_code = text_content
-            
-            admin_state.pop(ADMIN_ID, None)
             
             platform_name = "فيسبوك 📘" if "fb" in platform else "انستغرام 📸"
             platform_key = "fb" if "fb" in platform else "ig"
             app_name = "فيسبوك" if "fb" in platform else "انستغرام"
             
-            # رسالة العميل مع زر "طلب الكود"
+            # رسالة مدلعة مع تعليمات للعميل
             user_msg = (
-                "🎉 **تمت معالجة طلبك بنجاح واستلام رقمك المجاني!** 🎁\n"
+                f"🎉 **تمت معالجة طلبك بنجاح واستلام رقمك المجاني لتطبيق ({platform_name})!** 🎁\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"📱 **المنصة:** {platform_name}\n"
-                f"📞 **الرقم المخصص لك:** `{phone_number}`\n"
-                f"🔑 **كود التحقق (SMS):** `{sms_code}`\n\n"
+                f"📱 **الرقم المخصص لك:** `{text_content}`\n\n"
                 "📌 **تعليمات التفعيل الهامة:**\n"
-                f"1. وضع الرقم أعلاه في تطبيق أو موقع **{app_name}**.\n"
-                "2. اطلب إرسال كود التفعيل.\n"
-                "3. إذا لم يصلك، اضغط على زر طلب الكود أدناه ليتم تنبيه الإدارة فوراً! 🚀"
+                f"1️⃣ قم بنسخ الرقم أعلاه ولصقه في تطبيق أو موقع **{app_name}**.\n"
+                "2️⃣ اطلب إرسال كود التفعيل من التطبيق.\n"
+                "3️⃣ فور طلبك للكود، اضغط على زر **(طلب الكود من المنصة)** أدناه ليتم تنبيه الإدارة فوراً لاستلامه! 🚀"
             )
-            
             user_keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔄 طلب الكود من المنصة", callback_data=f"get_free_{platform_key}_number")],
                 [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
@@ -2073,22 +2062,52 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     parse_mode='Markdown',
                     reply_markup=user_keyboard
                 )
-                await update.message.reply_text("✅ تم إرسال الرقم والكود للمستخدم بنجاح!")
+                await update.message.reply_text(f"✅ تم إرسال الرقم للعميل بنجاح!\nالرقم: `{text_content}`\n\n🔑 أرسل الآن كود التحقق (SMS) عند وصوله:", parse_mode='Markdown')
             except Exception as e:
-                await update.message.reply_text(f"❌ تعذر إرسال الرسالة للمستخدم: {e}")
+                await update.message.reply_text(f"❌ تعذر الإرسال للعميل: {e}")
+            return
+            
+        elif action == 'waiting_for_free_code':
+            target_user_id = int(state_info.get('target_user_id'))
+            platform = state_info.get('platform')
+            phone_number = state_info.get('phone_number')
+            sms_code = text_content
+            
+            admin_state.pop(ADMIN_ID, None)
+            
+            platform_name = "فيسبوك 📘" if "fb" in platform else "انستغرام 📸"
+            
+            # رسالة الكود للعميل بشكل احترافي ومباشر
+            user_code_msg = (
+                f"🔑 **تم وصول كود التفعيل الخاص بك لتطبيق ({platform_name})!** ✅\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📱 **الرقم:** `{phone_number}`\n"
+                f"📲 **كود التحقق (SMS):** `{sms_code}`\n\n"
+                "💡 *مبروك مقدماً! أكمل الخطوات في التطبيق واستمتع بحسابك.* 🚀"
+            )
+            
+            try:
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=user_code_msg,
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+                await update.message.reply_text(f"✅ تم إرسال الكود للعميل بنجاح!\nالكود: `{sms_code}`", parse_mode='Markdown')
+            except Exception as e:
+                await update.message.reply_text(f"❌ تعذر إرسال الكود للعميل: {e}")
                 return
                 
-            # إشعار قناة التفعيلات تلقائياً
+            # إرسال اللوج تلقائياً لقناة التفعيلات مع الرقم والكود المرسل
             log_msg = (
                 "🌟 **تم اكتمال تفعيل رقم مجاني جديد بنجاح!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👤 **آيدي العميل:** `{target_user_id}`\n"
                 f"📱 **المنصة المفعلة:** {platform_name}\n"
-                f"📞 **الرقم:** `{phone_number}`\n"
-                f"🔑 **الكود:** `{sms_code}`\n"
+                f"📞 **الرقم المفعل:** `{phone_number}`\n"
+                f"🔑 **الكود المرسل:** `{sms_code}`\n"
                 f"⭐ **الحالة:** تم التفعيل وإرسال البيانات بنجاح 🚀"
             )
-            
             try:
                 await context.bot.send_message(
                     chat_id=LOG_CHANNEL_ID,
@@ -2096,7 +2115,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     parse_mode='Markdown'
                 )
             except Exception as log_err:
-                print(f"Error sending free number log to channel: {log_err}")
+                print(f"Error logging to channel: {log_err}")
             return
 
     if not await check_user_subscription(user_id, context):
