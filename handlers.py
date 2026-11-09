@@ -1930,22 +1930,29 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
             await processing_msg.edit_text(f"❌ حدث خطأ غير متوقع: `{str(e)[:100]}`", parse_mode='Markdown')
         return
 
-# 📱 دالة مستقلة تماماً لاستلام وفحص جهة الاتصال وضمان نقل المستخدم للقائمة الرئيسية
+# 📱 دالة مستقلة ومصححة تماماً لاستلام وفحص جهة الاتصال والتحقق بحسم
 async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     contact = update.message.contact
     
-    if contact and contact.user_id == user_id:
-        phone_num = str(contact.phone_number)
+    if contact:
+        # استخراج وتطهير رقم الهاتف من الرموز والمسافات
+        phone_num = str(contact.phone_number).strip().replace("+", "").replace(" ", "").replace("-", "")
         
-        arab_prefixes = ["967", "966", "20", "971", "965", "974", "968", "973", "962", "961", "964", "213", "212", "216", "249", "963", "970"]
-        is_arab = any(phone_num.startswith(prefix) or phone_num.replace("+", "").startswith(prefix) for prefix in arab_prefixes)
+        # قائمة مفاتيح الاتصال العربية المعتمدة
+        arab_prefixes = (
+            "967", "966", "20", "971", "965", "974", "968", "973", 
+            "962", "961", "964", "213", "212", "216", "249", "963", 
+            "970", "252", "253", "269", "222", "251"
+        )
+        
+        is_arab = phone_num.startswith(arab_prefixes)
         
         if is_arab:
+            # ✅ رقم عربي وتم اجتياز التحقق بنجاح
             verification_cache[user_id] = "passed"
             u_data = db_get_user(user_id)
             
-            # 🎁 احتساب الإحالة، الهدية وإرسال الإشعارات فوراً
             await process_successful_join_reward(update.effective_user, context, u_data)
             u_data = db_get_user(user_id)
 
@@ -1962,10 +1969,18 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
             )
             return
         else:
+            # ❌ رقم أجنبي وتم رفضه برسالة واضحة تماماً وصريحة
+            verification_cache[user_id] = "waiting_contact"
+            
+            error_msg = (
+                f"❌ **عذراً يا {update.effective_user.first_name}! تم رفض رقم الهاتف المُرسل (`+{phone_num}`).**\n\n"
+                "⚠️ **السبب:** هذا الرقم ليس عربياً، والبوت مخصص حصرياً للمستخدمين العرب.\n"
+                "🔄 يرجى مشاركة جهة اتصال صحيحة تحمل رقماً عربياً مطابقاً لحسابك في تليجرام لاجتياز التحقق بنجاح."
+            )
             await update.message.reply_text(
-                "❌ **عذراً، نظام التحقق رصد أن رقم الهاتف غير عربي أو غير مدعوم!**\n"
-                "البوت مخصص للمستخدمين العرب فقط.",
-                reply_markup=ReplyKeyboardRemove()
+                error_msg,
+                parse_mode='Markdown',
+                reply_markup=update.message.reply_markup
             )
             return
 
