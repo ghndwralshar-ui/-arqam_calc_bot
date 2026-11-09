@@ -301,7 +301,6 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     cached = active_numbers_cache.get(order_id, {})
                     already_logged = cached.get('has_sms', False)
                     
-                    # خصم الرصيد هنا فوراً عند وصول الكود (يدوياً) إذا لم يُخصم مسبقاً
                     if not cached.get('balance_deducted', False) and cached.get('price', 0) > 0:
                         u_id = cached.get('user_id', query.from_user.id)
                         p_val = cached.get('price', 0.0)
@@ -369,7 +368,6 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                         cached = active_numbers_cache.get(order_id, {})
                         already_logged = cached.get('has_sms', False)
                         
-                        # تم الإصلاح: خصم الرصيد تلقائياً وبشكل مؤكد فور وصول الكود في الخلفية
                         if not cached.get('balance_deducted', False) and price > 0:
                             db_update_balance(user_id, price, mode="deduct")
                             active_numbers_cache[order_id]['balance_deducted'] = True
