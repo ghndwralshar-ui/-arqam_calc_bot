@@ -445,7 +445,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 🛡️ التحقق الأمني (مسألة جمع فقط)
+    # 🛡️ التحقق الأمني (مسألة جمع فقط حصرياً)
     v_status = verification_cache.get(user.id, "not_started")
     if v_status != "passed":
         verification_cache[user.id] = "waiting_math"
@@ -1942,7 +1942,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # 🛡️ معالجة خطوة التحقق الذكي (مسألة جمع فقط)
+    # 🛡️ معالجة خطوة التحقق الذكي (مسألة جمع فقط حصرياً)
     v_status = verification_cache.get(user_id, "not_started")
     if v_status == "waiting_math":
         correct_ans = verification_cache.get(f"{user_id}_ans")
