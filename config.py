@@ -10,9 +10,9 @@ FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"
 FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"
 LOG_CHANNEL_ID = -1004374640175
 
-# --- مفاتيح خدمات الرشق (HMCARD) - تم التحديث ---
+# --- مفاتيح خدمات الرشق (HMCARD) - تم التحديث بالمفتاح الجديد ---
 HMCARD_API_URL = "https://hmcard.online/api/v2"
-HMCARD_API_KEY = "70cf52d28dc3f98483735f554ce7a994"
+HMCARD_API_KEY = "6f41329748b20f0dd2ddf6387e3e87eb"
 
 # --- مفتاح محرك قراءة الإيصالات (OCR.space) ---
 OCR_SPACE_API_KEY = "K8801265751720788957"
