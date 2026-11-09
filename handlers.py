@@ -476,7 +476,7 @@ def prompt_user_for_pubg_id(message, service_info, context):
 
 
 # ==========================================
-# 🎁 دوال نظام ربح الأرقام المجانية عبر الإحالات
+# 🎁 دوال نظام ربح الأرقام المجانية عبر الإحالات الاحترافية
 # ==========================================
 
 async def free_social_number_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -485,25 +485,29 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
     
     u_data = db_get_user(user_id)
     referrals_count = u_data.get('referrals', 0)
-    required_target = 3
+    claimed_free_numbers = u_data.get('claimed_free_numbers', 0)
     
-    if referrals_count < required_target:
-        remaining = max(0, required_target - referrals_count)
-        bot_username = context.bot.username
-        ref_link = f"https://t.me/{bot_username}?start={user_id}"
+    total_eligible = referrals_count // 3
+    remaining_eligible = max(0, total_eligible - claimed_free_numbers)
+    
+    bot_username = context.bot.username
+    ref_link = f"https://t.me/{bot_username}?start={user_id}"
+    
+    if remaining_eligible == 0:
+        next_target = (claimed_free_numbers + 1) * 3
+        needed_friends = max(0, next_target - referrals_count)
         
         msg_text = (
             "✨ **﴿ ديجيتال هب | Digital Hub ﴾** ✨\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "🎁 **اربح رقم فيسبوك أو انستغرام مجاناً!** 🚀\n\n"
-            "🎯 **كل ما عليك فعله هو دعوة ٣ اصدقاء فقط للبوت للحصول على رقمك!**\n\n"
-            "📊 **حالتك الحالية:**\n"
-            f"👥 عدد أصدقائك المنضمين: `{referrals_count} / {required_target} أصدقاء`\n"
-            f"🎯 المتبقي لك: `{remaining} دعوات فقط!`\n\n"
+            "📊 **إحصائياتك الحالية:**\n"
+            f"👥 إجمالي أصدقائك المنضمين: `{referrals_count} شخص`\n"
+            f"🎁 الأرقام التي استلمتها سابقاً: `{claimed_free_numbers} رقم`\n"
+            f"🎯 المتبقي لدعوتهم للرقم القادم: `{needed_friends} أصدقاء فقط!`\n\n"
             "🔗 **رابط الدعوة الخاص بك:**\n"
             f"`{ref_link}`\n\n"
-            "*(انسخ الرابط أعلاه وشاركه مع أصدقائك وفي المجموعات)*\n\n"
-            "💡 بمجرد إتمام الـ ٣ دعوات، سيظهر لك زر استلام الجائزة فوراً! 🔥"
+            "*(انسخ الرابط أعلاه وشاركه مع أصدقائك وفي المجموعات)*"
         )
         
         share_text = f"🎁 انضم إلينا في بوت ديجيتال هب واربح أرقام فيسبوك وانستغرام مجاناً! شارك عبر الرابط:\n{ref_link}"
@@ -511,17 +515,17 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📤 مشاركة الرابط مع الأصدقاء", url=share_url)],
-            [InlineKeyboardButton("🔄 تحديث عداد الدعوات", callback_data="free_social_number")],
+            [InlineKeyboardButton("🔄 تحديث العداد", callback_data="free_social_number")],
             [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
         ])
     else:
-        available_numbers_count = referrals_count // 3
-        
         msg_text = (
             "🎉 **ألف مبروك يا بطل! لقد أتممت الشروط بنجاح تام!** 🏆\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"👥 لقد قمت بدعوة `{referrals_count}` أصدقاء واجتازوا التحقق بنجاح.\n\n"
-            f"🎁 **أنت الآن مؤهل للحصول على `{available_numbers_count}` أرقام مجانية!** (بمعدل رقم لكل ٣ دعوات).\n"
+            f"🎁 أنت مؤهل للحصول على `{total_eligible}` أرقام مجانية! (بمعدل رقم لكل ٣ دعوات).\n"
+            f"📦 الأرقام التي أخذتها: `{claimed_free_numbers}`\n"
+            f"⭐ **المتبقي لك للاستلام الآن:** `{remaining_eligible} رقم`\n\n"
             "👇 **اختر المنصة التي تريد تفعيل رقمك المجاني منها أدناه:**"
         )
         
@@ -548,32 +552,50 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
     user = query.from_user
     data = query.data
     
-    platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
+    u_data = db_get_user(user_id)
+    referrals_count = u_data.get('referrals', 0)
+    claimed_free_numbers = u_data.get('claimed_free_numbers', 0)
     
-    # رسالة حلوة للمستخدم بعد الضغط على زر الحصول على رقم
+    total_eligible = referrals_count // 3
+    if claimed_free_numbers >= total_eligible:
+        await query.answer("⚠️ عذراً، لقد استهلكت جميع أرقامك المجانية بناءً على عدد دعواتك!", show_alert=True)
+        return
+        
+    new_claimed = claimed_free_numbers + 1
+    try:
+        supabase.table("users").update({"claimed_free_numbers": new_claimed}).eq("user_id", user_id).execute()
+    except Exception as db_err:
+        print(f"Error updating claimed numbers: {db_err}")
+    
+    platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
+    platform_key = "fb" if "fb" in data else "ig"
+    
+    remaining_after = max(0, total_eligible - new_claimed)
+    
     waiting_text = (
         f"⏳ **جاري الحصول على رقمك من فضلك يرجى الإنتظار قليلاً...**\n\n"
-        f"🔄 يتم الآن معالجة طلبك لاستخراج رقم مجاني لتطبيق ({platform}) بواسطة النظام ليتم إرساله إليك في أقرب وقت! 🚀"
+        f"📱 المنصة: ({platform})\n"
+        f"🎁 الأرقام المؤهل لها: `{total_eligible}` | أخذت: `{new_claimed}` | متبقي: `{remaining_after}`\n\n"
+        f"🔄 يتم الآن معالجة طلبك لاستخراج الرقم بواسطة الإدارة! 🚀"
     )
     
     try:
-        await query.answer("✅ تم إرسال طلبك بنجاح!", show_alert=True)
+        await query.answer("✅ تم خصم رقم من رصيدك المجاني وإرسال الطلب للإدارة!", show_alert=True)
         await query.edit_message_text(waiting_text, parse_mode='Markdown')
     except Exception:
         pass
         
-    # إشعار المالك بالطلب وتحته زر "إرسال الرقم للعميل"
     admin_notification = (
         f"🚨 **طلب رقم مجاني جديد!** 🎁\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📱 **المنصة المطلوبة:** {platform}\n"
+        f"📱 **المنصة:** {platform}\n"
         f"👤 **اسم العميل:** {user.full_name}\n"
-        f"🔗 **المعرف:** @{user.username if user.username else 'لا يوجد'}\n"
-        f"🆔 **آيدي المستخدم:** `{user_id}`"
+        f"🆔 **آيدي المستخدم:** `{user_id}`\n"
+        f"📊 **العدادات:** (دعوات: {referrals_count} | استلم: {new_claimed} | باقي: {remaining_after})"
     )
     
     admin_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 إرسال الرقم للعميل", callback_data=f"admin_prep_send_{user_id}_{platform}")]
+        [InlineKeyboardButton("📤 إرسال الرقم للعميل", callback_data=f"admin_prep_send_{user_id}_{platform_key}")]
     ])
     
     try:
@@ -587,7 +609,6 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
         print(f"Error notifying admin: {e}")
 
 
-# أزرار الرد التفاعلي للمشرف (الخطوة 1: إرسال الرقم)
 async def admin_prep_send_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query.from_user.id != ADMIN_ID:
@@ -595,9 +616,9 @@ async def admin_prep_send_handler(update: Update, context: ContextTypes.DEFAULT_
     
     parts = query.data.split('_')
     target_user_id = parts[3]
-    platform = parts[4]
+    platform_key = parts[4]
     
-    admin_state[ADMIN_ID] = {'action': 'waiting_for_free_phone', 'target_user_id': target_user_id, 'platform': platform}
+    admin_state[ADMIN_ID] = {'action': 'waiting_for_free_phone', 'target_user_id': target_user_id, 'platform': platform_key}
     
     try:
         await query.answer()
@@ -616,6 +637,7 @@ async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_
     data = query.data
     
     platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
+    platform_key = "fb" if "fb" in data else "ig"
     
     try:
         await query.answer("✅ تم طلب الكود بنجاح، يرجى الانتظار...", show_alert=True)
@@ -627,7 +649,6 @@ async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_
     except Exception:
         pass
         
-    # إشعار المالك بأن العميل طلب كود التفعيل للرقم وتحته زر "إرسال الكود للعميل"
     admin_msg = (
         "🔔 **تنبيه: العميل يطلب كود التفعيل الآن!** 🔑\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -637,7 +658,7 @@ async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_
     )
     
     admin_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 إرسال الكود للعميل", callback_data=f"admin_prep_code_{user_id}_{platform}")]
+        [InlineKeyboardButton("📤 إرسال الكود للعميل", callback_data=f"admin_prep_code_{user_id}_{platform_key}")]
     ])
     
     try:
@@ -651,7 +672,6 @@ async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_
         print(f"Error notifying admin for code: {e}")
 
 
-# أزرار الرد التفاعلي للمشرف (الخطوة 2: إرسال الكود)
 async def admin_prep_code_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query.from_user.id != ADMIN_ID:
@@ -659,9 +679,9 @@ async def admin_prep_code_handler(update: Update, context: ContextTypes.DEFAULT_
         
     parts = query.data.split('_')
     target_user_id = parts[3]
-    platform = parts[4]
+    platform_key = parts[4]
     
-    admin_state[ADMIN_ID] = {'action': 'waiting_for_free_code', 'target_user_id': target_user_id, 'platform': platform}
+    admin_state[ADMIN_ID] = {'action': 'waiting_for_free_code', 'target_user_id': target_user_id, 'platform': platform_key}
     
     try:
         await query.answer()
@@ -2018,7 +2038,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    # معالجة مراحل إرسال الرقم والكود من قبل المالك خطوة بخطوة
     if user_id == ADMIN_ID and user_id in admin_state:
         state_info = admin_state[user_id]
         action = state_info.get('action')
@@ -2028,7 +2047,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             target_user_id = int(state_info.get('target_user_id'))
             platform = state_info.get('platform')
             
-            # حفظ الرقم والانتقال للخطوة التالية بطلب الكود
             admin_state[ADMIN_ID] = {
                 'action': 'waiting_for_free_code',
                 'target_user_id': target_user_id,
@@ -2036,11 +2054,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 'phone_number': text_content
             }
             
-            platform_name = "فيسبوك 📘" if "fb" in platform else "انستغرام 📸"
-            platform_key = "fb" if "fb" in platform else "ig"
-            app_name = "فيسبوك" if "fb" in platform else "انستغرام"
+            platform_name = "فيسبوك 📘" if platform == "fb" else "انستغرام 📸"
+            app_name = "فيسبوك" if platform == "fb" else "انستغرام"
             
-            # رسالة مدلعة مع تعليمات للعميل
             user_msg = (
                 f"🎉 **تمت معالجة طلبك بنجاح واستلام رقمك المجاني لتطبيق ({platform_name})!** 🎁\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -2051,7 +2067,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 "3️⃣ فور طلبك للكود، اضغط على زر **(طلب الكود من المنصة)** أدناه ليتم تنبيه الإدارة فوراً لاستلامه! 🚀"
             )
             user_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 طلب الكود من المنصة", callback_data=f"get_free_{platform_key}_number")],
+                [InlineKeyboardButton("🔄 طلب الكود من المنصة", callback_data=f"get_free_{platform}_number")],
                 [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
             ])
             
@@ -2075,9 +2091,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             
             admin_state.pop(ADMIN_ID, None)
             
-            platform_name = "فيسبوك 📘" if "fb" in platform else "انستغرام 📸"
+            platform_name = "فيسبوك 📘" if platform == "fb" else "انستغرام 📸"
             
-            # رسالة الكود للعميل بشكل احترافي ومباشر
             user_code_msg = (
                 f"🔑 **تم وصول كود التفعيل الخاص بك لتطبيق ({platform_name})!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -2098,7 +2113,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text(f"❌ تعذر إرسال الكود للعميل: {e}")
                 return
                 
-            # إرسال اللوج تلقائياً لقناة التفعيلات مع الرقم والكود المرسل
             log_msg = (
                 "🌟 **تم اكتمال تفعيل رقم مجاني جديد بنجاح!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
