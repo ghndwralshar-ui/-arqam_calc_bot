@@ -17,6 +17,7 @@ from handlers import (
     button_handler, 
     handle_text_messages, 
     handle_photo_receipt,  
+    handle_contact_message,  # 📱 تم استيراد دالة معالجة جهات الاتصال بنجاح
     pre_checkout_handler, 
     successful_payment_handler
 )
@@ -56,18 +57,25 @@ if __name__ == '__main__':
         .build()
     )
     
-    # إضافة المعالجات (Handlers)
+    # إضافة المعالجات (Handlers) بالترتيب السليم
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+    
+    # 📱 معالج جهات الاتصال الهام جداً (للتحقق الأمني الذكي للرقم العربي)
+    app.add_handler(MessageHandler(filters.CONTACT, handle_contact_message))
+    
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_receipt))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     
     print("🚀 البوت يعمل الآن بقوة وثبات تام...")
     
     try:
-        app.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query", "pre_checkout_query"])
+        # السماح باستقبال جهات الاتصال والرسائل والأزرار بكفاءة عالية
+        app.run_polling(
+            drop_pending_updates=True, 
+            allowed_updates=["message", "callback_query", "pre_checkout_query", "contact"]
+        )
     except Exception as e:
         print(f"❌ حدث خطأ أثناء تشغيل الـ Polling: {e}")
-application.add_handler(MessageHandler(filters.CONTACT, handle_contact_message))
