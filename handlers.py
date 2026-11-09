@@ -1,9 +1,10 @@
 import asyncio
 import re
 import json
+import random
 import httpx
 import cloudscraper
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
 from telegram.ext import ContextTypes, CommandHandler
 
 from config import (
@@ -37,6 +38,7 @@ admin_state = {}
 user_selected_service = {}
 user_order_data = {}
 active_numbers_cache = {}
+verification_cache = {}  # 🛡️ لتخزين حالة التحقق المؤقتة (المسألة الحسابية)
 
 EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
@@ -77,19 +79,20 @@ async def check_user_subscription(user_id: int, context: ContextTypes.DEFAULT_TY
 
 async def process_successful_join_reward(user, context, u_data):
     try:
-        if not db_claim_referral_reward(user.id):
+        user_id = user.id
+        if not db_claim_referral_reward(user_id):
             return
 
-        if user.id != ADMIN_ID:
+        if user_id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
                 await context.bot.send_message(
                     chat_id=ADMIN_ID,
                     text=(
-                        f"👤 **مستخدم جديد انضم إلى البوت واجتاز التحقق! (رقم {seq_num})**\n\n"
+                        f"🛡️ **مستخدم حقيقي جديد انضم واجتاز التحقق الأمني الذكي!** (رقم {seq_num})\n\n"
                         f"▫️ الاسم: {user.full_name}\n"
                         f"▫️ المعرف: @{user.username if user.username else 'لا يوجد'}\n"
-                        f"▫️ الآيدي: `{user.id}`"
+                        f"▫️ الآيدي: `{user_id}`"
                     ),
                     parse_mode='Markdown'
                 )
@@ -97,7 +100,7 @@ async def process_successful_join_reward(user, context, u_data):
                 print(f"Error notifying admin about new user: {admin_notify_err}")
 
         referrer_id = u_data.get("referred_by", 0)
-        if referrer_id > 0 and referrer_id != user.id:
+        if referrer_id > 0 and referrer_id != user_id:
             db_update_balance(referrer_id, 0.10, mode="add")
             new_ref_count = db_increment_referral_count(referrer_id)
             
@@ -113,7 +116,7 @@ async def process_successful_join_reward(user, context, u_data):
                 await context.bot.send_message(
                     chat_id=referrer_id,
                     text=(
-                        f"🎉 **مبروك يا {ref_first_name}! انضم شخص جديد عبر رابط الدعوة الخاص بك وأتم التحقق بنجاح.** 🚀\n\n"
+                        f"🎉 **مبروك يا {ref_first_name}! انضم شخص حقيقي وعربي عبر رابطك واجتاز التحقق.** 🚀\n\n"
                         f"👤 اسم الصديق: {user.full_name}\n"
                         f"💰 تمت إضافة هدية الدعوة بقيمة **0.10$** إلى رصيدك المتاح!\n"
                         f"📊 إجمالي عدد الدعوات الناجحة لديك: `{new_ref_count}` 🌟"
@@ -189,7 +192,6 @@ async def get_available_countries_for_service(service: str):
                                     rate = op_data.get("rate", 0.0)
                                     if count > 0 and cost is not None:
                                         base_price = float(cost)
-                                        # فلترة الأرقام بحيث تكون التكلفة أقل من 0.15$
                                         if base_price < 0.15:
                                             has_stock = True
                                             success_val = float(rate) if rate is not None else 0.0
@@ -200,7 +202,6 @@ async def get_available_countries_for_service(service: str):
                                                 best_operator = operator
 
                         if has_stock and min_price < 999.0 and best_operator:
-                            # توحيد السعر للمستخدم ليصبح 0.70$
                             fixed_price = 0.70
                             c_meta = COUNTRY_INFO[country_code]
                             available_countries.append({
@@ -444,8 +445,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    await process_successful_join_reward(user, context, u_data)
-    u_data = db_get_user(user.id)
+    # 🛡️ تفقد حالة التحقق الذكي (المسألة الحسابية + جهة الاتصال)
+    v_status = verification_cache.get(user.id, "not_started")
+    if v_status != "passed":
+        verification_cache[user.id] = "waiting_math"
+        n1 = random.randint(1, 9)
+        n2 = random.randint(1, 9)
+        op = random.choice(["+", "-"])
+        correct_ans = n1 + n2 if op == "+" else n1 - n2
+        verification_cache[f"{user.id}_ans"] = correct_ans
+
+        await update.message.reply_text(
+            f"🛡️ **تحقق أمني ذكي لإثبات أنك بشري ولست روبوت (1/2):**\n\n"
+            f"قم بحل المسألة الرياضية التالية لإكمال الدخول:\n"
+            f"🔹 كم ناتج: ` {n1} {op} {n2} = ? `\n\n"
+            f"*(أرسل الرقم الناتج في رسالة الآن)*",
+            parse_mode='Markdown',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return
 
     welcome_text = (
         f"💎 **مرحباً بك عزيزي {user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
@@ -507,7 +525,6 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
     claimed_free_numbers = u_data.get('claimed_free_numbers', 0)
     current_user_balance = float(u_data.get('balance', 0.0))
     
-    # الشرط المحدث: كل 7 دعوات = رقم مجاني
     total_eligible = referrals_count // 7
     remaining_eligible = max(0, total_eligible - claimed_free_numbers)
     
@@ -614,24 +631,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == 'check_subscription':
         if await check_user_subscription(user_id, context):
-            await query.answer("✅ تم التحقق من اشتراكك بنجاح! أهلاً بك.", show_alert=True)
-            u_data = db_get_user(user_id)
-            await process_successful_join_reward(query.from_user, context, u_data)
-            u_data = db_get_user(user_id)
-            
-            welcome_text = (
-                f"💎 **مرحباً بك عزيزي {query.from_user.first_name} في بوت ﴿ ديجيتال هب | Digital Hub ﴾** 🚀\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"👤 **الآيدي:** `{user_id}`\n"
-                f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "🌟 بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة، الأرقام الافتراضية، والرشق!\n\n"
-                "👇 **اختر ما يناسبك من القائمة أدناه:**"
+            # 🛡️ إطلاق التحقق الذكي (الخطوة 1: المسألة الحسابية)
+            verification_cache[user_id] = "waiting_math"
+            n1 = random.randint(1, 9)
+            n2 = random.randint(1, 9)
+            op = random.choice(["+", "-"])
+            correct_ans = n1 + n2 if op == "+" else n1 - n2
+            verification_cache[f"{user_id}_ans"] = correct_ans
+
+            math_text = (
+                f"🛡️ **تحقق أمني ذكي لإثبات أنك بشري ولست روبوت (1/2):**\n\n"
+                f"قم بحل المسألة الرياضية التالية لإكمال الدخول:\n"
+                f"🔹 كم ناتج: ` {n1} {op} {n2} = ? `\n\n"
+                f"*(أرسل الرقم الناتج في رسالة الآن)*"
             )
             try:
-                await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
+                await query.edit_message_text(math_text, parse_mode='Markdown')
             except Exception:
-                pass
+                await context.bot.send_message(chat_id=user_id, text=math_text, parse_mode='Markdown')
         else:
             await query.answer("❌ عذراً، لم تقم بالاشتراك في القناة بعد! يرجى الاشتراك ثم إعادة المحاولة.", show_alert=True)
         return
@@ -683,9 +700,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # ==========================================
-    # 🛠️ تعطيل واتساب وعروضه وعرض رسالة صيانة
-    # ==========================================
     elif data in ['most_available', 'deals_whatsapp', 'service_whatsapp', 'wa_subscribers', 'wa_reactions', 'wa_auto_reactions', 'wa_polls']:
         await query.answer("⚠️ قسم واتساب وعروضه في حالة صيانة الآن. يمكنك طلب رقم لمنصة أخرى بكل سهولة!", show_alert=True)
         try:
@@ -1928,9 +1942,67 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
-    u_data = db_get_user(user_id)
-    await process_successful_join_reward(update.effective_user, context, u_data)
     text_content = update.message.text.strip() if update.message.text else ""
+
+    # 🛡️ معالجة خطوة التحقق الذكي (المسألة الحسابية)
+    v_status = verification_cache.get(user_id, "not_started")
+    if v_status == "waiting_math":
+        correct_ans = verification_cache.get(f"{user_id}_ans")
+        if text_content.isdigit() and int(text_content) == correct_ans:
+            verification_cache[user_id] = "waiting_contact"
+            
+            # طلب مشاركة جهة الاتصال (زر حقيقي لإرسال الرقم)
+            contact_button = KeyboardButton("📱 مشاركة جهة الاتصال للتحقق", request_contact=True)
+            contact_kb = ReplyKeyboardMarkup([[contact_button]], resize_keyboard=True, one_time_keyboard=True)
+            
+            await update.message.reply_text(
+                "✅ **إجابة صحيحة يا بطل!** 🧠\n\n"
+                "🛡️ **الخطوة الأخيرة للتحقق الأمني (2/2):**\n"
+                "يرجى الضغط على الزر أدناه لمشاركة جهة الاتصال الخاصة بك للتحقق من أنك مستخدم عربي حقيقي وليست أداة وهمية:",
+                parse_mode='Markdown',
+                reply_markup=contact_kb
+            )
+        else:
+            await update.message.reply_text("❌ الإجابة خاطئة! حاول مجدداً، كم ناتج المسألة الرياضية السابقة؟")
+        return
+
+    # 🛡️ معالجة استلام جهة الاتصال والتحقق من كونها عربية (تبدأ بـ + أو مفتاح عربي مثل 967, 966, 20, 971...)
+    if update.message.contact:
+        contact = update.message.contact
+        if contact.user_id == user_id:
+            phone_num = str(contact.phone_number)
+            
+            # التحقق هل الرقم عربي (مفتاح اليمن 967، السعودية 966، مصر 20، الإمارات 971، أو يبدأ بـ +)
+            arab_prefixes = ["967", "966", "20", "971", "965", "974", "968", "973", "962", "961", "964", "213", "212", "216", "249", "963", "970"]
+            is_arab = any(phone_num.startswith(prefix) or phone_num.replace("+", "").startswith(prefix) for prefix in arab_prefixes)
+            
+            if is_arab:
+                verification_cache[user_id] = "passed"
+                u_data = db_get_user(user_id)
+                await process_successful_join_reward(update.effective_user, context, u_data)
+                u_data = db_get_user(user_id)
+
+                success_welcome = (
+                    f"🎉 **تم التحقق بنجاح تام! أهلاً بك يا {update.effective_user.first_name} في عالم ديجيتال هب** 🚀✨\n\n"
+                    f"👤 **الآيدي:** `{user_id}`\n"
+                    f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
+                    "🌟 تم تفعيل حسابك بنجاح وأصبحت جاهزاً لاستخدام كافة خدمات الأرقام والرشق!"
+                )
+                await update.message.reply_text(
+                    success_welcome,
+                    parse_mode='Markdown',
+                    reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID))
+                )
+                return
+            else:
+                await update.message.reply_text(
+                    "❌ **عذراً، نظام التحقق رصد أن رقم الهاتف غير عربي أو غير مدعوم!**\n"
+                    "البوت مخصص للمستخدمين العرب فقط.",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+                return
+
+    u_data = db_get_user(user_id)
 
     if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_promo_details':
         admin_state.pop(user_id, None)
