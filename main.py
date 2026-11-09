@@ -70,3 +70,4 @@ if __name__ == '__main__':
         app.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query", "pre_checkout_query"])
     except Exception as e:
         print(f"❌ حدث خطأ أثناء تشغيل الـ Polling: {e}")
+application.add_handler(MessageHandler(filters.CONTACT, handle_contact_message))
