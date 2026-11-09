@@ -189,7 +189,7 @@ async def get_available_countries_for_service(service: str):
                                     rate = op_data.get("rate", 0.0)
                                     if count > 0 and cost is not None:
                                         base_price = float(cost)
-                                        # التحديث الثالث: فلترة الأرقام لتجلب فقط ما هو أقل من 0.15$ من المصدر
+                                        # فلترة الأرقام بحيث تكون التكلفة أقل من 0.15$
                                         if base_price < 0.15:
                                             has_stock = True
                                             success_val = float(rate) if rate is not None else 0.0
@@ -200,7 +200,7 @@ async def get_available_countries_for_service(service: str):
                                                 best_operator = operator
 
                         if has_stock and min_price < 999.0 and best_operator:
-                            # التحديث الثالث: توحيد السعر النهائي للمستخدم ليصبح 0.70 دولار
+                            # توحيد السعر للمستخدم ليصبح 0.70$
                             fixed_price = 0.70
                             c_meta = COUNTRY_INFO[country_code]
                             available_countries.append({
@@ -495,42 +495,107 @@ def prompt_user_for_pubg_id(message, service_info, context):
 
 
 # ==========================================
-# 🎁 التحديث الأول: قسم أرقام فيسبوك وانستغرام التلقائي عبر 5sim
+# 🎁 قسم ربح أرقام فيسبوك أو انستغرام (شرط 7 دعوات + استلام تلقائي بالكامل)
 # ==========================================
 
 async def free_social_number_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
+    
     u_data = db_get_user(user_id)
+    referrals_count = u_data.get('referrals', 0)
+    claimed_free_numbers = u_data.get('claimed_free_numbers', 0)
+    current_user_balance = float(u_data.get('balance', 0.0))
     
-    services_text = (
-        "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "📱 **قسم تفعيل أرقام (فيسبوك & انستغرام)**\n"
-        "⚡ *شغل تلقائي ومباشر عبر 5sim بأعلى نسب نجاح!*\n\n"
-        f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
-        "👇 **اختر المنصة المطلوبة لتفعيل الرقم فوراً:**"
-    )
+    # الشرط المحدث: كل 7 دعوات = رقم مجاني
+    total_eligible = referrals_count // 7
+    remaining_eligible = max(0, total_eligible - claimed_free_numbers)
     
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📱 تفعيل رقم فيسبوك (Facebook)", callback_data="get_free_fb_number")],
-        [InlineKeyboardButton("📸 تفعيل رقم انستغرام (Instagram)", callback_data="get_free_ig_number")],
-        [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
-    ])
+    total_earned_from_refs = referrals_count * 0.10
     
+    bot_username = context.bot.username
+    ref_link = f"https://t.me/{bot_username}?start={user_id}"
+    
+    if remaining_eligible == 0:
+        next_target = (claimed_free_numbers + 1) * 7
+        needed_friends = max(0, next_target - referrals_count)
+        
+        msg_text = (
+            "✨ **﴿ ديجيتال هب | Digital Hub ﴾** ✨\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🎁 **اربح رقم فيسبوك أو انستغرام مجاناً عبر دعوة الأصدقاء!** 🚀\n\n"
+            "📊 **إحصائياتك وإيرادات دعواتك:**\n"
+            f"👥 إجمالي أصدقائك المنضمين: `{referrals_count} شخص`\n"
+            f"💰 إجمالي رصيد الدعوات المكتسب: `${total_earned_from_refs:.2f}` *(كل دعوة = 0.10$)*\n"
+            f"🎁 الأرقام التي استلمتها سابقاً: `{claimed_free_numbers} رقم`\n"
+            f"💳 رصيدك العام الحالي: `${current_user_balance:.2f}`\n"
+            f"🎯 المتبقي لدعوتهم للرقم القادم: `{needed_friends} أصدقاء فقط!` *(الشرط: كل 7 دعوات = رقم مجاني)*\n\n"
+            "🔗 **رابط الدعوة الخاص بك:**\n"
+            f"`{ref_link}`\n\n"
+            "*(انسخ الرابط أعلاه وشاركه مع أصدقائك وفي المجموعات)*"
+        )
+        
+        share_text = f"🎁 انضم إلينا في بوت ديجيتال هب واربح أرقام فيسبوك وانستغرام مجاناً! شارك عبر الرابط:\n{ref_link}"
+        share_url = f"https://t.me/share/url?url={share_text}"
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📤 مشاركة الرابط مع الأصدقاء", url=share_url)],
+            [InlineKeyboardButton("🔄 تحديث العداد والرصيد", callback_data="free_social_number")],
+            [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
+        ])
+    else:
+        msg_text = (
+            "🎉 **ألف مبروك يا بطل! لقد أتممت الشروط بنجاح تام!** 🏆\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👥 لقد قمت بدعوة `{referrals_count}` أصدقاء واجتازوا التحقق بنجاح.\n\n"
+            f"🎁 أنت مؤهل للحصول على `{total_eligible}` أرقام مجانية! (كل 7 دعوات = رقم).\n"
+            f"📦 الأرقام التي استلمتها: `{claimed_free_numbers} رقم`\n"
+            f"⭐ **المتبقي لك للاستلام الآن:** `{remaining_eligible} رقم`\n\n"
+            "👇 **اختر المنصة لتفعيل رقمك تلقائياً وبشكل فوري:**"
+        )
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📱 الحصول على رقم فيسبوك (تلقائي)", callback_data="get_free_fb_number")],
+            [InlineKeyboardButton("📸 الحصول على رقم انستغرام (تلقائي)", callback_data="get_free_ig_number")],
+            [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
+        ])
+        
     try:
         if hasattr(query, 'edit_message_text'):
             await query.answer()
-            await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=keyboard)
+            await query.edit_message_text(msg_text, parse_mode='Markdown', reply_markup=keyboard)
         else:
-            await context.bot.send_message(chat_id=user_id, text=services_text, parse_mode='Markdown', reply_markup=keyboard)
+            await context.bot.send_message(chat_id=user_id, text=msg_text, parse_mode='Markdown', reply_markup=keyboard)
     except Exception as e:
         print(f"Error in free_social_number_handler: {e}")
+        try:
+            await context.bot.send_message(chat_id=user_id, text=msg_text, parse_mode='Markdown', reply_markup=keyboard)
+        except Exception:
+            pass
 
 
 async def request_free_social_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = query.from_user.id
     data = query.data
+    
+    u_data = db_get_user(user_id)
+    referrals_count = u_data.get('referrals', 0)
+    claimed_free_numbers = u_data.get('claimed_free_numbers', 0)
+    
+    total_eligible = referrals_count // 7
+    if claimed_free_numbers >= total_eligible:
+        await query.answer("⚠️ عذراً، لقد استهلكت جميع أرقامك المجانية بناءً على عدد دعواتك (كل 7 دعوات = رقم)!", show_alert=True)
+        return
+        
+    new_claimed = claimed_free_numbers + 1
+    
+    try:
+        supabase.table("users").update({
+            "claimed_free_numbers": new_claimed
+        }).eq("user_id", user_id).execute()
+    except Exception as db_err:
+        print(f"Error updating claimed numbers: {db_err}")
     
     if "fb" in data:
         await show_available_countries_menu(update, context, "facebook", "فيسبوك 📘")
@@ -619,7 +684,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     # ==========================================
-    # 🛠️ التحديث الثاني: تعطيل واتساب وعروضه وعرض رسالة صيانة
+    # 🛠️ تعطيل واتساب وعروضه وعرض رسالة صيانة
     # ==========================================
     elif data in ['most_available', 'deals_whatsapp', 'service_whatsapp', 'wa_subscribers', 'wa_reactions', 'wa_auto_reactions', 'wa_polls']:
         await query.answer("⚠️ قسم واتساب وعروضه في حالة صيانة الآن. يمكنك طلب رقم لمنصة أخرى بكل سهولة!", show_alert=True)
