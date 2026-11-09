@@ -2,7 +2,8 @@ import os
 
 # --- إعدادات البوت والآيديات الأساسية ---
 BOT_TOKEN = "8850483932:AAF-ZgsMtCi96OWybPL43ZQS2oeCmF72L68"
-ADMIN_ID = 6542718105
+ADMIN_ID = 6472852297
+
 SUPPORT_USERNAME = "benti"
 
 # --- القناة الإجبارية ولॉग الأنشطة ---
