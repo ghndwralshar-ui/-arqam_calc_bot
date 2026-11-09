@@ -492,7 +492,7 @@ def prompt_user_for_pubg_id(message, service_info, context):
 
 
 # ==========================================
-# 🎁 نظام الأرقام المجانية عبر الدعوات
+# 🎁 نظام الأرقام المجانية عبر الدعوات ورصيد الدعوات (كل دعوة 0.10$ وكل 3 دعوات رقم بقيمة 0.30$)
 # ==========================================
 
 async def free_social_number_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -503,8 +503,14 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
     referrals_count = u_data.get('referrals', 0)
     claimed_free_numbers = u_data.get('claimed_free_numbers', 0)
     
+    # حساب الاستحقاق بناءً على الدعوات (كل 3 دعوات = رقم مجاني)
     total_eligible = referrals_count // 3
     remaining_eligible = max(0, total_eligible - claimed_free_numbers)
+    
+    # حساب رصيد الدعوات المكتسب (كل دعوة = 0.10$) والرصيد المخصوم
+    total_earned_from_refs = referrals_count * 0.10
+    total_deducted_for_numbers = claimed_free_numbers * 0.30
+    current_ref_balance = round(total_earned_from_refs - total_deducted_for_numbers, 2)
     
     bot_username = context.bot.username
     ref_link = f"https://t.me/{bot_username}?start={user_id}"
@@ -516,10 +522,12 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
         msg_text = (
             "✨ **﴿ ديجيتال هب | Digital Hub ﴾** ✨\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "🎁 **اربح رقم فيسبوك أو انستغرام مجاناً!** 🚀\n\n"
-            "📊 **إحصائياتك الحالية:**\n"
+            "🎁 **اربح رقم فيسبوك أو انستغرام مجاناً عبر دعوة الأصدقاء!** 🚀\n\n"
+            "📊 **إحصائياتك وإيرادات دعواتك:**\n"
             f"👥 إجمالي أصدقائك المنضمين: `{referrals_count} شخص`\n"
-            f"🎁 الأرقام التي استلمتها سابقاً: `{claimed_free_numbers} رقم`\n"
+            f"💰 إجمالي رصيد الدعوات المكتسب: `${total_earned_from_refs:.2f}` *(كل دعوة = 0.10$)*\n"
+            f"🎁 الأرقام التي استلمتها سابقاً: `{claimed_free_numbers} رقم` *(خصم ${total_deducted_for_numbers:.2f})*\n"
+            f"💳 رصيد الدعوات المتاح حالياً: `${current_ref_balance:.2f}`\n"
             f"🎯 المتبقي لدعوتهم للرقم القادم: `{needed_friends} أصدقاء فقط!`\n\n"
             "🔗 **رابط الدعوة الخاص بك:**\n"
             f"`{ref_link}`\n\n"
@@ -531,7 +539,7 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📤 مشاركة الرابط مع الأصدقاء", url=share_url)],
-            [InlineKeyboardButton("🔄 تحديث العداد", callback_data="free_social_number")],
+            [InlineKeyboardButton("🔄 تحديث العداد والرصيد", callback_data="free_social_number")],
             [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
         ])
     else:
@@ -539,9 +547,10 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
             "🎉 **ألف مبروك يا بطل! لقد أتممت الشروط بنجاح تام!** 🏆\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"👥 لقد قمت بدعوة `{referrals_count}` أصدقاء واجتازوا التحقق بنجاح.\n\n"
-            f"🎁 أنت مؤهل للحصول على `{total_eligible}` أرقام مجانية! (بمعدل رقم لكل ٣ دعوات).\n"
-            f"📦 الأرقام التي أخذتها: `{claimed_free_numbers}`\n"
-            f"⭐ **المتبقي لك للاستلام الآن:** `{remaining_eligible} رقم`\n\n"
+            f"🎁 أنت مؤهل للحصول على `{total_eligible}` أرقام مجانية! (كل 3 دعوات = رقم بقيمة 0.30$).\n"
+            f"📦 الأرقام التي استلمتها: `{claimed_free_numbers} رقم`\n"
+            f"⭐ **المتبقي لك للاستلام الآن:** `{remaining_eligible} رقم` *(سيتم خصم 0.30$ من رصيد الدعوات مقابل كل رقم)*\n"
+            f"💰 رصيد الدعوات المتاح: `${current_ref_balance:.2f}`\n\n"
             "👇 **اختر المنصة التي تريد تفعيل رقمك المجاني منها أدناه:**"
         )
         
@@ -581,36 +590,52 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
         return
         
     new_claimed = claimed_free_numbers + 1
+    
+    # حساب الخصم المالي المخصص للرقم المجاني (0.30$ لكل رقم مجاني من رصيد الدعوات/المحفظة)
+    deduction_amount = 0.30
+    current_balance = float(u_data.get('balance', 0.0))
+    
     try:
-        supabase.table("users").update({"claimed_free_numbers": new_claimed}).eq("user_id", user_id).execute()
+        # تحديث عداد الأرقام المستلمة في قاعدة البيانات
+        supabase.table("users").update({
+            "claimed_free_numbers": new_claimed
+        }).eq("user_id", user_id).execute()
+        
+        # خصم مبلغ 0.30$ من رصيد المستخدم العام مقابل الحصول على الرقم المجاني
+        db_update_balance(user_id, deduction_amount, mode="deduct")
     except Exception as db_err:
-        print(f"Error updating claimed numbers: {db_err}")
+        print(f"Error updating claimed numbers or balance: {db_err}")
     
     platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
     platform_key = "fb" if "fb" in data else "ig"
     
     remaining_after = max(0, total_eligible - new_claimed)
+    updated_user = db_get_user(user_id)
+    new_user_balance = float(updated_user.get('balance', 0.0))
     
     waiting_text = (
         f"⏳ **جاري الحصول على رقمك من المنصة يرجى الإنتظار قليلاً...**\n\n"
         f"📱 المنصة: ({platform})\n"
-        f"🎁 الأرقام المؤهل لها: `{total_eligible}` | أخذت: `{new_claimed}` | متبقي: `{remaining_after}`\n\n"
+        f"🎁 الأرقام المؤهل لها: `{total_eligible}` | أخذت: `{new_claimed}` | متبقي: `{remaining_after}`\n"
+        f"💸 **تم خصم:** `${deduction_amount:.2f}` (مقابل الرقم المجاني)\n"
+        f"⭐ **رصيدك الحالي:** `${new_user_balance:.2f}`\n\n"
         f"🔄 يتم الآن معالجة طلبك لاستخراج الرقم بواسطة المنصة! 🚀"
     )
     
     try:
-        await query.answer("✅ تم إرسال الطلب للمنصة بنجاح!", show_alert=True)
+        await query.answer("✅ تم خصم قيمة الرقم المجاني وإرسال الطلب للمنصة بنجاح!", show_alert=True)
         await query.edit_message_text(waiting_text, parse_mode='Markdown')
     except Exception:
         pass
         
     admin_notification = (
-        f"🚨 **طلب رقم مجاني جديد!** 🎁\n"
+        f"🚨 **طلب رقم مجاني جديد (مع الخصم)!** 🎁\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📱 **المنصة:** {platform}\n"
         f"👤 **اسم العميل:** {user.full_name}\n"
         f"🆔 **آيدي المستخدم:** `{user_id}`\n"
-        f"📊 **العدادات:** (دعوات: {referrals_count} | استلم: {new_claimed} | باقي: {remaining_after})"
+        f"💸 **المبلغ المخصوم:** `${deduction_amount:.2f}`\n"
+        f"📊 **العدادات المحدثة:** (دعوات: {referrals_count} | استلم: {new_claimed} | باقي: {remaining_after})"
     )
     
     admin_keyboard = InlineKeyboardMarkup([
