@@ -262,13 +262,14 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
 
 async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str, service_param: str):
     bot_username = context.bot.username
-    start_url = f"https://t.me/{bot_username}?start=start"
-    service_url = f"https://t.me/{bot_username}?start={service_param}"
+    start_url = f"https://t.me/{bot_username}?start={service_param}"
+    free_url = f"https://t.me/{bot_username}?start=free_social_number"
     
+    # الزر الأول مدلع (الحصول على رقم مجاني)، والثاني (الدخول للبوت) مع دالة نقل لقسم مجاني
     reply_markup = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🤖 الدخول للبوت", url=start_url),
-            InlineKeyboardButton("🛍️ طلب نفس الخدمة", url=service_url)
+            InlineKeyboardButton("🎁 احصل على رقمك المجاني الآن ✨", url=free_url),
+            InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)
         ]
     ])
     
@@ -450,8 +451,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
     elif arg_param == 'main_rashq':
         await update.message.reply_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
-    elif arg_param == 'sec_telegram':
-        await update.message.reply_text("🚀 خدمات تليجرام الرئيسية:\nاختر القسم المطلوب:", reply_markup=telegram_services_keyboard())
+    elif arg_param == 'free_social_number':
+        # فتح قسم الأرقام المجانية مباشرة عند الضغط على زر القناة
+        update.callback_query = type('obj', (object,), {'from_user': user, 'answer': lambda *a, **k: None, 'edit_message_text': lambda *a, **k: None})()
+        await free_social_number_handler(update, context)
+        return
     else:
         await update.message.reply_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user.id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
 
@@ -475,7 +479,7 @@ def prompt_user_for_pubg_id(message, service_info, context):
 
 
 # ==========================================
-# 🎁 نظام الأرقام المجانية عبر الدعوات المحدث بالكامل
+# 🎁 نظام الأرقام المجانية عبر الدعوات
 # ==========================================
 
 async def free_social_number_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -535,8 +539,11 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
         ])
         
     try:
-        await query.answer()
-        await query.edit_message_text(msg_text, parse_mode='Markdown', reply_markup=keyboard)
+        if hasattr(query, 'edit_message_text'):
+            await query.answer()
+            await query.edit_message_text(msg_text, parse_mode='Markdown', reply_markup=keyboard)
+        else:
+            await context.bot.send_message(chat_id=user_id, text=msg_text, parse_mode='Markdown', reply_markup=keyboard)
     except Exception as e:
         print(f"Error in free_social_number_handler: {e}")
         try:
@@ -560,7 +567,6 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
         await query.answer("⚠️ عذراً، لقد استهلكت جميع أرقامك المجانية بناءً على عدد دعواتك!", show_alert=True)
         return
         
-    # خصم واحتساب الرقم المجاني فوراً
     new_claimed = claimed_free_numbers + 1
     try:
         supabase.table("users").update({"claimed_free_numbers": new_claimed}).eq("user_id", user_id).execute()
@@ -573,19 +579,18 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
     remaining_after = max(0, total_eligible - new_claimed)
     
     waiting_text = (
-        f"⏳ **جاري الحصول على رقمك من فضلك يرجى الإنتظار قليلاً...**\n\n"
+        f"⏳ **جاري الحصول على رقمك من المنصة يرجى الإنتظار قليلاً...**\n\n"
         f"📱 المنصة: ({platform})\n"
         f"🎁 الأرقام المؤهل لها: `{total_eligible}` | أخذت: `{new_claimed}` | متبقي: `{remaining_after}`\n\n"
-        f"🔄 يتم الآن معالجة طلبك لاستخراج الرقم بواسطة الإدارة! 🚀"
+        f"🔄 يتم الآن معالجة طلبك لاستخراج الرقم بواسطة المنصة! 🚀"
     )
     
     try:
-        await query.answer("✅ تم خصم رقم من رصيدك المجاني وإرسال الطلب للإدارة!", show_alert=True)
+        await query.answer("✅ تم خصم رقم من رصيدك المجاني وإرسال الطلب للمنصة!", show_alert=True)
         await query.edit_message_text(waiting_text, parse_mode='Markdown')
     except Exception:
         pass
         
-    # إشعار المالك بالطلب مع زر إرسال الرقم للعميل
     admin_notification = (
         f"🚨 **طلب رقم مجاني جديد!** 🎁\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -643,7 +648,7 @@ async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_
     try:
         await query.answer("✅ تم طلب الكود بنجاح، يرجى الانتظار...", show_alert=True)
         await query.edit_message_text(
-            query.message.text + "\n\n⏳ **تم طلب الكود من المنصة بنجاح. جاري إرساله من قبل الإدارة...**",
+            query.message.text + "\n\n⏳ **تم طلب الكود من المنصة بنجاح. جاري إرساله من قبل المنصة...**",
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
         )
@@ -2058,7 +2063,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             platform_name = "فيسبوك 📘" if platform == "fb" else "انستغرام 📸"
             app_name = "فيسبوك" if platform == "fb" else "انستغرام"
             
-            # رسالة الرقم وحدها كما طلبت
             user_msg = (
                 f"🎉 **إليك رقمك المجاني لتطبيق ({platform_name})!** 🎁\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -2066,7 +2070,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 "📌 **تعليمات التفعيل الهامة:**\n"
                 f"1️⃣ قم بنسخ الرقم أعلاه ولصقه في تطبيق أو موقع **{app_name}**.\n"
                 "2️⃣ اطلب إرسال كود التفعيل من التطبيق.\n"
-                "3️⃣ فور طلبك للكود، اضغط على زر **(طلب الكود من المنصة)** أدناه ليتم تنبيه الإدارة فوراً لاستلامه! 🚀"
+                "3️⃣ فور طلبك للكود، اضغط على زر **(طلب الكود من المنصة)** أدناه ليتم تنبيه المنصة فوراً لاستلامه! 🚀"
             )
             user_keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔄 طلب الكود من المنصة", callback_data=f"req_code_again_{platform}")],
@@ -2095,7 +2099,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             
             platform_name = "فيسبوك 📘" if platform == "fb" else "انستغرام 📸"
             
-            # رسالة الكود وحدها كما طلبت
             user_code_msg = (
                 f"🔑 **إليك كود التحقق الخاص بك لتطبيق ({platform_name})!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -2116,6 +2119,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text(f"❌ تعذر إرسال الكود للعميل: {e}")
                 return
                 
+            # تم إصلاح عرض الرقم المجاني ليظهر بدلاً من None
             log_msg = (
                 "🌟 **تم اكتمال تفعيل رقم مجاني جديد بنجاح!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -2129,7 +2133,13 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await context.bot.send_message(
                     chat_id=LOG_CHANNEL_ID,
                     text=log_msg,
-                    parse_mode='Markdown'
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🎁 احصل على رقمك المجاني الآن ✨", url=f"https://t.me/{context.bot.username}?start=free_social_number"),
+                            InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=f"https://t.me/{context.bot.username}?start=free_social_number")
+                        ]
+                    ])
                 )
             except Exception as log_err:
                 print(f"Error logging to channel: {log_err}")
