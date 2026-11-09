@@ -38,7 +38,7 @@ admin_state = {}
 user_selected_service = {}
 user_order_data = {}
 active_numbers_cache = {}
-verification_cache = {}  # 🛡️ لتخزين حالة التحقق المؤقتة (المسألة الحسابية)
+verification_cache = {}  # 🛡️ لتخزين حالة التحقق المؤقتة
 
 EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
@@ -445,7 +445,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 🛡️ تفقد حالة التحقق الذكي (المسألة الحسابية + جهة الاتصال)
+    # 🛡️ فحص هل أكمل التحقق الأمني سابقاً؟
     v_status = verification_cache.get(user.id, "not_started")
     if v_status != "passed":
         verification_cache[user.id] = "waiting_math"
@@ -1951,7 +1951,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         if text_content.isdigit() and int(text_content) == correct_ans:
             verification_cache[user_id] = "waiting_contact"
             
-            # طلب مشاركة جهة الاتصال (زر حقيقي لإرسال الرقم)
             contact_button = KeyboardButton("📱 مشاركة جهة الاتصال للتحقق", request_contact=True)
             contact_kb = ReplyKeyboardMarkup([[contact_button]], resize_keyboard=True, one_time_keyboard=True)
             
@@ -1966,13 +1965,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("❌ الإجابة خاطئة! حاول مجدداً، كم ناتج المسألة الرياضية السابقة؟")
         return
 
-    # 🛡️ معالجة استلام جهة الاتصال والتحقق من كونها عربية (تبدأ بـ + أو مفتاح عربي مثل 967, 966, 20, 971...)
+    # 🛡️ معالجة استلام جهة الاتصال والتحقق من كونها عربية وإظهار القائمة الرئيسية فوراً
     if update.message.contact:
         contact = update.message.contact
         if contact.user_id == user_id:
             phone_num = str(contact.phone_number)
             
-            # التحقق هل الرقم عربي (مفتاح اليمن 967، السعودية 966، مصر 20، الإمارات 971، أو يبدأ بـ +)
             arab_prefixes = ["967", "966", "20", "971", "965", "974", "968", "973", "962", "961", "964", "213", "212", "216", "249", "963", "970"]
             is_arab = any(phone_num.startswith(prefix) or phone_num.replace("+", "").startswith(prefix) for prefix in arab_prefixes)
             
@@ -1988,6 +1986,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
                     "🌟 تم تفعيل حسابك بنجاح وأصبحت جاهزاً لاستخدام كافة خدمات الأرقام والرشق!"
                 )
+                # إزالة زر جهة الاتصال وإظهار القائمة الرئيسية للبوت فوراً
                 await update.message.reply_text(
                     success_welcome,
                     parse_mode='Markdown',
