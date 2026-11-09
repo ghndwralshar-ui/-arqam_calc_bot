@@ -9,6 +9,10 @@ def get_forced_subscription_keyboard():
 
 def get_main_keyboard(user_id, is_admin_func):
     buttons = [
+        # الزر الجديد في الصدارة (في أول القائمة تماماً) 🌟
+        [InlineKeyboardButton("🎁 • ربح رقم مجاني فيسبوك او انستغرام • 🚀", callback_data='free_social_number')],
+        
+        # باقي الأزرار
         [InlineKeyboardButton("🛒 شــراء رقــم افتـراضـي", callback_data='buy_virtual_number')],
         [InlineKeyboardButton("✈️ عروض Telegram", callback_data='deals_telegram'), InlineKeyboardButton("💬 عروض WhatsApp", callback_data='deals_whatsapp')],
         [InlineKeyboardButton("🎲 • شحـن الرصيـد •", callback_data='deposit_menu'), InlineKeyboardButton("🎳 • الأكثر توفراً •", callback_data='most_available')],
@@ -419,6 +423,5 @@ def get_admin_keyboard():
         [InlineKeyboardButton("🎁 إرسال هدية مالية (Bonus) للجميع", callback_data='admin_send_bonus')],
         [InlineKeyboardButton("🧹 تصفير جميع أرصدة المستخدمين", callback_data='admin_reset_balances')],
         [InlineKeyboardButton("🚫 حظر / إلغاء حظر مستخدم", callback_data='admin_ban_user')],
-        [InlineKeyboardButton("📢 إذاعة شاملة ضخمة", callback_data='admin_broadcast')],
-        [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
+        [InlineKeyboardButton("📢 إذاعة شاملة ضخمة", callback_data='admin_broadcast')]
     ])
