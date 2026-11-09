@@ -188,24 +188,27 @@ async def get_available_countries_for_service(service: str):
                                     cost = op_data.get("cost", 0)
                                     rate = op_data.get("rate", 0.0)
                                     if count > 0 and cost is not None:
-                                        has_stock = True
                                         base_price = float(cost)
-                                        success_val = float(rate) if rate is not None else 0.0
-                                        
-                                        if success_val > max_success_rate or (success_val == max_success_rate and base_price < min_price):
-                                            max_success_rate = success_val
-                                            min_price = base_price
-                                            best_operator = operator
+                                        # التحديث الثالث: فلترة الأرقام لتجلب فقط ما هو أقل من 0.15$ من المصدر
+                                        if base_price < 0.15:
+                                            has_stock = True
+                                            success_val = float(rate) if rate is not None else 0.0
+                                            
+                                            if success_val > max_success_rate or (success_val == max_success_rate and base_price < min_price):
+                                                max_success_rate = success_val
+                                                min_price = base_price
+                                                best_operator = operator
 
                         if has_stock and min_price < 999.0 and best_operator:
-                            doubled_price = round(min_price * 2.0, 2)
+                            # التحديث الثالث: توحيد السعر النهائي للمستخدم ليصبح 0.70 دولار
+                            fixed_price = 0.70
                             c_meta = COUNTRY_INFO[country_code]
                             available_countries.append({
                                 "code": country_code,
                                 "name_ar": c_meta["name_ar"],
                                 "flag": c_meta["flag"],
                                 "dial": c_meta["dial"],
-                                "price": doubled_price,
+                                "price": fixed_price,
                                 "operator": best_operator
                             })
         except Exception as e:
@@ -492,246 +495,47 @@ def prompt_user_for_pubg_id(message, service_info, context):
 
 
 # ==========================================
-# 🎁 نظام الأرقام المجانية عبر الدعوات ورصيد الدعوات (كل دعوة 0.10$ وكل 3 دعوات رقم بقيمة 0.30$)
+# 🎁 التحديث الأول: قسم أرقام فيسبوك وانستغرام التلقائي عبر 5sim
 # ==========================================
 
 async def free_social_number_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
-    
     u_data = db_get_user(user_id)
-    referrals_count = u_data.get('referrals', 0)
-    claimed_free_numbers = u_data.get('claimed_free_numbers', 0)
-    current_user_balance = float(u_data.get('balance', 0.0))
     
-    # حساب الاستحقاق الإجمالي بناءً على عدد الدعوات (كل 3 دعوات = رقم مجاني)
-    total_eligible = referrals_count // 3
-    remaining_eligible = max(0, total_eligible - claimed_free_numbers)
+    services_text = (
+        "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📱 **قسم تفعيل أرقام (فيسبوك & انستغرام)**\n"
+        "⚡ *شغل تلقائي ومباشر عبر 5sim بأعلى نسب نجاح!*\n\n"
+        f"⭐ **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
+        "👇 **اختر المنصة المطلوبة لتفعيل الرقم فوراً:**"
+    )
     
-    # حساب رصيد الدعوات الإجمالي المكتسب (كل دعوة = 0.10$) والمخصوم مقابل الأرقام المستلمة (0.30$ لكل رقم)
-    total_earned_from_refs = referrals_count * 0.10
-    total_deducted_for_numbers = claimed_free_numbers * 0.30
-    current_ref_balance = round(total_earned_from_refs - total_deducted_for_numbers, 2)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📱 تفعيل رقم فيسبوك (Facebook)", callback_data="get_free_fb_number")],
+        [InlineKeyboardButton("📸 تفعيل رقم انستغرام (Instagram)", callback_data="get_free_ig_number")],
+        [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
+    ])
     
-    bot_username = context.bot.username
-    ref_link = f"https://t.me/{bot_username}?start={user_id}"
-    
-    if remaining_eligible == 0:
-        next_target = (claimed_free_numbers + 1) * 3
-        needed_friends = max(0, next_target - referrals_count)
-        
-        msg_text = (
-            "✨ **﴿ ديجيتال هب | Digital Hub ﴾** ✨\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "🎁 **اربح رقم فيسبوك أو انستغرام مجاناً عبر دعوة الأصدقاء!** 🚀\n\n"
-            "📊 **إحصائياتك وإيرادات دعواتك:**\n"
-            f"👥 إجمالي أصدقائك المنضمين: `{referrals_count} شخص`\n"
-            f"💰 إجمالي رصيد الدعوات المكتسب: `${total_earned_from_refs:.2f}` *(كل دعوة = 0.10$)*\n"
-            f"🎁 الأرقام التي استلمتها سابقاً: `{claimed_free_numbers} رقم` *(تم الخصم: ${total_deducted_for_numbers:.2f})*\n"
-            f"💳 رصيدك العام الحالي: `${current_user_balance:.2f}`\n"
-            f"🎯 المتبقي لدعوتهم للرقم القادم: `{needed_friends} أصدقاء فقط!`\n\n"
-            "🔗 **رابط الدعوة الخاص بك:**\n"
-            f"`{ref_link}`\n\n"
-            "*(انسخ الرابط أعلاه وشاركه مع أصدقائك وفي المجموعات)*"
-        )
-        
-        share_text = f"🎁 انضم إلينا في بوت ديجيتال هب واربح أرقام فيسبوك وانستغرام مجاناً! شارك عبر الرابط:\n{ref_link}"
-        share_url = f"https://t.me/share/url?url={share_text}"
-        
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📤 مشاركة الرابط مع الأصدقاء", url=share_url)],
-            [InlineKeyboardButton("🔄 تحديث العداد والرصيد", callback_data="free_social_number")],
-            [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
-        ])
-    else:
-        msg_text = (
-            "🎉 **ألف مبروك يا بطل! لقد أتممت الشروط بنجاح تام!** 🏆\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👥 لقد قمت بدعوة `{referrals_count}` أصدقاء واجتازوا التحقق بنجاح.\n\n"
-            f"🎁 أنت مؤهل للحصول على `{total_eligible}` أرقام مجانية! (كل 3 دعوات = رقم بقيمة 0.30$).\n"
-            f"📦 الأرقام التي استلمتها: `{claimed_free_numbers} رقم`\n"
-            f"⭐ **المتبقي لك للاستلام الآن:** `{remaining_eligible} رقم` *(سيتم خصم 0.30$ تلقائياً مقابل كل رقم)*\n"
-            f"💰 رصيدك العام الحالي: `${current_user_balance:.2f}`\n\n"
-            "👇 **اختر المنصة التي تريد تفعيل رقمك المجاني منها أدناه:**"
-        )
-        
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📱 الحصول على رقم فيسبوك", callback_data="get_free_fb_number")],
-            [InlineKeyboardButton("📸 الحصول على رقم انستغرام", callback_data="get_free_ig_number")],
-            [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
-        ])
-        
     try:
         if hasattr(query, 'edit_message_text'):
             await query.answer()
-            await query.edit_message_text(msg_text, parse_mode='Markdown', reply_markup=keyboard)
+            await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=keyboard)
         else:
-            await context.bot.send_message(chat_id=user_id, text=msg_text, parse_mode='Markdown', reply_markup=keyboard)
+            await context.bot.send_message(chat_id=user_id, text=services_text, parse_mode='Markdown', reply_markup=keyboard)
     except Exception as e:
         print(f"Error in free_social_number_handler: {e}")
-        try:
-            await context.bot.send_message(chat_id=user_id, text=msg_text, parse_mode='Markdown', reply_markup=keyboard)
-        except Exception:
-            pass
 
 
 async def request_free_social_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = query.from_user.id
-    user = query.from_user
     data = query.data
     
-    u_data = db_get_user(user_id)
-    referrals_count = u_data.get('referrals', 0)
-    claimed_free_numbers = u_data.get('claimed_free_numbers', 0)
-    current_balance = float(u_data.get('balance', 0.0))
-    
-    total_eligible = referrals_count // 3
-    if claimed_free_numbers >= total_eligible:
-        await query.answer("⚠️ عذراً، لقد استهلكت جميع أرقامك المجانية بناءً على عدد دعواتك!", show_alert=True)
-        return
-        
-    new_claimed = claimed_free_numbers + 1
-    deduction_amount = 0.30  # قيمة الخصم الثابتة لكل رقم مجاني
-    new_balance = max(0.0, round(current_balance - deduction_amount, 2))
-    
-    try:
-        # تحديث عداد الأرقام المستلمة والرصيد العام مباشرة في جدول المستخدمين بقاعدة البيانات Supabase
-        supabase.table("users").update({
-            "claimed_free_numbers": new_claimed,
-            "balance": new_balance
-        }).eq("user_id", user_id).execute()
-    except Exception as db_err:
-        print(f"Error updating claimed numbers and balance directly in database: {db_err}")
-    
-    platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
-    platform_key = "fb" if "fb" in data else "ig"
-    
-    remaining_after = max(0, total_eligible - new_claimed)
-    
-    waiting_text = (
-        f"⏳ **جاري الحصول على رقمك من المنصة يرجى الإنتظار قليلاً...**\n\n"
-        f"📱 المنصة: ({platform})\n"
-        f"🎁 الأرقام المؤهل لها: `{total_eligible}` | أخذت: `{new_claimed}` | متبقي: `{remaining_after}`\n"
-        f"💸 **تم خصم:** `${deduction_amount:.2f}` مباشرة من رصيدك!\n"
-        f"⭐ **رصيدك الحالي بعد الخصم:** `${new_balance:.2f}`\n\n"
-        f"🔄 يتم الآن معالجة طلبك لاستخراج الرقم بواسطة المنصة! 🚀"
-    )
-    
-    try:
-        await query.answer("✅ تم خصم 0.30$ من رصيدك بنجاح!", show_alert=True)
-        await query.edit_message_text(waiting_text, parse_mode='Markdown')
-    except Exception:
-        pass
-        
-    admin_notification = (
-        f"🚨 **طلب رقم مجاني جديد (تم خصم الرصيد بنجاح)!** 🎁\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📱 **المنصة:** {platform}\n"
-        f"👤 **اسم العميل:** {user.full_name}\n"
-        f"🆔 **آيدي المستخدم:** `{user_id}`\n"
-        f"💸 **المبلغ المخصوم:** `${deduction_amount:.2f}`\n"
-        f"⭐ **الرصيد المتبقي للعميل:** `${new_balance:.2f}`\n"
-        f"📊 **العدادات:** (دعوات: {referrals_count} | استلم: {new_claimed} | باقي: {remaining_after})"
-    )
-    
-    admin_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 إرسال الرقم للعميل", callback_data=f"admin_prep_send_{user_id}_{platform_key}")]
-    ])
-    
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=admin_notification,
-            parse_mode='Markdown',
-            reply_markup=admin_keyboard
-        )
-    except Exception as e:
-        print(f"Error notifying admin: {e}")
-
-
-async def admin_prep_send_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if query.from_user.id != ADMIN_ID:
-        return
-    
-    parts = query.data.split('_')
-    target_user_id = parts[3]
-    platform_key = parts[4]
-    
-    admin_state[ADMIN_ID] = {'action': 'waiting_for_free_phone', 'target_user_id': target_user_id, 'platform': platform_key}
-    
-    try:
-        await query.answer()
-        await query.edit_message_text(
-            f"📱 **أرسل الآن الرقم المراد إرساله للمستخدم (آيدي: `{target_user_id}`):**",
-            parse_mode='Markdown'
-        )
-    except Exception:
-        pass
-
-
-async def user_request_code_again(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    user = query.from_user
-    data = query.data
-    
-    platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
-    platform_key = "fb" if "fb" in data else "ig"
-    
-    try:
-        await query.answer("✅ تم طلب الكود بنجاح، يرجى الانتظار...", show_alert=True)
-        await query.edit_message_text(
-            query.message.text + "\n\n⏳ **تم طلب الكود من المنصة بنجاح. جاري إرساله من قبل المنصة...**",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-        )
-    except Exception:
-        pass
-        
-    admin_msg = (
-        "🔔 **تنبيه: العميل يطلب كود التفعيل الآن!** 🔑\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📱 **المنصة:** {platform}\n"
-        f"👤 **اسم العميل:** {user.full_name}\n"
-        f"🆔 **آيدي المستخدم:** `{user_id}`"
-    )
-    
-    admin_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 إرسال الكود للعميل", callback_data=f"admin_prep_code_{user_id}_{platform_key}")]
-    ])
-    
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=admin_msg,
-            parse_mode='Markdown',
-            reply_markup=admin_keyboard
-        )
-    except Exception as e:
-        print(f"Error notifying admin for code: {e}")
-
-
-async def admin_prep_code_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if query.from_user.id != ADMIN_ID:
-        return
-        
-    parts = query.data.split('_')
-    target_user_id = parts[3]
-    platform_key = parts[4]
-    
-    admin_state[ADMIN_ID] = {'action': 'waiting_for_free_code', 'target_user_id': target_user_id, 'platform': platform_key}
-    
-    try:
-        await query.answer()
-        await query.edit_message_text(
-            f"🔑 **أرسل الآن كود التحقق (SMS) للمستخدم (آيدي: `{target_user_id}`):**",
-            parse_mode='Markdown'
-        )
-    except Exception:
-        pass
+    if "fb" in data:
+        await show_available_countries_menu(update, context, "facebook", "فيسبوك 📘")
+    else:
+        await show_available_countries_menu(update, context, "instagram", "انستغرام 📸")
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -739,17 +543,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    if data.startswith('admin_prep_send_'):
-        await admin_prep_send_handler(update, context)
-        return
-    elif data.startswith('admin_prep_code_'):
-        await admin_prep_code_handler(update, context)
-        return
-    elif data == 'get_free_fb_number' or data == 'get_free_ig_number':
+    if data == 'get_free_fb_number' or data == 'get_free_ig_number':
         await request_free_social_number(update, context)
-        return
-    elif data.startswith('req_code_again_'):
-        await user_request_code_again(update, context)
         return
 
     if data == 'check_subscription':
@@ -823,17 +618,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    elif data == 'most_available':
-        await show_available_countries_menu(update, context, "whatsapp", "واتساب")
-
-    elif data == 'deals_whatsapp':
-        await show_available_countries_menu(update, context, "whatsapp", "واتساب")
+    # ==========================================
+    # 🛠️ التحديث الثاني: تعطيل واتساب وعروضه وعرض رسالة صيانة
+    # ==========================================
+    elif data in ['most_available', 'deals_whatsapp', 'service_whatsapp', 'wa_subscribers', 'wa_reactions', 'wa_auto_reactions', 'wa_polls']:
+        await query.answer("⚠️ قسم واتساب وعروضه في حالة صيانة الآن. يمكنك طلب رقم لمنصة أخرى بكل سهولة!", show_alert=True)
+        try:
+            await query.edit_message_text(
+                "📢 **عذراً عزيزي العميل!**\n"
+                "🛠️ قسم أرقام وعروض **واتساب** في حالة صيانة وتحديث حالياً.\n"
+                "✨ **يمكنك طلب رقم لمنصة أخرى (فيسبوك، انستغرام، تليجرام، وغيرها) متاحة وتعمل بكفاءة تامة!** 👇",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة للخدمات", callback_data='buy_virtual_number')]])
+            )
+        except Exception:
+            pass
+        return
 
     elif data == 'deals_telegram':
         await show_available_countries_menu(update, context, "telegram", "تليجرام")
 
-    elif data == 'service_whatsapp':
-        await show_available_countries_menu(update, context, "whatsapp", "واتساب 🛍️")
     elif data == 'service_telegram':
         await show_available_countries_menu(update, context, "telegram", "تليجرام 🎲")
     elif data == 'service_instagram':
@@ -1441,30 +1245,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    elif data == "wa_subscribers":
-        try:
-            await query.edit_message_text("🟢 بروفايل وأعضاء واتساب:", reply_markup=channel_subscribers_keyboard())
-        except Exception:
-            pass
-
-    elif data == "wa_reactions":
-        try:
-            await query.edit_message_text("🟢 تفاعلات واتساب:", reply_markup=emoji_reactions_keyboard())
-        except Exception:
-            pass
-
-    elif data == "wa_auto_reactions":
-        try:
-            await query.edit_message_text("🟢 تفاعلات تلقائية واتساب:", reply_markup=auto_reactions_keyboard())
-        except Exception:
-            pass
-
-    elif data == "wa_polls":
-        try:
-            await query.edit_message_text("🟢 تصويتات واتساب:", reply_markup=polls_keyboard())
-        except Exception:
-            pass
-
     elif data.startswith("sub_"):
         service_ids = {"sub_no_guarantee": 729, "sub_30d": 730, "sub_60d": 731, "sub_90d": 732, "sub_global": 805, "sub_arabic": 806}
         prices = {"sub_no_guarantee": 0.39, "sub_30d": 0.70, "sub_60d": 0.80, "sub_90d": 0.80, "sub_global": 0.90, "sub_arabic": 1.0}
@@ -1674,14 +1454,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "مرحباً بك عزيزي العميل في دليلك الكامل لاستخدام خدمات البوت المتطورة من الألف إلى الياء! 🌟\n\n"
             "📱 **1️⃣ قسم الأرقام الافتراضية والتفعيل:**\n"
-            "• اختر من القائمة الرئيسية (🛒 شراء رقم افتراضي)، ثم حدد التطبيق (واتساب، تليجرام، انستغرام، إلخ).\n"
+            "• اختر من القائمة الرئيسية (🛒 شراء رقم افتراضي)، ثم حدد التطبيق (تليجرام، انستغرام، فيسبوك، إلخ).\n"
             "• اختر الدولة المطلوبة ليتم تخصيص الرقم لك فوراً بأعلى نسبة نجاح.\n\n"
             "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
-            "• اضغط على (🔭 قسم الرشق والألعاب)، واختر المنصة (واتساب، تليجرام، انستغرام، فيسبوك، ببجي، فري فاير).\n\n"
+            "• اضغط على (🔭 قسم الرشق والألعاب)، واختر المنصة المطلوبة.\n\n"
             "💳 **3️⃣ شحن الرصيد التلقائي والآلي:**\n"
-            "• يمكنك شحن حسابك عبر محفظة **جيب (Jaib)** أو **بنك الكريمي** بسعر صرف ثابت (1$ = 550 ريال يمني).\n\n"
-            "🎁 **4️⃣ الرصيد المجاني:**\n"
-            "• شارك رابط الإحالة الخاص بك واكسب **0.10$** دولار مجاناً فور انضمام كل صديق من خلالك."
+            "• يمكنك شحن حسابك عبر محفظة **جيب (Jaib)** أو **بنك الكريمي** بسعر صرف ثابت (1$ = 550 ريال يمني)."
         )
         try:
             await query.edit_message_text(
@@ -2078,106 +1856,6 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    if user_id == ADMIN_ID and user_id in admin_state:
-        state_info = admin_state[user_id]
-        action = state_info.get('action')
-        text_content = update.message.text.strip() if update.message.text else ""
-        
-        if action == 'waiting_for_free_phone':
-            target_user_id = int(state_info.get('target_user_id'))
-            platform = state_info.get('platform')
-            
-            admin_state[ADMIN_ID] = {
-                'action': 'waiting_for_free_code',
-                'target_user_id': target_user_id,
-                'platform': platform,
-                'phone_number': text_content
-            }
-            
-            platform_name = "فيسبوك 📘" if platform == "fb" else "انستغرام 📸"
-            app_name = "فيسبوك" if platform == "fb" else "انستغرام"
-            
-            user_msg = (
-                f"🎉 **إليك رقمك المجاني لتطبيق ({platform_name})!** 🎁\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"📱 **الرقم المخصص لك:** `{text_content}`\n\n"
-                "📌 **تعليمات التفعيل الهامة:**\n"
-                f"1️⃣ قم بنسخ الرقم أعلاه ولصقه في تطبيق أو موقع **{app_name}**.\n"
-                "2️⃣ اطلب إرسال كود التفعيل من التطبيق.\n"
-                "3️⃣ فور طلبك للكود، اضغط على زر **(طلب الكود من المنصة)** أدناه ليتم تنبيه المنصة فوراً لاستلامه! 🚀"
-            )
-            user_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 طلب الكود من المنصة", callback_data=f"req_code_again_{platform}")],
-                [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
-            ])
-            
-            try:
-                await context.bot.send_message(
-                    chat_id=target_user_id,
-                    text=user_msg,
-                    parse_mode='Markdown',
-                    reply_markup=user_keyboard
-                )
-                await update.message.reply_text(f"✅ تم إرسال الرقم للعميل بنجاح!\nالرقم: `{text_content}`\n\n🔑 أرسل الآن كود التحقق (SMS) عند وصوله:", parse_mode='Markdown')
-            except Exception as e:
-                await update.message.reply_text(f"❌ تعذر الإرسال للعميل: {e}")
-            return
-            
-        elif action == 'waiting_for_free_code':
-            target_user_id = int(state_info.get('target_user_id'))
-            platform = state_info.get('platform')
-            phone_number = state_info.get('phone_number')
-            sms_code = text_content
-            
-            admin_state.pop(ADMIN_ID, None)
-            
-            platform_name = "فيسبوك 📘" if platform == "fb" else "انستغرام 📸"
-            
-            user_code_msg = (
-                f"🔑 **إليك كود التحقق الخاص بك لتطبيق ({platform_name})!** ✅\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"📱 **الرقم:** `{phone_number}`\n"
-                f"📲 **كود التحقق (SMS):** `{sms_code}`\n\n"
-                "💡 *مبروك مقدماً! أكمل الخطوات في التطبيق واستمتع بحسابك.* 🚀"
-            )
-            
-            try:
-                await context.bot.send_message(
-                    chat_id=target_user_id,
-                    text=user_code_msg,
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-                await update.message.reply_text(f"✅ تم إرسال الكود للعميل بنجاح!\nالكود: `{sms_code}`", parse_mode='Markdown')
-            except Exception as e:
-                await update.message.reply_text(f"❌ تعذر إرسال الكود للعميل: {e}")
-                return
-                
-            log_msg = (
-                "🌟 **تم اكتمال تفعيل رقم مجاني جديد بنجاح!** ✅\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 **آيدي العميل:** `{target_user_id}`\n"
-                f"📱 **المنصة المفعلة:** {platform_name}\n"
-                f"📞 **الرقم المفعل:** `{phone_number}`\n"
-                f"🔑 **الكود المرسل:** `{sms_code}`\n"
-                f"⭐ **الحالة:** تم التفعيل وإرسال البيانات بنجاح 🚀"
-            )
-            try:
-                await context.bot.send_message(
-                    chat_id=LOG_CHANNEL_ID,
-                    text=log_msg,
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([
-                        [
-                            InlineKeyboardButton("🎁 احصل على رقمك المجاني الآن ✨", url=f"https://t.me/{context.bot.username}?start=free_social_number"),
-                            InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=f"https://t.me/{context.bot.username}?start=free_social_number")
-                        ]
-                    ])
-                )
-            except Exception as log_err:
-                print(f"Error logging to channel: {log_err}")
-            return
-
     if not await check_user_subscription(user_id, context):
         await update.message.reply_text(
             FORCED_SUB_MESSAGE,
