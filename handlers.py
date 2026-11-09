@@ -515,12 +515,15 @@ async def free_social_number_handler(update: Update, context: ContextTypes.DEFAU
             [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu")]
         ])
     else:
+        # حساب عدد الأرقام المتاحة بناءً على إجمالي الدعوات (كل 3 دعوات = رقم)
+        available_numbers_count = referrals_count // 3
+        
         msg_text = (
             "🎉 **ألف مبروك يا بطل! لقد أتممت الشروط بنجاح تام!** 🏆\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"👥 لقد قمت بدعوة `{referrals_count}` أصدقاء واجتازوا التحقق بنجاح.\n\n"
-            "🎁 **أنت الآن مؤهل تماماً للحصول على رقمك المجاني!**\n"
-            "👇 **اختر المنصة التي تريد تفعيلها أدناه:**"
+            f"🎁 **أنت الآن مؤهل للحصول على `{available_numbers_count}` أرقام مجانية!** (بمعدل رقم لكل ٣ دعوات).\n"
+            "👇 **اختر المنصة التي تريد تفعيل رقمك المجاني منها أدناه:**"
         )
         
         keyboard = InlineKeyboardMarkup([
@@ -549,25 +552,25 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
     platform = "فيسبوك 📘" if "fb" in data else "انستغرام 📸"
     platform_code = "facebook" if "fb" in data else "instagram"
     
+    # رسالة الانتظار تظهر على أساس أن المنصة هي من تقوم بالمعالجة
     waiting_text = (
         "⏳ **جاري الحصول على رقمك من فضلك يرجى الإنتظار قليلاً...**\n"
-        f"🔄 يتم الآن تحويل طلبك لاستخراج رقم مجاني لتطبيق ({platform}) للمالك مباشرة ليقوم بتجهيزه لك في أقرب وقت! 🚀"
+        f"🔄 يتم الآن معالجة طلبك لاستخراج رقم مجاني لتطبيق ({platform}) بواسطة النظام ليتم إرساله إليك في أقرب وقت! 🚀"
     )
     
     try:
-        await query.answer("✅ تم إرسال طلبك بنجاح للمالك!", show_alert=True)
+        await query.answer("✅ تم إرسال طلبك بنجاح للمنصة!", show_alert=True)
         await query.edit_message_text(waiting_text, parse_mode='Markdown')
     except Exception:
         pass
         
+    # إشعار المالك بالصيغة المطلوبة (مرتبة بشكل تدريجي في كل سطر)
     admin_notification = (
-        "🚨 **طلب رقم مجاني جديد (إحالات) قيد الانتظار!** 🎁\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 **اسم العميل:** {user.full_name}\n"
-        f"🔗 **المعرف:** @{user.username if user.username else 'لا يوجد'}\n"
-        f"🆔 **آيدي المستخدم:** `{user_id}`\n"
-        f"📱 **المنصة المطلوبة:** {platform}\n\n"
-        "💡 *لإرسال الرقم والكود لهذا المستخدم، استخدم الأمر بالصيغة التالية:* \n"
+        f"{platform}\n"
+        "الرقم المطلوب: (قيد التجهيز)\n"
+        "مفتاح الدولة: (تلقائي)\n"
+        f"آيدي المستخدم: `{user_id}`\n\n"
+        f"💡 لإرسال الرقم والكود لهذا المستخدم، استخدم الأمر التالي:\n"
         f"`/send_free_num {user_id} {platform_code} [الرقم] [الكود]`"
     )
     
@@ -604,6 +607,7 @@ async def admin_send_free_number_command(update: Update, context: ContextTypes.D
     platform_name = "فيسبوك 📘" if platform_key == "facebook" else "انستغرام 📸"
     app_name = "فيسبوك" if platform_key == "facebook" else "انستغرام"
     
+    # 1. إرسال الرقم والكود للمستخدم بالشكل المطلوب مع زر طلب الكود من المنصة
     user_msg = (
         "🎉 **تمت معالجة طلبك بنجاح واستلام رقمك المجاني!** 🎁\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -611,30 +615,37 @@ async def admin_send_free_number_command(update: Update, context: ContextTypes.D
         f"📞 **الرقم المخصص لك:** `{phone_number}`\n"
         f"🔑 **كود التحقق (SMS):** `{sms_code}`\n\n"
         "📌 **تعليمات التفعيل الهامة:**\n"
-        f"1. قم بوضع الرقم أعلاه في تطبيق أو موقع **{app_name}**.\n"
+        f"1. وضع الرقم أعلاه في تطبيق أو موقع **{app_name}**.\n"
         "2. اطلب إرسال كود التفعيل.\n"
         "3. استخدم الكود الظاهر أعلاه لإتمام تفعيل حسابك بنجاح تام! 🚀"
     )
+    
+    user_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 طلب الكود من المنصة", callback_data=f"get_free_{platform_key}_number")],
+        [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
+    ])
     
     try:
         await context.bot.send_message(
             chat_id=target_user_id,
             text=user_msg,
             parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+            reply_markup=user_keyboard
         )
         await update.message.reply_text("✅ تم إرسال الرقم والكود للمستخدم بنجاح!")
     except Exception as e:
         await update.message.reply_text(f"❌ تعذر إرسال الرسالة للمستخدم: {e}")
         return
         
+    # 2. النشر التلقائي الفوري في قناة اللوق (LOG_CHANNEL_ID) مع كامل التفاصيل
     log_msg = (
         "🌟 **تم اكتمال تفعيل رقم مجاني جديد بنجاح!** ✅\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"👤 **آيدي العميل:** `{target_user_id}`\n"
         f"📱 **المنصة المفعلة:** {platform_name}\n"
         f"📞 **الرقم:** `{phone_number}`\n"
-        f"⭐ **الحالة:** تم التفعيل وإرسال الكود بنجاح 🚀"
+        f"🔑 **الكود:** `{sms_code}`\n"
+        f"⭐ **الحالة:** تم التفعيل وإرسال الرقم والكود بنجاح 🚀"
     )
     
     try:
