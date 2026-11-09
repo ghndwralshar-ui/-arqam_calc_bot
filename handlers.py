@@ -6,7 +6,6 @@ import cloudscraper
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes, CommandHandler
 
-# استيراد الإعدادات ومفاتيح الربط من ملف config
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
     FORCED_CHANNEL_URL, LOG_CHANNEL_ID, HMCARD_API_URL, HMCARD_API_KEY, 
@@ -476,7 +475,7 @@ def prompt_user_for_pubg_id(message, service_info, context):
 
 
 # ==========================================
-# 🎁 دوال نظام ربح الأرقام المجانية عبر الإحالات الاحترافية
+# 🎁 نظام الأرقام المجانية عبر الدعوات المحدث بالكامل
 # ==========================================
 
 async def free_social_number_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -561,6 +560,7 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
         await query.answer("⚠️ عذراً، لقد استهلكت جميع أرقامك المجانية بناءً على عدد دعواتك!", show_alert=True)
         return
         
+    # خصم واحتساب الرقم المجاني فوراً
     new_claimed = claimed_free_numbers + 1
     try:
         supabase.table("users").update({"claimed_free_numbers": new_claimed}).eq("user_id", user_id).execute()
@@ -585,6 +585,7 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
     except Exception:
         pass
         
+    # إشعار المالك بالطلب مع زر إرسال الرقم للعميل
     admin_notification = (
         f"🚨 **طلب رقم مجاني جديد!** 🎁\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -704,7 +705,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith('admin_prep_code_'):
         await admin_prep_code_handler(update, context)
         return
-    elif data.startswith('get_free_') and ('fb' in data or 'ig' in data):
+    elif data == 'get_free_fb_number' or data == 'get_free_ig_number':
+        await request_free_social_number(update, context)
+        return
+    elif data.startswith('req_code_again_'):
         await user_request_code_again(update, context)
         return
 
@@ -764,9 +768,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'free_social_number':
         await free_social_number_handler(update, context)
-
-    elif data in ['get_free_fb_number', 'get_free_ig_number']:
-        await request_free_social_number(update, context)
 
     elif data == 'buy_virtual_number':
         u_data = db_get_user(user_id)
@@ -2057,8 +2058,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             platform_name = "فيسبوك 📘" if platform == "fb" else "انستغرام 📸"
             app_name = "فيسبوك" if platform == "fb" else "انستغرام"
             
+            # رسالة الرقم وحدها كما طلبت
             user_msg = (
-                f"🎉 **تمت معالجة طلبك بنجاح واستلام رقمك المجاني لتطبيق ({platform_name})!** 🎁\n"
+                f"🎉 **إليك رقمك المجاني لتطبيق ({platform_name})!** 🎁\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📱 **الرقم المخصص لك:** `{text_content}`\n\n"
                 "📌 **تعليمات التفعيل الهامة:**\n"
@@ -2067,7 +2069,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 "3️⃣ فور طلبك للكود، اضغط على زر **(طلب الكود من المنصة)** أدناه ليتم تنبيه الإدارة فوراً لاستلامه! 🚀"
             )
             user_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 طلب الكود من المنصة", callback_data=f"get_free_{platform}_number")],
+                [InlineKeyboardButton("🔄 طلب الكود من المنصة", callback_data=f"req_code_again_{platform}")],
                 [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
             ])
             
@@ -2093,8 +2095,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             
             platform_name = "فيسبوك 📘" if platform == "fb" else "انستغرام 📸"
             
+            # رسالة الكود وحدها كما طلبت
             user_code_msg = (
-                f"🔑 **تم وصول كود التفعيل الخاص بك لتطبيق ({platform_name})!** ✅\n"
+                f"🔑 **إليك كود التحقق الخاص بك لتطبيق ({platform_name})!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📱 **الرقم:** `{phone_number}`\n"
                 f"📲 **كود التحقق (SMS):** `{sms_code}`\n\n"
