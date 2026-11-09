@@ -265,7 +265,6 @@ async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str,
     start_url = f"https://t.me/{bot_username}?start={service_param}"
     free_url = f"https://t.me/{bot_username}?start=free_social_number"
     
-    # الزر الأول مدلع (الحصول على رقم مجاني)، والثاني (الدخول للبوت) مع دالة نقل لقسم مجاني
     reply_markup = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🎁 احصل على رقمك المجاني الآن ✨", url=free_url),
@@ -299,8 +298,18 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     sms_code = sms_list[0].get('code', 'لا يوجد كود')
                     full_text = sms_list[0].get('text', '')
                     
-                    already_logged = active_numbers_cache.get(order_id, {}).get('has_sms', False)
-                    active_numbers_cache[order_id] = {'has_sms': True, 'code': sms_code}
+                    cached = active_numbers_cache.get(order_id, {})
+                    already_logged = cached.get('has_sms', False)
+                    
+                    # خصم الرصيد هنا فوراً عند وصول الكود (يدوياً) إذا لم يُخصم مسبقاً
+                    if not cached.get('balance_deducted', False) and cached.get('price', 0) > 0:
+                        u_id = cached.get('user_id', query.from_user.id)
+                        p_val = cached.get('price', 0.0)
+                        db_update_balance(u_id, p_val, mode="deduct")
+                        active_numbers_cache[order_id]['balance_deducted'] = True
+
+                    active_numbers_cache[order_id]['has_sms'] = True
+                    active_numbers_cache[order_id]['code'] = sms_code
                     
                     current_text = query.message.text
                     if "🔑 **الكود الواصل:**" not in current_text:
@@ -316,7 +325,6 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         await query.answer(f"✅ الكود وصل بالفعل: {sms_code}", show_alert=True)
                         
                     if not already_logged:
-                        cached = active_numbers_cache.get(order_id, {})
                         sec_ar = cached.get('sec_name_ar', 'رقم افتراضي')
                         c_ar = cached.get('country_name', 'دولة')
                         phone_num = cached.get('phone', 'رقم')
@@ -358,13 +366,21 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                         sms_code = sms_list[0].get('code', 'لا يوجد كود')
                         full_text = sms_list[0].get('text', '')
                         
-                        already_logged = active_numbers_cache.get(order_id, {}).get('has_sms', False)
-                        active_numbers_cache[order_id] = {'has_sms': True, 'code': sms_code}
+                        cached = active_numbers_cache.get(order_id, {})
+                        already_logged = cached.get('has_sms', False)
+                        
+                        # تم الإصلاح: خصم الرصيد تلقائياً وبشكل مؤكد فور وصول الكود في الخلفية
+                        if not cached.get('balance_deducted', False) and price > 0:
+                            db_update_balance(user_id, price, mode="deduct")
+                            active_numbers_cache[order_id]['balance_deducted'] = True
+
+                        active_numbers_cache[order_id]['has_sms'] = True
+                        active_numbers_cache[order_id]['code'] = sms_code
                         
                         success_msg = (
                             f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
                             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"✅ **تم شراء الرقم بنجاح تام!**\n\n"
+                            f"✅ **تم استلام كود التفعيل بنجاح!**\n\n"
                             f"📦 **القسم:** `{section_name}`\n"
                             f"🌍 **الدولة:** {country_name}\n"
                             f"📞 **مفتاح الدولة:** `{dial_code}`\n"
@@ -372,7 +388,7 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                             f"⭐ **المبلغ المخصوم:** `${price:.2f}`\n\n"
                             f"🔑 **الكود الواصل:** `{sms_code}`\n"
                             f"💬 **النص الكامل:** `{full_text}`\n\n"
-                            f"💡 *تم وصول الكود بنجاح! لا يمكن إلغاء الرقم أو تغييره الآن.* 🚀"
+                            f"💡 *تم وصول الكود بنجاح وخصم المبلغ من رصيدك بعد التأكيد!* 🚀"
                         )
                         try:
                             await context.bot.edit_message_text(
@@ -452,7 +468,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif arg_param == 'main_rashq':
         await update.message.reply_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
     elif arg_param == 'free_social_number':
-        # فتح قسم الأرقام المجانية مباشرة عند الضغط على زر القناة
         update.callback_query = type('obj', (object,), {'from_user': user, 'answer': lambda *a, **k: None, 'edit_message_text': lambda *a, **k: None})()
         await free_social_number_handler(update, context)
         return
@@ -586,7 +601,7 @@ async def request_free_social_number(update: Update, context: ContextTypes.DEFAU
     )
     
     try:
-        await query.answer("✅ تم خصم رقم من رصيدك المجاني وإرسال الطلب للمنصة!", show_alert=True)
+        await query.answer("✅ تم إرسال الطلب للمنصة بنجاح!", show_alert=True)
         await query.edit_message_text(waiting_text, parse_mode='Markdown')
     except Exception:
         pass
@@ -872,10 +887,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             pass
                         return
 
-                    db_update_balance(user_id, country_price, mode="deduct")
-                    
                     active_numbers_cache[str(order_id)] = {
                         'has_sms': False, 
+                        'balance_deducted': False,
                         'service': service, 
                         'country_code': country_code, 
                         'price': country_price,
@@ -889,12 +903,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     success_msg = (
                         f"💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"✅ **تم شراء الرقم بنجاح تام من أفضل مشغل ({operator_name})!**\n\n"
+                        f"✅ **تم استخراج الرقم بنجاح تام من أفضل مشغل ({operator_name})!**\n\n"
                         f"📦 **القسم:** `{sec_name_ar}`\n"
                         f"🌍 **الدولة:** {c_name_ar}\n"
                         f"📞 **مفتاح الدولة:** `{c_dial}`\n"
                         f"📱 **الرقم المشتري:** `{phone}`\n"
-                        f"⭐ **المبلغ المخصوم:** `${country_price:.2f}`\n\n"
+                        f"⭐ **السعر:** `${country_price:.2f}` *(لا يُخصم الرصيد إلا بعد وصول الكود)*\n\n"
                         f"⏳ **جاري رصد واستقبال الكود تلقائياً...**\n"
                         f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
                     )
@@ -905,7 +919,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         reply_markup=InlineKeyboardMarkup([
                             [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{order_id}")],
                             [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{order_id}_{service}_{country_code}_{country_price}_{operator_name}")],
-                            [InlineKeyboardButton("❌ إلغاء الرقم واسترداد الرصيد", callback_data=f"cnl_paid_{order_id}_{country_price}")]
+                            [InlineKeyboardButton("❌ إلغاء الرقم", callback_data=f"cnl_paid_{order_id}_{country_price}")]
                         ])
                     )
                     
@@ -940,7 +954,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
                 await client.get(f"https://5sim.net/v1/user/cancel/{old_order_id}")
-                db_update_balance(user_id, price_str, mode="add")
 
                 res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/{operator_name}/{service}")
                 if res.status_code == 200:
@@ -949,12 +962,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     if not new_phone or not new_order_id:
                         try:
-                            await query.edit_message_text("❌ عذراً، نفدت أرقام هذه الدولة مؤقتاً أثناء التغيير وتم إعادة رصيدك لمحفظتك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                            await query.edit_message_text("❌ عذراً، نفدت أرقام هذه الدولة مؤقتاً أثناء التغيير.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
                         except Exception:
                             pass
                         return
-
-                    db_update_balance(user_id, price_str, mode="deduct")
                     
                     section_names_ar = {'whatsapp': 'واتساب', 'telegram': 'تليجرام', 'instagram': 'انستغرام', 'facebook': 'فيسبوك'}
                     sec_name_ar = section_names_ar.get(service, service.upper())
@@ -962,6 +973,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     active_numbers_cache[str(new_order_id)] = {
                         'has_sms': False, 
+                        'balance_deducted': False,
                         'service': service, 
                         'country_code': country_code, 
                         'price': price_str,
@@ -990,13 +1002,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         reply_markup=InlineKeyboardMarkup([
                             [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{new_order_id}")],
                             [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{new_order_id}_{service}_{country_code}_{price_str}_{operator_name}")],
-                            [InlineKeyboardButton("❌ إلغاء الرقم واسترداد الرصيد", callback_data=f"cnl_paid_{new_order_id}_{price_str}")]
+                            [InlineKeyboardButton("❌ إلغاء الرقم", callback_data=f"cnl_paid_{new_order_id}_{price_str}")]
                         ])
                     )
                     asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(new_order_id), new_phone, price_str, service, user_id, context.bot.username, sec_name_ar, c_info['name_ar'], c_info['dial']))
                 else:
                     try:
-                        await query.edit_message_text("❌ عذراً، فشل توفير رقم بديل حالياً وتم إعادة رصيدك لمحفظتك.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                        await query.edit_message_text("❌ عذراً، فشل توفير رقم بديل حالياً.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
                     except Exception:
                         pass
             except Exception as e:
@@ -1011,16 +1023,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         order_status_info = active_numbers_cache.get(order_id, {})
         if order_status_info.get('has_sms', False):
-            await query.answer("⚠️ عذراً، لا يمكن إلغاء الرقم واسترداد الرصيد لأنه قد وصل كود التحقق بالفعل!", show_alert=True)
+            await query.answer("⚠️ عذراً، لا يمكن إلغاء الرقم لأنه قد وصل كود التحقق بالفعل وتم الخصم!", show_alert=True)
             return
 
         async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
             res = await client.get(f"https://5sim.net/v1/user/cancel/{order_id}")
             if res.status_code == 200 or res.status_code == 400:
-                if cancel_type == 'paid': db_update_balance(user_id, price, mode="add")
-                await query.answer("✅ تم إلغاء الرقم واسترداد الرصيد بنجاح!", show_alert=True)
+                if order_status_info.get('balance_deducted', False):
+                    db_update_balance(user_id, price, mode="add")
+
+                await query.answer("✅ تم إلغاء الرقم بنجاح!", show_alert=True)
                 try:
-                    await query.edit_message_text("🚫 **تم إلغاء الرقم واسترداد مبلغ الرصيد إلى محفظتك بنجاح.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                    await query.edit_message_text("🚫 **تم إلغاء الرقم بنجاح.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 except Exception:
                     pass
 
@@ -2119,7 +2133,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text(f"❌ تعذر إرسال الكود للعميل: {e}")
                 return
                 
-            # تم إصلاح عرض الرقم المجاني ليظهر بدلاً من None
             log_msg = (
                 "🌟 **تم اكتمال تفعيل رقم مجاني جديد بنجاح!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
