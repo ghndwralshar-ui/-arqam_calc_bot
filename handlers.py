@@ -1322,44 +1322,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'Referer': HMCARD_API_URL
         }
 
-        # نظام تبديل آلي بين (POST بـ Data) و (GET بـ Params) لتجاوز حماية الـ Cloudscraper / Firewall
-        for method_type in ['POST_DATA', 'GET_PARAMS', 'CLOUDSCRAPER']:
-            try:
-                if method_type == 'POST_DATA':
-                    async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
-                        response = await client.post(HMCARD_API_URL, data=payload, headers=custom_headers)
-                        if response.status_code == 200:
-                            resp_data = response.json()
-                            if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or "id" in resp_data):
-                                success_request = True
-                                break
-                            elif isinstance(resp_data, dict) and "error" in resp_data:
-                                api_error = resp_data.get("error")
-                
-                elif method_type == 'GET_PARAMS':
-                    async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
-                        response = await client.get(HMCARD_API_URL, params=payload, headers=custom_headers)
-                        if response.status_code == 200:
-                            resp_data = response.json()
-                            if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or "id" in resp_data):
-                                success_request = True
-                                break
-                            elif isinstance(resp_data, dict) and "error" in resp_data:
-                                api_error = resp_data.get("error")
+        # الاتصال المباشر والمضمون عبر cloudscraper لتجاوز حماية 403 Forbidden نهائياً
+        try:
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=custom_headers, timeout=35)
+            
+            print(f"HMCARD Status Code: {response.status_code}")
+            print(f"HMCARD Response Text: {response.text}")
 
-                elif method_type == 'CLOUDSCRAPER':
-                    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-                    response = scraper.post(HMCARD_API_URL, data=payload, headers=custom_headers, timeout=35)
-                    if response.status_code == 200:
-                        resp_data = response.json()
-                        if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or "id" in resp_data):
+            if response.status_code == 200:
+                try:
+                    resp_data = response.json()
+                    if isinstance(resp_data, dict):
+                        if "order" in resp_data or "order_id" in resp_data or "id" in resp_data:
                             success_request = True
-                            break
-                        elif isinstance(resp_data, dict) and "error" in resp_data:
+                        elif "error" in resp_data:
                             api_error = resp_data.get("error")
-            except Exception as e:
-                api_error = str(e)[:100]
-                continue
+                except json.JSONDecodeError:
+                    api_error = "استجابة غير صالحة من السيرفر (ليس JSON)"
+            else:
+                api_error = f"خطأ HTTP من المنصة: {response.status_code}"
+        except Exception as e:
+            api_error = str(e)[:100]
+            print(f"Cloudscraper Exception: {e}")
 
         order_id = None
         if success_request and isinstance(resp_data, dict):
