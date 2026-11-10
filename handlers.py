@@ -48,8 +48,6 @@ VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
 # ==================== إعدادات البروكسي (اختياري) ====================
-# ضع رابط البروكسي هنا إذا أردت استخدامه (مثال: "http://username:password@proxyserver:port" أو "http://127.0.0.1:8080")
-# اتركه None إذا لمقترن ببروكسي وتريد الاتصال المباشر
 PROXY_URL = None
 
 def is_owner(user_id: int) -> bool:
@@ -1326,24 +1324,38 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_response_text = ""
 
         try:
-            # استخدام البروكسي في حال تم تعريفه في PROXY_URL، وإلا اتصال مباشر
-            client_kwargs = {"timeout": 30.0, "follow_redirects": True}
+            # استخدام cloudscraper مع جلب ملفات تعريف الارتباط لتجاوز صفحة Cloudflare Bot Verification
+            scraper = cloudscraper.create_scraper(
+                browser={
+                    'browser': 'chrome',
+                    'platform': 'windows',
+                    'desktop': True
+                }
+            )
+            
+            # تمرير البروكسي إذا تم ضبطه
             if PROXY_URL:
-                client_kwargs["proxy"] = PROXY_URL
+                scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            async with httpx.AsyncClient(**client_kwargs) as client:
-                response = await client.post(HMCARD_API_URL, data=payload, headers=headers)
-                raw_response_text = response.text
-                
-                if response.status_code == 200:
-                    try:
-                        resp_json = response.json()
-                        if isinstance(resp_json, dict):
-                            order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                            if order_id:
-                                success_request = True
-                    except Exception:
-                        pass
+            # زيارة الصفحة الرئيسية أولاً لجلب الكوكيز وتخطي جدار الحماية
+            try:
+                scraper.get("https://hmcard.online/", headers=headers, timeout=15)
+            except Exception:
+                pass
+
+            # إرسال طلب الـ API الفعلي داخل نفس الجلسة المحمية
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
+            raw_response_text = response.text
+            
+            if response.status_code == 200:
+                try:
+                    resp_json = response.json()
+                    if isinstance(resp_json, dict):
+                        order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                        if order_id:
+                            success_request = True
+                except Exception:
+                    pass
         except Exception as e:
             raw_response_text = f"Connection Exception: {str(e)}"
 
