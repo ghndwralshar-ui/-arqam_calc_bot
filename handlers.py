@@ -579,7 +579,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # أزرار أرقام واتساب الافتراضية حصرياً
     elif data in ['most_available', 'deals_whatsapp', 'service_whatsapp']:
         await show_available_countries_menu(update, context, "whatsapp", "واتساب 🟢")
         return
@@ -871,7 +870,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # قسم خدمات رشق واتساب (تظهر أزرار خدمات واتساب للرشق حصرياً هنا)
     elif data == "sec_whatsapp":
         try:
             await query.edit_message_text("🟢 خدمات واتساب (رشق):\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
@@ -1319,6 +1317,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         resp_data = None
         success_request = False
         api_error = "فشل الاتصال بالمنصة"
+        error_source = "غير معروف"
 
         custom_headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -1331,7 +1330,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
             response = scraper.post(HMCARD_API_URL, data=payload, headers=custom_headers, timeout=35)
 
-            if response.status_code == 200:
+            status_code = response.status_code
+            response_text = response.text
+
+            # تشخيص السبب الرئيسي بدقة تامة وتحديد مصدر الخطأ (الموقع أم البوت)
+            if status_code == 200:
                 try:
                     resp_data = response.json()
                     if isinstance(resp_data, dict):
@@ -1339,12 +1342,32 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             success_request = True
                         elif "error" in resp_data:
                             api_error = resp_data.get("error")
+                            error_source = "🖥️ من الموقع (منصة HMCARD رفضت الطلب: الرصيد غير كافٍ أو الخدمة متوقفة أو مفتاح الـ API غير صالح)."
+                        else:
+                            api_error = f"استجابة غير معروفة من الموقع: {response_text[:150]}"
+                            error_source = "🖥️ من الموقع (استجابة غير متوقعة من سيرفر HMCARD)."
                 except json.JSONDecodeError:
-                    api_error = f"استجابة غير صالحة من السيرفر: {response.text[:100]}"
+                    api_error = f"استجابة نصية وليست JSON من الموقع: {response_text[:150]}"
+                    error_source = "🖥️ من الموقع (سيرفر HMCARD أعطى صفحة خطأ أو حماية Cloudflare)."
+            elif status_code == 403:
+                api_error = f"خطأ HTTP 403 (محظور/مرفوع الحماية)"
+                error_source = "🖥️ من الموقع (منصة HMCARD حظرت الطلب؛ غالباً مفتاح الـ API خطأ، أو رابط الـ API متغير، أو أن حماية الموقع تمنع السيرفر من الاتصال)."
+            elif status_code == 401:
+                api_error = f"خطأ HTTP 401 (غير مصرح)"
+                error_source = "🖥️ من الموقع (مفتاح الـ API الخاص بك في HMCARD غير صحيح أو انتهت صلاحيته)."
+            elif status_code == 404:
+                api_error = f"خطأ HTTP 404 (الصفحة أو رابط الـ API غير موجود)"
+                error_source = "🖥️ من الموقع (رابط API منصة HMCARD في ملف config غير صحيح أو تم تغييره من قبل المنصة)."
+            elif status_code >= 500:
+                api_error = f"خطأ HTTP {status_code} (مشكلة في سيرفرات المنصة نفسها)"
+                error_source = "🖥️ من الموقع (سيرفرات منصة HMCARD تواجه ضغطاً أو متوقفة عن العمل حالياً)."
             else:
-                api_error = f"خطأ HTTP من المنصة: {response.status_code}"
+                api_error = f"خطأ HTTP برمز غير متوقع: {status_code}"
+                error_source = "🖥️ من الموقع (رفض من جهة سيرفر HMCARD)."
+
         except Exception as e:
-            api_error = str(e)[:100]
+            api_error = str(e)[:150]
+            error_source = "🤖 من البوت (حدث استثناء أو خطأ في مكتبة الاتصال أو مشكلة إنترنت في السيرفر المستضيف للبوت)."
 
         order_id = None
         if success_request and isinstance(resp_data, dict):
@@ -1384,7 +1407,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`\n\n💡 تأكد من صحة مفتاح الـ API وتوفر الرصيد في حسابك بمنصة HMCARD.",
+                    f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n"
+                    f"📍 **المصدر الرئيسي للخطأ:**\n{error_source}\n\n"
+                    f"💬 **التفاصيل التقنية:** `{api_error}`\n\n"
+                    f"💡 **الحل:** تأكد من أن مفتاح الـ API صحيح في `config.py` وأن لديك رصيداً كافياً في حسابك بمنصة HMCARD.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
