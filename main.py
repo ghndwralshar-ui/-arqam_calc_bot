@@ -1,3 +1,4 @@
+import os
 import logging
 from telegram import BotCommand
 from telegram.ext import (
@@ -17,7 +18,7 @@ from handlers import (
     button_handler, 
     handle_text_messages, 
     handle_photo_receipt,  
-    handle_contact_message,  # 📱 تم استيراد دالة معالجة جهات الاتصال بنجاح
+    handle_contact_message,  
     pre_checkout_handler, 
     successful_payment_handler
 )
