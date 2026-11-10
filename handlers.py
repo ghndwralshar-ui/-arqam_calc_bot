@@ -1324,7 +1324,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_response_text = ""
 
         try:
-            # استخدام cloudscraper مع جلب ملفات تعريف الارتباط لتجاوز صفحة Cloudflare Bot Verification
             scraper = cloudscraper.create_scraper(
                 browser={
                     'browser': 'chrome',
@@ -1333,17 +1332,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
             )
             
-            # تمرير البروكسي إذا تم ضبطه
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            # زيارة الصفحة الرئيسية أولاً لجلب الكوكيز وتخطي جدار الحماية
             try:
                 scraper.get("https://hmcard.online/", headers=headers, timeout=15)
             except Exception:
                 pass
 
-            # إرسال طلب الـ API الفعلي داخل نفس الجلسة المحمية
             response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
             raw_response_text = response.text
             
@@ -1830,6 +1826,7 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
             verification_cache[user_id] = "passed"
             u_data = db_get_user(user_id)
             
+            # إرسال إشعار الأدمن وهدية الإحالة للمُحيل حصرياً بعد نجاح التحقق بالكامل
             await process_successful_join_reward(update.effective_user, context, u_data)
             u_data = db_get_user(user_id)
 
@@ -1839,11 +1836,18 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
                 f"💙 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
                 "🌟 تم تفعيل حسابك بنجاح وأصبحت جاهزاً لاستخدام كافة خدمات الأرقام والرشق!"
             )
+            
+            # إرسال القائمة الرئيسية مع إزالة زر مشاركة جهة الاتصال نهائياً من أسفل الشاشة
             await update.message.reply_text(
                 success_welcome,
                 parse_mode='Markdown',
                 reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID))
             )
+            
+            try:
+                await update.message.reply_text("👇 تم تفعيل لوحة التحكم الرئيسية:", reply_markup=ReplyKeyboardRemove())
+            except Exception:
+                pass
             return
         else:
             verification_cache[user_id] = "waiting_contact"
