@@ -551,7 +551,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         return
 
-    await query.answer()
+    try:
+        await query.answer()
+    except Exception:
+        pass
 
     if data == 'main_menu':
         u_data = db_get_user(user_id)
@@ -1536,13 +1539,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_panel':
+        try:
+            await query.answer("🔄 جاري تحميل لوحة التحكم...", show_alert=False)
+        except Exception:
+            pass
+
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
             await query.answer("⛔ ليس لديك صلاحيات لوحة التحكم.", show_alert=True)
             return
         
         if is_owner(user_id) or user_id == ADMIN_ID:
             try:
-                stats = db_get_advanced_stats()
+                stats = db_get_advanced_stats() or {}
                 panel_text = (
                     "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1580,7 +1588,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception as e:
                 print(f"Error loading subadmin panel: {e}")
-                await query.answer("⚠️ حدث خطأ أثناء تحميل لوحة المشرف.", show_alert=True)
 
     elif data == 'owner_publish_to_channel':
         if not is_owner(user_id):
@@ -1866,7 +1873,6 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
             verification_cache[user_id] = "passed"
             u_data = db_get_user(user_id)
             
-            # معالجة إرسال إشعار الأدمن وهدية الإحالة للمُحيل حصرياً فور اجتياز التحقق بنجاح
             await process_successful_join_reward(update.effective_user, context, u_data)
             u_data = db_get_user(user_id)
 
@@ -1945,56 +1951,116 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     u_data = db_get_user(user_id)
 
-    if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_promo_details':
-        admin_state.pop(user_id, None)
-        try:
-            parts = text_content.split()
-            numbers = []
-            promo_code = "GIFT"
-            for p in parts:
-                try:
-                    numbers.append(float(p))
-                except ValueError:
-                    if not any(char.isdigit() for char in p):
-                        promo_code = p.upper()
+    # === معالجة إضافة وخصم الرصيد عبر إرسال الآيدي ثم المبلغ ===
+    if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state:
+        st = admin_state[user_id].get('action')
 
-            promo_amount = numbers[0] if len(numbers) > 0 else 0.50
-            promo_max = int(numbers[1]) if len(numbers) > 1 else 50
-
-            try:
-                supabase.table("promo_codes").insert({
-                    "code": promo_code, "amount": promo_amount, "max_uses": promo_max, "current_uses": 0
-                }).execute()
-            except Exception:
-                pass
-
-            bot_username = context.bot.username
-            promo_link = f"https://t.me/{bot_username}?start=promo_{promo_code}"
-            await update.message.reply_text(f"✅ تم إنشاء كود الهدية `{promo_code}` بقيمة `${promo_amount}` بنجاح!", parse_mode='Markdown')
-        except Exception as e:
-            await update.message.reply_text(f"❌ حدث خطأ: {e}")
-        return
-
-    if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_broadcast':
-        admin_state.pop(user_id, None)
-        all_users = db_get_all_users()
-        if not all_users:
-            await update.message.reply_text("⚠️ لا توجد مستخدمين للإذاعة.")
+        if st == 'waiting_for_add_bal_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح مكون من أرقام:")
+                return
+            target_id = int(text_content)
+            admin_state[user_id] = {'action': 'waiting_for_add_bal_amount', 'target_id': target_id}
+            await update.message.reply_text(f"➕ **إضافة رصيد للمستخدم (`{target_id}`):**\nأرسل الآن **المبلغ بالدولار** المراد إضافته (مثال: `5` أو `1.5`):", parse_mode='Markdown')
             return
 
-        status_msg = await update.message.reply_text(f"📢 بدء الإذاعة لـ ({len(all_users)}) مشترك...")
-        success_count = 0
-        for item in all_users:
-            uid = item.get("user_id") if isinstance(item, dict) else item
-            if not uid: continue
+        elif st == 'waiting_for_add_bal_amount':
             try:
-                await context.bot.send_message(chat_id=int(uid), text=update.message.text, parse_mode='Markdown')
-                success_count += 1
-                await asyncio.sleep(0.03)
-            except Exception:
-                pass
-        await status_msg.edit_text(f"✅ اكتملت الإذاعة بنجاح لـ ({success_count}) مشترساً!")
-        return
+                amount = float(text_content)
+                target_id = admin_state[user_id].get('target_id')
+                admin_state.pop(user_id, None)
+                
+                db_update_balance(target_id, amount, mode="add")
+                target_user = db_get_user(target_id)
+                new_bal = target_user.get('balance', 0.0) if target_user else 0.0
+
+                await update.message.reply_text(f"✅ **تم إضافة `${amount:.2f}` بنجاح للمستخدم `{target_id}`!**\n💰 رصيده الحالي الجديد: `${new_bal:.2f}`", parse_mode='Markdown')
+                try:
+                    await context.bot.send_message(chat_id=target_id, text=f"🎉 **تمت إضافة رصيد لحسابك بواسطة الإدارة!**\n⭐ المبلغ المضاف: `${amount:.2f}`\n💰 رصيدك الحالي: `${new_bal:.2f}`", parse_mode='Markdown')
+                except Exception:
+                    pass
+            except ValueError:
+                await update.message.reply_text("⚠️ يرجى إرسال قيمة عددية صحيحة للمبلغ (مثال: `2.5`):")
+            return
+
+        elif st == 'waiting_for_deduct_bal_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح مكون من أرقام:")
+                return
+            target_id = int(text_content)
+            admin_state[user_id] = {'action': 'waiting_for_deduct_bal_amount', 'target_id': target_id}
+            await update.message.reply_text(f"➖ **خصم رصيد من المستخدم (`{target_id}`):**\nأرسل الآن **المبلغ بالدولار** المراد خصمه:", parse_mode='Markdown')
+            return
+
+        elif st == 'waiting_for_deduct_bal_amount':
+            try:
+                amount = float(text_content)
+                target_id = admin_state[user_id].get('target_id')
+                admin_state.pop(user_id, None)
+                
+                db_update_balance(target_id, amount, mode="deduct")
+                target_user = db_get_user(target_id)
+                new_bal = target_user.get('balance', 0.0) if target_user else 0.0
+
+                await update.message.reply_text(f"✅ **تم خصم `${amount:.2f}` بنجاح من المستخدم `{target_id}`!**\n💰 رصيده الحالي الجديد: `${new_bal:.2f}`", parse_mode='Markdown')
+                try:
+                    await context.bot.send_message(chat_id=target_id, text=f"⚠️ **تم خصم رصيد من حسابك بواسطة الإدارة.**\n⭐ المبلغ المخصوم: `${amount:.2f}`\n💰 رصيدك الحالي: `${new_bal:.2f}`", parse_mode='Markdown')
+                except Exception:
+                    pass
+            except ValueError:
+                await update.message.reply_text("⚠️ يرجى إرسال قيمة عددية صحيحة للمبلغ:")
+            return
+
+        elif st == 'waiting_for_promo_details':
+            admin_state.pop(user_id, None)
+            try:
+                parts = text_content.split()
+                numbers = []
+                promo_code = "GIFT"
+                for p in parts:
+                    try:
+                        numbers.append(float(p))
+                    except ValueError:
+                        if not any(char.isdigit() for char in p):
+                            promo_code = p.upper()
+
+                promo_amount = numbers[0] if len(numbers) > 0 else 0.50
+                promo_max = int(numbers[1]) if len(numbers) > 1 else 50
+
+                try:
+                    supabase.table("promo_codes").insert({
+                        "code": promo_code, "amount": promo_amount, "max_uses": promo_max, "current_uses": 0
+                    }).execute()
+                except Exception:
+                    pass
+
+                bot_username = context.bot.username
+                promo_link = f"https://t.me/{bot_username}?start=promo_{promo_code}"
+                await update.message.reply_text(f"✅ تم إنشاء كود الهدية `{promo_code}` بقيمة `${promo_amount}` بنجاح!", parse_mode='Markdown')
+            except Exception as e:
+                await update.message.reply_text(f"❌ حدث خطأ: {e}")
+            return
+
+        elif st == 'waiting_for_broadcast':
+            admin_state.pop(user_id, None)
+            all_users = db_get_all_users()
+            if not all_users:
+                await update.message.reply_text("⚠️ لا توجد مستخدمين للإذاعة.")
+                return
+
+            status_msg = await update.message.reply_text(f"📢 بدء الإذاعة لـ ({len(all_users)}) مشترك...")
+            success_count = 0
+            for item in all_users:
+                uid = item.get("user_id") if isinstance(item, dict) else item
+                if not uid: continue
+                try:
+                    await context.bot.send_message(chat_id=int(uid), text=update.message.text, parse_mode='Markdown')
+                    success_count += 1
+                    await asyncio.sleep(0.03)
+                except Exception:
+                    pass
+            await status_msg.edit_text(f"✅ اكتملت الإذاعة بنجاح لـ ({success_count}) مشترساً!")
+            return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
         admin_state[user_id]['link'] = text_content
