@@ -1546,7 +1546,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
             )
             try:
-                await query.edit_message_text(panel_text, parse_mode='Markdown', reply_markup=get_admin_keyboard())
+                # إضافة زر خاص للمالك لنشر رسالة لقناة البوت
+                admin_kb = get_admin_keyboard().inline_keyboard + [
+                    [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')]
+                ]
+                await query.edit_message_text(panel_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(admin_kb))
             except Exception:
                 pass
         else:
@@ -1559,6 +1563,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(sub_panel_text, parse_mode='Markdown', reply_markup=get_subadmin_keyboard())
             except Exception:
                 pass
+
+    elif data == 'owner_publish_to_channel':
+        if not is_owner(user_id):
+            await query.answer("⛔ هذا الزر مخصص للمالك الأساسي للبوت فقط!", show_alert=True)
+            return
+        admin_state[user_id] = {'action': 'waiting_for_owner_channel_post'}
+        try:
+            await query.edit_message_text(
+                "📢 **نشر منشور لقناة البوت الرسمية:**\n\n"
+                "أرسل الآن النص، الصورة، الفيديو، أو الوسائط التي تريد نشرها في القناة وسيتم إرسالها فوراً مع زر (الدخول للبوت).",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
+            )
+        except Exception:
+            pass
 
     elif data == 'admin_top_refs':
         if not is_admin_or_sub(user_id, ADMIN_ID): return
@@ -1826,7 +1845,7 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
             verification_cache[user_id] = "passed"
             u_data = db_get_user(user_id)
             
-            # إرسال إشعار الأدمن وهدية الإحالة للمُحيل حصرياً بعد نجاح التحقق بالكامل
+            # معالجة إرسال إشعار الأدمن وهدية الإحالة للمُحيل حصرياً فور اجتياز التحقق بنجاح
             await process_successful_join_reward(update.effective_user, context, u_data)
             u_data = db_get_user(user_id)
 
@@ -1837,7 +1856,6 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
                 "🌟 تم تفعيل حسابك بنجاح وأصبحت جاهزاً لاستخدام كافة خدمات الأرقام والرشق!"
             )
             
-            # إرسال القائمة الرئيسية مع إزالة زر مشاركة جهة الاتصال نهائياً من أسفل الشاشة
             await update.message.reply_text(
                 success_welcome,
                 parse_mode='Markdown',
@@ -1870,6 +1888,21 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     text_content = update.message.text.strip() if update.message.text else ""
+
+    # معالجة نشر المالك رسالة لقناة البوت
+    if is_owner(user_id) and user_id in admin_state and admin_state.get(user_id, {}).get('action') == 'waiting_for_owner_channel_post':
+        admin_state.pop(user_id, None)
+        bot_username = context.bot.username
+        start_url = f"https://t.me/{bot_username}?start=channel_post"
+        channel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
+        
+        try:
+            # إعادة توجيه رسالة المالك أو إرسالها إلى قناة البوت مع زر الدخول
+            await update.message.copy(chat_id=LOG_CHANNEL_ID, reply_markup=channel_kb)
+            await update.message.reply_text("✅ **تم نشر المنشور بنجاح إلى قناة البوت مع زر الدخول!** 🚀", parse_mode='Markdown')
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطأ أثناء النشر للقناة: `{e}`", parse_mode='Markdown')
+        return
 
     v_status = verification_cache.get(user_id, "not_started")
     if v_status == "waiting_math":
