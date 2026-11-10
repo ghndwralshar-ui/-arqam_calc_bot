@@ -1401,6 +1401,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_selected_service[user_id] = {"service_id": s_id, "name": names.get(data, "خدمة واتساب"), "price": prices.get(data, 0.50), "min": 10, "max": 100000000, "type": stype, "callback_data": data}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
+    # 🚀 دالة تنفيذ وإرسال الطلب للمنصة متضمنة حماية Cloudscraper لتجاوز 403 Forbidden
     elif data == "confirm_final_order":
         order = user_order_data.get(user_id)
         service = user_selected_service.get(user_id)
@@ -1433,7 +1434,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        await query.answer("⏳ جاري الاتصال المباشر بالمنصة...", show_alert=False)
+        await query.answer("⏳ جاري الاتصال المباشر بالمنصة وتجاوز الحماية...", show_alert=False)
 
         payload = {
             'key': HMCARD_API_KEY,
@@ -1450,8 +1451,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         custom_headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': HMCARD_API_URL
+            'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+            'Origin': 'https://hmcard.online',
+            'Referer': 'https://hmcard.online/'
         }
 
         try:
@@ -1511,7 +1513,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`\n\n💡 تأكد من صحة رابط الـ API وتوفر الرصيد في حسابك بمنصة HMCARD.",
+                    f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n💬 **السبب:** `{api_error}`\n\n💡 تأكد من صحة مفتاح الـ API وتوفر الرصيد في حسابك بمنصة HMCARD.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
