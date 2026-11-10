@@ -47,11 +47,17 @@ KREEMI_ACCOUNT = "3105004949"
 VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
+# تعريف آيدي المالك الأساسي بدقة
+OWNER_ID = 6472852297
+
 # ==================== إعدادات البروكسي (اختياري) ====================
 PROXY_URL = None
 
 def is_owner(user_id: int) -> bool:
-    return user_id == ADMIN_ID
+    try:
+        return user_id == OWNER_ID or user_id == ADMIN_ID
+    except NameError:
+        return user_id == OWNER_ID
 
 FORCED_SUB_MESSAGE = (
     "💎 **﴿ ديجيتال هب | Digital Hub ﴾** 💎\n"
@@ -69,7 +75,7 @@ def get_subadmin_keyboard():
     ])
 
 async def check_user_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    if user_id == ADMIN_ID:
+    if is_owner(user_id) or user_id == ADMIN_ID:
         return True
     try:
         member = await context.bot.get_chat_member(chat_id=FORCED_CHANNEL_USERNAME, user_id=user_id)
@@ -86,7 +92,7 @@ async def process_successful_join_reward(user, context, u_data):
         if not db_claim_referral_reward(user_id):
             return
 
-        if user_id != ADMIN_ID:
+        if not is_owner(user_id) and user_id != ADMIN_ID:
             try:
                 seq_num = u_data.get('user_sequence', 1)
                 await context.bot.send_message(
@@ -487,7 +493,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif arg_param == 'main_rashq':
         await update.message.reply_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
     else:
-        await update.message.reply_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user.id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
+        await update.message.reply_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user.id, lambda uid: is_admin_or_sub(uid, ADMIN_ID) or is_owner(uid)))
 
 def prompt_user_for_link(message, service_info, context):
     user_id = message.chat.id
@@ -560,7 +566,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "👇 **اختر ما يناسبك من القائمة أدناه:**"
         )
         try:
-            await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID)))
+            await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID) or is_owner(uid)))
         except Exception:
             pass
 
@@ -1530,45 +1536,59 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_panel':
-        if not is_admin_or_sub(user_id, ADMIN_ID):
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
             await query.answer("⛔ ليس لديك صلاحيات لوحة التحكم.", show_alert=True)
             return
         
-        if user_id == ADMIN_ID:
-            stats = db_get_advanced_stats()
-            panel_text = (
-                "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"👥 **إجمالي المستخدمين:** `{stats['total_users']} مشترك`\n"
-                f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats['new_24h']} مشترك جديد` 📈\n"
-                f"💰 **إجمالي أرصدة المحافظ:** `${stats['total_balances']:.2f}`\n"
-                f"🔗 **إجمالي الإحالات الكلية:** `{stats['total_referrals']} دعوة`\n\n"
-                "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
-            )
+        if is_owner(user_id) or user_id == ADMIN_ID:
             try:
-                # إضافة زر خاص للمالك لنشر رسالة لقناة البوت
-                admin_kb = get_admin_keyboard().inline_keyboard + [
+                stats = db_get_advanced_stats()
+                panel_text = (
+                    "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
+                    f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
+                    f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n"
+                    f"🔗 **إجمالي الإحالات الكلية:** `{stats.get('total_referrals', 0)} دعوة`\n\n"
+                    "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
+                )
+                
+                base_admin_kb = get_admin_keyboard().inline_keyboard
+                admin_kb = base_admin_kb + [
                     [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')]
                 ]
-                await query.edit_message_text(panel_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(admin_kb))
-            except Exception:
-                pass
+                
+                await query.edit_message_text(
+                    text=panel_text,
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup(admin_kb)
+                )
+            except Exception as e:
+                print(f"Error loading owner panel: {e}")
+                await query.answer("⚠️ حدث خطأ أثناء تحميل البيانات، جرب مجدداً.", show_alert=True)
         else:
-            sub_panel_text = (
-                "🛡️ **• لوحة تحكم المشرف المساعد •** 🛡️\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للرد على المستخدمين وإدارة الأرصدة:"
-            )
             try:
-                await query.edit_message_text(sub_panel_text, parse_mode='Markdown', reply_markup=get_subadmin_keyboard())
-            except Exception:
-                pass
+                sub_panel_text = (
+                    "🛡️ **• لوحة تحكم المشرف المساعد •** 🛡️\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للرد على المستخدمين وإدارة الأرصدة:"
+                )
+                await query.edit_message_text(
+                    text=sub_panel_text,
+                    parse_mode='Markdown',
+                    reply_markup=get_subadmin_keyboard()
+                )
+            except Exception as e:
+                print(f"Error loading subadmin panel: {e}")
+                await query.answer("⚠️ حدث خطأ أثناء تحميل لوحة المشرف.", show_alert=True)
 
     elif data == 'owner_publish_to_channel':
         if not is_owner(user_id):
             await query.answer("⛔ هذا الزر مخصص للمالك الأساسي للبوت فقط!", show_alert=True)
             return
+        
         admin_state[user_id] = {'action': 'waiting_for_owner_channel_post'}
+        
         try:
             await query.edit_message_text(
                 "📢 **نشر منشور لقناة البوت الرسمية:**\n\n"
@@ -1576,11 +1596,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
             )
-        except Exception:
+        except Exception as e:
+            print(f"Error in owner_publish: {e}")
             pass
 
     elif data == 'admin_top_refs':
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         stats = db_get_advanced_stats()
         top_list = stats['top_refs']
         text = "🏆 **قائمة أطراف الإحالات (أعلى 5 أشخاص نشطين):**\n━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -1593,7 +1614,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_create_promo':
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_promo_details'}
         try:
             await query.edit_message_text(
@@ -1606,7 +1627,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_reply_user':
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_reply_id'}
         try:
             await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآن **آيدي المستخدم** المراد الرد عليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1614,7 +1635,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_send_gift_user':
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_gift_id'}
         try:
             await query.edit_message_text("🎁 **إرسال هدية مالية:**\nأرسل الآن **آيدي المستخدم** المراد إرسال الهدية له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1622,7 +1643,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_add_balance':
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_add_bal_id'}
         try:
             await query.edit_message_text("➕ **إضافة رصيد:**\nأرسل الآن **آيدي المستخدم** المراد إضافة الرصيد له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1630,7 +1651,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_deduct_balance':
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_deduct_bal_id'}
         try:
             await query.edit_message_text("➖ **خصم رصيد:**\nأرسل الآن **آيدي المستخدم** المراد الخصم من حسابه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1638,7 +1659,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_manage_subadmins':
-        if user_id != ADMIN_ID: return
+        if not is_owner(user_id) and user_id != ADMIN_ID: return
         subs = get_all_sub_admins()
         subs_text = "👥 المشرفون المساعدون:\n" + ("\n".join([f"• `{sid}`" for sid in subs]) if subs else "لا يوجد مشرفين مساعدين.")
         try:
@@ -1647,7 +1668,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_add_sub':
-        if user_id != ADMIN_ID: return
+        if not is_owner(user_id) and user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_sub_id'}
         try:
             await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1655,7 +1676,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_del_sub':
-        if user_id != ADMIN_ID: return
+        if not is_owner(user_id) and user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
         try:
             await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1663,7 +1684,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_send_bonus':
-        if user_id != ADMIN_ID: return
+        if not is_owner(user_id) and user_id != ADMIN_ID: return
         admin_state[user_id] = {'action': 'waiting_for_bonus_amount'}
         try:
             await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1687,7 +1708,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_ban_user':
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_ban_id'}
         try:
             await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر أو فك الحظر:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1695,7 +1716,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_broadcast':
-        if not is_admin_or_sub(user_id, ADMIN_ID): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_broadcast'}
         try:
             await query.edit_message_text("📢 **إذاعة شاملة ضخمة:**\nأرسل الآن نص الإذاعة، الصورة، أو أي وسائط تريد إرسالها لجميع المشتركين:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
@@ -1859,7 +1880,7 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
             await update.message.reply_text(
                 success_welcome,
                 parse_mode='Markdown',
-                reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID))
+                reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID) or is_owner(uid))
             )
             
             try:
@@ -1897,7 +1918,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         channel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
         
         try:
-            # إعادة توجيه رسالة المالك أو إرسالها إلى قناة البوت مع زر الدخول
             await update.message.copy(chat_id=LOG_CHANNEL_ID, reply_markup=channel_kb)
             await update.message.reply_text("✅ **تم نشر المنشور بنجاح إلى قناة البوت مع زر الدخول!** 🚀", parse_mode='Markdown')
         except Exception as e:
@@ -1925,7 +1945,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     u_data = db_get_user(user_id)
 
-    if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_promo_details':
+    if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_promo_details':
         admin_state.pop(user_id, None)
         try:
             parts = text_content.split()
@@ -1955,7 +1975,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text(f"❌ حدث خطأ: {e}")
         return
 
-    if is_admin_or_sub(user_id, ADMIN_ID) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_broadcast':
+    if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_broadcast':
         admin_state.pop(user_id, None)
         all_users = db_get_all_users()
         if not all_users:
