@@ -47,6 +47,11 @@ KREEMI_ACCOUNT = "3105004949"
 VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
+# ==================== إعدادات البروكسي (اختياري) ====================
+# ضع رابط البروكسي هنا إذا أردت استخدامه (مثال: "http://username:password@proxyserver:port" أو "http://127.0.0.1:8080")
+# اتركه None إذا لمقترن ببروكسي وتريد الاتصال المباشر
+PROXY_URL = None
+
 def is_owner(user_id: int) -> bool:
     return user_id == ADMIN_ID
 
@@ -1285,13 +1290,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         calc_cost = order.get('calc_cost', 0.0)
         final_cost = fixed_cost if fixed_cost > 0 else calc_cost
 
-        min_limit = service.get('min', 1)
-        max_limit = service.get('max', 100000000)
-        
-        if qty < min_limit or qty > max_limit:
-            await query.answer(f"❌ عذراً، الكمية يجب أن تكون بين {min_limit:,} و {max_limit:,}!", show_alert=True)
-            return
-
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
         if current_balance <= 0 or current_balance < final_cost:
@@ -1314,79 +1312,43 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'quantity': int(qty)
         }
 
-        resp_data = None
-        success_request = False
-        api_error = "فشل الاتصال بالمنصة"
-        error_source = "غير معروف"
-
-        custom_headers = {
+        headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Content-Type': 'application/x-www-form-urlencoded',
             'Origin': 'https://hmcard.online',
             'Referer': 'https://hmcard.online/'
         }
 
-        try:
-            scraper = cloudscraper.create_scraper(
-                browser={
-                    'browser': 'chrome',
-                    'platform': 'windows',
-                    'desktop': True
-                }
-            )
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=custom_headers, timeout=35)
-
-            status_code = response.status_code
-            response_text = response.text
-
-            if status_code == 200:
-                try:
-                    resp_data = response.json()
-                    if isinstance(resp_data, dict):
-                        if "order" in resp_data or "order_id" in resp_data or "id" in resp_data:
-                            success_request = True
-                        elif "error" in resp_data:
-                            api_error = resp_data.get("error")
-                            error_source = "🖥️ من الموقع (رفض الطلب من منصة HMCARD: تأكد من صحة رقم الخدمة أو أن رصيدك يكفي في حسابك بالموقع)."
-                        else:
-                            api_error = f"استجابة غير معروفة: {response_text[:150]}"
-                            error_source = "🖥️ من الموقع (استجابة غير متوقعة من سيرفر HMCARD)."
-                except json.JSONDecodeError:
-                    api_error = f"استجابة نصية وليست JSON: {response_text[:150]}"
-                    error_source = "🖥️ من الموقع (سيرفر HMCARD أعطى صفحة خطأ HTML)."
-            elif status_code == 403:
-                api_error = f"خطأ HTTP 403 (حماية الموقع رفضت الطلب)"
-                error_source = "🖥️ من الموقع (حماية Cloudflare منعت الاتصال أو مفتاح الـ API غير صالح)."
-            elif status_code == 401:
-                api_error = f"خطأ HTTP 401 (غير مصرح)"
-                error_source = "🖥️ من الموقع (مفتاح الـ API غير صالح أو خاطئ)."
-            else:
-                api_error = f"خطأ HTTP برمز: {status_code}"
-                error_source = f"🖥️ من الموقع (رمز الاستجابة {status_code})."
-
-        except Exception as e:
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    res = await client.post(HMCARD_API_URL, data=payload, headers=custom_headers)
-                    if res.status_code == 200:
-                        resp_data = res.json()
-                        if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or "id" in resp_data):
-                            success_request = True
-                    else:
-                        api_error = f"Fallback error: {res.status_code} - {res.text[:100]}"
-            except Exception as ex:
-                api_error = f"{str(e)[:100]} | Fallback: {str(ex)[:100]}"
-                error_source = "🤖 من البوت (خطأ في الاتصال بالسيرفر أو شبكة الإنترنت)."
-
+        success_request = False
         order_id = None
-        if success_request and isinstance(resp_data, dict):
-            order_id = resp_data.get("order") or resp_data.get("order_id") or resp_data.get("id")
+        raw_response_text = ""
+
+        try:
+            # استخدام البروكسي في حال تم تعريفه في PROXY_URL، وإلا اتصال مباشر
+            client_kwargs = {"timeout": 30.0, "follow_redirects": True}
+            if PROXY_URL:
+                client_kwargs["proxy"] = PROXY_URL
+
+            async with httpx.AsyncClient(**client_kwargs) as client:
+                response = await client.post(HMCARD_API_URL, data=payload, headers=headers)
+                raw_response_text = response.text
+                
+                if response.status_code == 200:
+                    try:
+                        resp_json = response.json()
+                        if isinstance(resp_json, dict):
+                            order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                            if order_id:
+                                success_request = True
+                    except Exception:
+                        pass
+        except Exception as e:
+            raw_response_text = f"Connection Exception: {str(e)}"
 
         if success_request and order_id:
             db_update_balance(user_id, final_cost, mode="deduct")
-            
             try:
                 await query.edit_message_text(
                     f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
@@ -1407,21 +1369,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👤 **آيدي العميل:** `{user_id}`\n"
                 f"🛍️ **الخدمة:** `{service_name}`\n"
-                f"🔗 **الرابط/الآيدي:** `{mask_link(order['link'])}`\n"
+                f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
                 f"📊 **الكمية:** `{qty:,}`\n"
                 f"🆔 **رقم الطلب:** `{order_id}`\n"
-                f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`\n"
-                f"⭐ **الحالة:** تم الإرسال للمنصة بنجاح 🚀"
+                f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`"
             )
             await send_log_to_channel(context, log_msg, cb_param)
             return
         else:
+            error_display = raw_response_text[:400] if raw_response_text else "لا يوجد رد من السيرفر"
             try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n"
-                    f"📍 **المصدر الرئيسي للخطأ:**\n{error_source}\n\n"
-                    f"💬 **التفاصيل التقنية:** `{api_error}`\n\n"
-                    f"💡 تأكد من صحة رقم الخدمة المطلوبة في البوت ومن أن رصيدك في منصة HMCARD كافٍ تماماً.",
+                    f"❌ **عذراً، رفض الموقع الطلب!**\n\n"
+                    f"💬 **رد السيرفر الخام:**\n`{error_display}`\n\n"
+                    f"💡 هذا الرد يوضح السبب الحقيقي الذي أرسله موقع HMCARD.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
