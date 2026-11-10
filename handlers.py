@@ -38,7 +38,7 @@ admin_state = {}
 user_selected_service = {}
 user_order_data = {}
 active_numbers_cache = {}
-verification_cache = {}  # 🛡️ لتخزين حالة التحقق المؤقتة
+verification_cache = {}
 
 EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
@@ -192,7 +192,6 @@ async def get_available_countries_for_service(service: str):
                                     rate = op_data.get("rate", 0.0)
                                     if count > 0 and cost is not None:
                                         base_price = float(cost)
-                                        # شرط خاص لواتساب: السعر الأساسي أقل من 0.70$، لباقي الخدمات أقل من 0.15$
                                         max_limit_price = 0.70 if service == "whatsapp" else 0.15
                                         if base_price < max_limit_price:
                                             has_stock = True
@@ -204,7 +203,6 @@ async def get_available_countries_for_service(service: str):
                                                 best_operator = operator
 
                         if has_stock and min_price < 999.0 and best_operator:
-                            # تثبيت سعر البيع لواتساب بـ 2.00$، وباقي الخدمات 0.70$
                             fixed_price = 2.00 if service == "whatsapp" else 0.70
                             c_meta = COUNTRY_INFO[country_code]
                             available_countries.append({
@@ -446,7 +444,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 🛡️ التحقق الأمني (مسألة جمع فقط حصرياً)
     v_status = verification_cache.get(user.id, "not_started")
     if v_status != "passed":
         verification_cache[user.id] = "waiting_math"
@@ -582,7 +579,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # تشغيل خدمات وأرقام وعروض واتساب بالكامل بناءً على طلبك
     elif data in ['most_available', 'deals_whatsapp', 'service_whatsapp', 'wa_subscribers', 'wa_reactions', 'wa_auto_reactions', 'wa_polls']:
         await show_available_countries_menu(update, context, "whatsapp", "واتساب 🟢")
         return
@@ -1015,7 +1011,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
@@ -1308,8 +1304,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        await query.answer("⏳ جاري الاتصال المباشر بالمنصة وتجاوز الحماية...", show_alert=False)
+        await query.answer("⏳ جاري إرسال الطلب للمنصة...", show_alert=False)
 
+        # البيانات المطابقة تماماً لتوثيق HMCARD API v2
         payload = {
             'key': HMCARD_API_KEY,
             'action': 'add',
@@ -1323,11 +1320,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         api_error = "فشل الاتصال بالمنصة"
 
         custom_headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-            'Origin': 'https://hmcard.online',
-            'Referer': 'https://hmcard.online/'
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': HMCARD_API_URL
         }
 
         try:
@@ -1343,7 +1339,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         elif "error" in resp_data:
                             api_error = resp_data.get("error")
                 except json.JSONDecodeError:
-                    api_error = "استجابة غير صالحة من السيرفر (ليس JSON)"
+                    api_error = f"استجابة غير صالحة من السيرفر: {response.text[:100]}"
             else:
                 api_error = f"خطأ HTTP من المنصة: {response.status_code}"
         except Exception as e:
@@ -1834,7 +1830,7 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
             )
             await update.message.reply_text(
                 success_welcome,
-                parse_Mode='Markdown',
+                parse_mode='Markdown',
                 reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID))
             )
             return
@@ -1990,4 +1986,3 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         ])
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
         return
-
