@@ -1320,20 +1320,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         error_source = "غير معروف"
 
         custom_headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/javascript, */*; q=0.01',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': HMCARD_API_URL
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Origin': 'https://hmcard.online',
+            'Referer': 'https://hmcard.online/'
         }
 
         try:
-            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            scraper = cloudscraper.create_scraper(
+                browser={
+                    'browser': 'chrome',
+                    'platform': 'windows',
+                    'desktop': True
+                }
+            )
             response = scraper.post(HMCARD_API_URL, data=payload, headers=custom_headers, timeout=35)
 
             status_code = response.status_code
             response_text = response.text
 
-            # تشخيص السبب الرئيسي بدقة تامة وتحديد مصدر الخطأ (الموقع أم البوت)
             if status_code == 200:
                 try:
                     resp_data = response.json()
@@ -1342,32 +1349,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             success_request = True
                         elif "error" in resp_data:
                             api_error = resp_data.get("error")
-                            error_source = "🖥️ من الموقع (منصة HMCARD رفضت الطلب: الرصيد غير كافٍ أو الخدمة متوقفة أو مفتاح الـ API غير صالح)."
+                            error_source = "🖥️ من الموقع (رفض الطلب من منصة HMCARD: تأكد من صحة رقم الخدمة أو أن رصيدك يكفي في حسابك بالموقع)."
                         else:
-                            api_error = f"استجابة غير معروفة من الموقع: {response_text[:150]}"
+                            api_error = f"استجابة غير معروفة: {response_text[:150]}"
                             error_source = "🖥️ من الموقع (استجابة غير متوقعة من سيرفر HMCARD)."
                 except json.JSONDecodeError:
-                    api_error = f"استجابة نصية وليست JSON من الموقع: {response_text[:150]}"
-                    error_source = "🖥️ من الموقع (سيرفر HMCARD أعطى صفحة خطأ أو حماية Cloudflare)."
+                    api_error = f"استجابة نصية وليست JSON: {response_text[:150]}"
+                    error_source = "🖥️ من الموقع (سيرفر HMCARD أعطى صفحة خطأ HTML)."
             elif status_code == 403:
-                api_error = f"خطأ HTTP 403 (محظور/مرفوع الحماية)"
-                error_source = "🖥️ من الموقع (منصة HMCARD حظرت الطلب؛ غالباً مفتاح الـ API خطأ، أو رابط الـ API متغير، أو أن حماية الموقع تمنع السيرفر من الاتصال)."
+                api_error = f"خطأ HTTP 403 (حماية الموقع رفضت الطلب)"
+                error_source = "🖥️ من الموقع (حماية Cloudflare منعت الاتصال أو مفتاح الـ API غير صالح)."
             elif status_code == 401:
                 api_error = f"خطأ HTTP 401 (غير مصرح)"
-                error_source = "🖥️ من الموقع (مفتاح الـ API الخاص بك في HMCARD غير صحيح أو انتهت صلاحيته)."
-            elif status_code == 404:
-                api_error = f"خطأ HTTP 404 (الصفحة أو رابط الـ API غير موجود)"
-                error_source = "🖥️ من الموقع (رابط API منصة HMCARD في ملف config غير صحيح أو تم تغييره من قبل المنصة)."
-            elif status_code >= 500:
-                api_error = f"خطأ HTTP {status_code} (مشكلة في سيرفرات المنصة نفسها)"
-                error_source = "🖥️ من الموقع (سيرفرات منصة HMCARD تواجه ضغطاً أو متوقفة عن العمل حالياً)."
+                error_source = "🖥️ من الموقع (مفتاح الـ API غير صالح أو خاطئ)."
             else:
-                api_error = f"خطأ HTTP برمز غير متوقع: {status_code}"
-                error_source = "🖥️ من الموقع (رفض من جهة سيرفر HMCARD)."
+                api_error = f"خطأ HTTP برمز: {status_code}"
+                error_source = f"🖥️ من الموقع (رمز الاستجابة {status_code})."
 
         except Exception as e:
-            api_error = str(e)[:150]
-            error_source = "🤖 من البوت (حدث استثناء أو خطأ في مكتبة الاتصال أو مشكلة إنترنت في السيرفر المستضيف للبوت)."
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    res = await client.post(HMCARD_API_URL, data=payload, headers=custom_headers)
+                    if res.status_code == 200:
+                        resp_data = res.json()
+                        if isinstance(resp_data, dict) and ("order" in resp_data or "order_id" in resp_data or "id" in resp_data):
+                            success_request = True
+                    else:
+                        api_error = f"Fallback error: {res.status_code} - {res.text[:100]}"
+            except Exception as ex:
+                api_error = f"{str(e)[:100]} | Fallback: {str(ex)[:100]}"
+                error_source = "🤖 من البوت (خطأ في الاتصال بالسيرفر أو شبكة الإنترنت)."
 
         order_id = None
         if success_request and isinstance(resp_data, dict):
@@ -1410,7 +1421,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"❌ **عذراً، فشل تنفيذ الطلب من المنصة!**\n\n"
                     f"📍 **المصدر الرئيسي للخطأ:**\n{error_source}\n\n"
                     f"💬 **التفاصيل التقنية:** `{api_error}`\n\n"
-                    f"💡 **الحل:** تأكد من أن مفتاح الـ API صحيح في `config.py` وأن لديك رصيداً كافياً في حسابك بمنصة HMCARD.",
+                    f"💡 تأكد من صحة رقم الخدمة المطلوبة في البوت ومن أن رصيدك في منصة HMCARD كافٍ تماماً.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
