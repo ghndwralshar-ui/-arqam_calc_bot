@@ -579,7 +579,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    elif data in ['most_available', 'deals_whatsapp', 'service_whatsapp', 'wa_subscribers', 'wa_reactions', 'wa_auto_reactions', 'wa_polls']:
+    # أزرار أرقام واتساب الافتراضية حصرياً
+    elif data in ['most_available', 'deals_whatsapp', 'service_whatsapp']:
         await show_available_countries_menu(update, context, "whatsapp", "واتساب 🟢")
         return
 
@@ -870,9 +871,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+    # قسم خدمات رشق واتساب (تظهر أزرار خدمات واتساب للرشق حصرياً هنا)
     elif data == "sec_whatsapp":
         try:
-            await query.edit_message_text("🟢 خدمات واتساب:\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
+            await query.edit_message_text("🟢 خدمات واتساب (رشق):\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
         except Exception:
             pass
 
@@ -1011,7 +1013,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
@@ -1306,7 +1308,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.answer("⏳ جاري إرسال الطلب للمنصة...", show_alert=False)
 
-        # البيانات المطابقة تماماً لتوثيق HMCARD API v2
         payload = {
             'key': HMCARD_API_KEY,
             'action': 'add',
