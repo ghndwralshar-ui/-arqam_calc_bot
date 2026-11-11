@@ -50,7 +50,6 @@ VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
 OWNER_ID = 6472852297
-
 PROXY_URL = None
 
 def is_owner(user_id: int) -> bool:
@@ -176,9 +175,10 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
+# 🔄 الدالة المحدثة كلياً والمحسنة لاستجابة الموقع (HMCARD API Response & Execution)
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     """
-    دالة موحدة ومحدثة لتمرير الطلبات لـ HMCARD مع معالجة الأرقام، الروابط، والآيديات بدقة تامة
+    دالة موحدة ومحدثة لتمرير الطلبات لـ HMCARD مع معالجة البيانات، تجاوز الحماية، واستجابة دقيقة
     """
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
@@ -270,6 +270,35 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             return False, None, "حماية الموقع تمنع الاتصال الآلي أو أن خدمة الـ API غير متاحة حالياً."
     except Exception as e:
         return False, None, str(e)[:200]
+
+# 🌐 دالة جلب خطوات وأقسام خدمات يمن موبايل مباشرة من موقع HMCARD عبر الـ API
+async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
+    """
+    جلب الخدمات المرتبطة من موقع HMCARD مباشرة ديناميكياً لتحديث الخطوات والأسعار تلقائياً
+    """
+    payload = {
+        'key': str(HMCARD_API_KEY).strip(),
+        'action': 'services'
+    }
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+    }
+    try:
+        async with httpx.AsyncClient(headers=headers, timeout=20.0) as client:
+            res = await client.post(HMCARD_API_URL, data=payload)
+            if res.status_code == 200:
+                data = res.json()
+                if isinstance(data, list):
+                    filtered_services = []
+                    for s in data:
+                        s_name = str(s.get('name', '')).lower()
+                        if category_keyword.lower() in s_name or 'yemen' in s_name:
+                            filtered_services.append(s)
+                    return filtered_services
+    except Exception as e:
+        print(f"Error fetching dynamic services from HMCARD: {e}")
+    return []
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -703,28 +732,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith('ym_service_'):
         service_id_str = data.split('_')[2]
-        service_map = {
-            '816': ('يمن موبايل | رصيد 500 أساسي', 3.39),
-            '817': ('يمن موبايل | رصيد 1,000 أساسي', 6.81),
-            '818': ('يمن موبايل | رصيد 2,000 أساسي', 13.59),
-            '819': ('يمن موبايل | رصيد 3,000 أساسي', 20.40),
-            '820': ('يمن موبايل | رصيد 5,000 أساسي', 34.02),
-            '821': ('يمن موبايل | رصيد 10,000 أساسي', 68.04),
-            '822': ('يمن موبايل | باقة مزايا أسبوعية', 2.69),
-            '823': ('يمن موبايل | باقة مزايا شهرية دفع مسبق', 6.72),
-            '824': ('يمن موبايل | باقة مزايا ماكس شهرية', 11.25)
-        }
-        s_info = service_map.get(service_id_str, ('يمن موبايل', 1.0))
+        
+        # 🔄 جلب خطوات وخدمات يمن موبايل ديناميكياً من الموقع بدلاً من الثابتة
+        fetched_services = await fetch_hmcard_services_by_category("يمن موبايل")
+        matched_srv = None
+        for s in fetched_services:
+            if str(s.get('service')) == service_id_str:
+                matched_srv = s
+                break
+        
+        s_name = matched_srv.get('name', f"يمن موبايل خدمة #{service_id_str}") if matched_srv else "يمن موبايل"
+        s_rate = float(matched_srv.get('rate', 1.0)) if matched_srv else 1.0
+
         admin_state[user_id] = {
             'action': 'waiting_ym_fixed_phone',
             'service_id': int(service_id_str),
-            'service_name': s_info[0],
-            'price': s_info[1]
+            'service_name': s_name,
+            'price': s_rate
         }
         try:
             await query.edit_message_text(
-                f"📦 **تم اختيار الخدمة:** `{s_info[0]}`\n"
-                f"💰 **السعر الإجمالي:** `${s_info[1]:.2f}`\n\n"
+                f"📦 **تم اختيار الخدمة من الموقع:** `{s_name}`\n"
+                f"💰 **السعر الإجمالي:** `${s_rate:.2f}`\n\n"
                 "📱 **أرسل الآن رقم يمن موبايل المراد الشحن إليه (يبدأ بـ 77 أو 78 ويتكون من 9 أرقام):**",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]]))
@@ -1574,7 +1603,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
 
-            # إرسال تقرير الخطأ إلى قناة الرادار تلقائياً
+            # 🛡️ إرسال تقرير الخطأ للرادار بشكل غير مقيد (Non-blocking) لضمان عدم توقف إقلاع الطلب
             service_name = service.get('name', 'خدمة رقمية')
             error_log_msg = (
                 "⚠️ **تنبيه رادار: فشل تنفيذ طلب من المنصة!** ❌\n"
@@ -1586,7 +1615,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🚨 **سبب الرفض الدقيق:** `{error_reason}`"
             )
             try:
-                await context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=error_log_msg, parse_mode='Markdown')
+                asyncio.create_task(context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=error_log_msg, parse_mode='Markdown'))
             except Exception:
                 pass
             return
@@ -2126,7 +2155,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 'phone': phone,
                 'cost': cost_usd,
                 'amount_yer': amount_yer,
-                'quantity': 1
+                'quantity': amount_yer  # الشحن المفتوح يرسل المبلغ ككمية حسب متطلبات الموقع
             }
 
             summary_msg = (
@@ -2347,7 +2376,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         st_data = admin_state.get(user_id, {})
         service_info = st_data.get('service_info', {"name": "خدمة", "price": 1.0, "min": 10, "max": 100000000})
         
-        # 📌 فحص الحد الأدنى لمنع رفض الموقع
         min_limit = service_info.get("min", 10)
         if count < min_limit:
             await update.message.reply_text(
