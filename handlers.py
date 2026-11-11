@@ -571,9 +571,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # ==================== معالجة خدمات يمن موبايل الجديدة (محدثة) ====================
+    # ==================== معالجة خدمات يمن موبايل الجديدة (محدثة مع رابط الدعوة) ====================
     elif data == 'yemen_mobile_menu':
         u_data = db_get_user(user_id)
+        bot_username = context.bot.username
+        ref_link = f"https://t.me/{bot_username}?start={user_id}"
+        
         yemen_menu_text = (
             f"🇾🇪 🎁🔥 **ربح رصيد يمن موبايل مجاناً وبأفضل الأسعار** 🔥🎁 🇾🇪\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -581,6 +584,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💎 **رصيدك الحالي في البوت:** `${u_data['balance']:.2f}`\n\n"
             "💡 *اشحن رصيدك وباقات يمن موبايل بشكل فوري وتلقائي عبر رصيد البوت!*\n"
             "💬 *قم بمشاركة رابط دعوة الأصدقاء الخاص بك، وعن طريق كل دعوة صديق ستربح مبلغ `0.10$` دولار واستبدل أرباحك من الدعوات إلى رصيد يمن موبايل.*\n\n"
+            f"🔗 **رابط دعوة الأصدقاء الخاص بك:**\n`{ref_link}`\n"
+            f"👥 **عدد الدعوات:** `{u_data['referrals']} شخص` | 💰 **أرباح الدعوات:** `${u_data['referrals'] * 0.10:.2f}`\n\n"
             "👇 **اختر الخدمة المطلوبة من القائمة أدناه:**"
         )
         try:
@@ -2015,10 +2020,7 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
                 reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID) or is_owner(uid))
             )
             
-            try:
-                await update.message.reply_text("👇 تم تفعيل لوحة التحكم الرئيسية:", reply_markup=ReplyKeyboardRemove())
-            except Exception:
-                pass
+            # تم حذف الرسالة الزائدة التي كانت تظهر هنا نهائياً بناءً على طلبك
             return
         else:
             verification_cache[user_id] = "waiting_contact"
