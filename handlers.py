@@ -31,7 +31,8 @@ from keyboards import (
     ig_story_menu_keyboard, ig_likes_menu_keyboard, ig_comment_likes_menu_keyboard,
     ig_comments_menu_keyboard, ig_shares_menu_keyboard, tiktok_services_keyboard,
     youtube_services_keyboard, pubg_services_keyboard, freefire_services_keyboard,
-    get_admin_keyboard, get_free_services_keyboard, get_forced_subscription_keyboard
+    get_admin_keyboard, get_free_services_keyboard, get_forced_subscription_keyboard,
+    get_yemen_mobile_services_keyboard  # أزرار يمن موبايل الجديدة
 )
 
 admin_state = {}
@@ -519,7 +520,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    # ✅ الرد الفوري على كل الضغطات لمنع أي أزرار صامتة
     try:
         await query.answer()
     except Exception:
@@ -573,6 +573,162 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID) or is_owner(uid)))
         except Exception:
             pass
+
+    # ==================== معالجة خدمات يمن موبايل الجديدة ====================
+    elif data == 'yemen_mobile_menu':
+        u_data = db_get_user(user_id)
+        yemen_menu_text = (
+            f"🇾🇪 🎁🔥 **ربح رصيد يمن موبايل مجاناً وبأفضل الأسعار** 🔥🎁 🇾🇪\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 **آيدي الحساب:** `{user_id}`\n"
+            f"💎 **رصيدك الحالي في البوت:** `${u_data['balance']:.2f}`\n\n"
+            "💡 *اشحن رصيدك وباقات يمن موبايل بشكل فوري وتلقائي عبر رصيد البوت!*\n"
+            "👇 **اختر الخدمة المطلوبة من القائمة أدناه:**"
+        )
+        try:
+            await query.edit_message_text(yemen_menu_text, parse_mode='Markdown', reply_markup=get_yemen_mobile_services_keyboard())
+        except Exception:
+            pass
+
+    elif data == 'ym_service_889':
+        # خدمة الرصيد المفتوح
+        admin_state[user_id] = {'action': 'waiting_ym_open_phone', 'service_id': 889, 'service_name': 'يمن موبايل | رصيد مفتوح'}
+        open_msg = (
+            "⚡ **الشحن الفوري التلقائي** ⚡\n\n"
+            "💰 أقل مبلغ للشحن : 100 ريال\n\n"
+            "🔄 كل 100 ريال رصيد = 0.50$ في البوت\n\n"
+            "📱 **قم بإرسال رقمك للشحن الآن 👇**"
+        )
+        try:
+            await query.edit_message_text(open_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للقائمة", callback_data='yemen_mobile_menu')]]))
+        except Exception:
+            pass
+
+    elif data.startswith('ym_service_'):
+        # الخدمات الثابتة والباقات
+        service_id_str = data.split('_')[2]
+        service_map = {
+            '816': ('يمن موبايل | رصيد 500 أساسي', 3.39),
+            '817': ('يمن موبايل | رصيد 1,000 أساسي', 6.81),
+            '818': ('يمن موبايل | رصيد 2,000 أساسي', 13.59),
+            '819': ('يمن موبايل | رصيد 3,000 أساسي', 20.40),
+            '820': ('يمن موبايل | رصيد 5,000 أساسي', 34.02),
+            '821': ('يمن موبايل | رصيد 10,000 أساسي', 68.04),
+            '822': ('يمن موبايل | باقة مزايا أسبوعية', 2.69),
+            '823': ('يمن موبايل | باقة مزايا شهرية دفع مسبق', 6.72),
+            '824': ('يمن موبايل | باقة مزايا ماكس شهرية', 11.25)
+        }
+        s_info = service_map.get(service_id_str, ('يمن موبايل', 1.0))
+        admin_state[user_id] = {
+            'action': 'waiting_ym_fixed_phone',
+            'service_id': int(service_id_str),
+            'service_name': s_info[0],
+            'price': s_info[1]
+        }
+        try:
+            await query.edit_message_text(
+                f"📦 **تم اختيار الخدمة:** `{s_info[0]}`\n"
+                f"💰 **السعر الإجمالي:** `${s_info[1]:.2f}`\n\n"
+                "📱 **أرسل الآن رقم يمن موبايل المراد الشحن إليه (يبدأ بـ 77 أو 78 ويتكون من 9 أرقام):**",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]])
+            )
+        except Exception:
+            pass
+
+    elif data == 'confirm_ym_order':
+        order_info = user_order_data.get(user_id)
+        if not order_info:
+            return
+        
+        u_id = user_id
+        u_data = db_get_user(u_id)
+        current_bal = float(u_data.get('balance', 0.0))
+        cost = order_info['cost']
+        service_id = order_info['service_id']
+        phone = order_info['phone']
+        service_name = order_info['service_name']
+        quantity = order_info.get('quantity', 1)
+
+        if current_bal < cost:
+            try:
+                await query.edit_message_text(
+                    f"❌ **عذراً، رصيدك الحالي غير كافٍ لإتمام الشحن!**\n⭐ رصيدك: `${current_bal:.2f}`\n💰 التكلفة: `${cost:.2f}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                )
+            except Exception:
+                pass
+            return
+
+        # إرسال الطلب لـ API موقع الرشق (HMCARD)
+        payload = {
+            'key': HMCARD_API_KEY,
+            'action': 'add',
+            'service': int(service_id),
+            'link': str(phone),
+            'quantity': int(quantity)
+        }
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Origin': 'https://hmcard.online',
+            'Referer': 'https://hmcard.online/'
+        }
+
+        success_request = False
+        hm_order_id = None
+        raw_resp = ""
+
+        try:
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+            raw_resp = response.text
+            if response.status_code == 200:
+                resp_json = response.json()
+                hm_order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                if hm_order_id:
+                    success_request = True
+        except Exception as e:
+            raw_resp = str(e)
+
+        if success_request and hm_order_id:
+            db_update_balance(u_id, cost, mode="deduct")
+            new_bal = db_get_user(u_id).get('balance', 0.0)
+            try:
+                await query.edit_message_text(
+                    f"✅ **تم إرسال طلب الشحن بنجاح وتأكيده!** 🚀✨\n\n"
+                    f"📦 الخدمة: `{service_name}`\n"
+                    f"📱 الرقم: `{phone}`\n"
+                    f"🆔 رقم الطلب: `{hm_order_id}`\n"
+                    f"⭐ تم خصم: `${cost:.2f}` | رصيدك المتبقي: `${new_bal:.2f}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+            except Exception:
+                pass
+
+            log_text = (
+                "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح!** ✅\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 آيدي العميل: `{u_id}`\n"
+                f"📦 الخدمة: `{service_name}`\n"
+                f"📱 الرقم: `{phone}`\n"
+                f"🆔 رقم الطلب: `{hm_order_id}`\n"
+                f"💰 المبلغ المخصوم: `${cost:.2f}`"
+            )
+            await send_log_to_channel(context, log_text, 'yemen_mobile_menu')
+        else:
+            try:
+                await query.edit_message_text(
+                    f"❌ **عذراً، فشل تنفيذ الطلب من الموقع!**\n\nرد السيرفر: `{raw_resp[:300]}`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+            except Exception:
+                pass
+        return
+    # ======================================================================
 
     elif data == 'free_social_number':
         return
@@ -1016,7 +1172,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
@@ -1890,6 +2046,120 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     text_content = update.message.text.strip() if update.message.text else ""
+
+    # ==================== معالجة خطوات إدخال أرقام وطلب يمن موبايل ====================
+    if user_id in admin_state:
+        st_action = admin_state[user_id].get('action')
+        
+        if st_action == 'waiting_ym_open_phone':
+            # التحقق من أن الرقم يبدأ بـ 77 أو 78 ويتكون من 9 أرقام
+            if not (text_content.isdigit() and len(text_content) == 9 and (text_content.startswith('77') or text_content.startswith('78'))):
+                await update.message.reply_text(
+                    "❌ **عذراً، الرقم المدخل غير صحيح!**\n"
+                    "يجب أن يكون الرقم خاص بشبكة يمن موبايل ويتكون من 9 أرقام ويبدأ بـ **77** أو **78** فقط.\n"
+                    "📱 يرجى إرسال الرقم الصحيح مجدداً:"
+                )
+                return
+            
+            admin_state[user_id]['phone'] = text_content
+            admin_state[user_id]['action'] = 'waiting_ym_open_amount'
+            await update.message.reply_text(
+                f"📥 تم استلام الرقم: `{text_content}`\n\n"
+                "💰 الآن أرسل مبلغ الرصيد الذي تريد شحنه بالريال اليمني (مثال: 100):",
+                parse_mode='Markdown'
+            )
+            return
+
+        elif st_action == 'waiting_ym_open_amount':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال المبلغ بالأرقام الصحيحة (مثال: 500 أو 100):")
+                return
+            
+            amount_yer = int(text_content)
+            if amount_yer < 100:
+                await update.message.reply_text("❌ أقل مبلغ للشحن المفتوح هو 100 ريال يمني. يرجى إرسال مبلغ صحيح:")
+                return
+            
+            # المعادلة: كل 100 ريال = 0.50$
+            cost_usd = (amount_yer / 100.0) * 0.50
+            phone = admin_state[user_id].get('phone')
+            service_id = admin_state[user_id].get('service_id')
+            service_name = admin_state[user_id].get('service_name')
+            
+            admin_state.pop(user_id, None)
+            u_data = db_get_user(user_id)
+            current_balance = float(u_data.get('balance', 0.0))
+
+            user_order_data[user_id] = {
+                'service_id': service_id,
+                'service_name': f"{service_name} ({amount_yer} ريال)",
+                'phone': phone,
+                'cost': cost_usd,
+                'quantity': 1
+            }
+
+            summary_msg = (
+                "📋 **تفاصيل طلب شحن الرصيد المفتوح:**\n\n"
+                f"📱 الرقم: `{phone}`\n"
+                f"💰 الرصيد المطلوب: `{amount_yer} ريال`\n"
+                f"💵 التكلفة الإجمالية: `${cost_usd:.2f}`\n"
+                f"💳 رصيدك الحالي في البوت: `${current_balance:.2f}`\n\n"
+                "⚠️ هل تريد تأكيد خصم المبلغ وشحن الرصيد الآن؟"
+            )
+            await update.message.reply_text(
+                summary_msg,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_ym_order")],
+                    [InlineKeyboardButton("❌ إلغاء", callback_data="yemen_mobile_menu")]
+                ])
+            )
+            return
+
+        elif st_action == 'waiting_ym_fixed_phone':
+            if not (text_content.isdigit() and len(text_content) == 9 and (text_content.startswith('77') or text_content.startswith('78'))):
+                await update.message.reply_text(
+                    "❌ **عذراً، الرقم المدخل غير صحيح!**\n"
+                    "يجب أن يكون الرقم خاص بشبكة يمن موبايل ويتكون من 9 أرقام ويبدأ بـ **77** أو **78** فقط.\n"
+                    "📱 يرجى إرسال الرقم الصحيح مجدداً:"
+                )
+                return
+            
+            phone = text_content
+            service_id = admin_state[user_id].get('service_id')
+            service_name = admin_state[user_id].get('service_name')
+            cost = admin_state[user_id].get('price')
+            
+            admin_state.pop(user_id, None)
+            u_data = db_get_user(user_id)
+            current_balance = float(u_data.get('balance', 0.0))
+
+            user_order_data[user_id] = {
+                'service_id': service_id,
+                'service_name': service_name,
+                'phone': phone,
+                'cost': cost,
+                'quantity': 1
+            }
+
+            summary_msg = (
+                "📋 **تفاصيل طلب خدمة يمن موبايل:**\n\n"
+                f"📦 الخدمة: `{service_name}`\n"
+                f"📱 الرقم: `{phone}`\n"
+                f"💵 التكلفة الإجمالية: `${cost:.2f}`\n"
+                f"💳 رصيدك الحالي في البوت: `${current_balance:.2f}`\n\n"
+                "⚠️ هل تريد تأكيد خصم المبلغ وشحن الخدمة الآن؟"
+            )
+            await update.message.reply_text(
+                summary_msg,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_ym_order")],
+                    [InlineKeyboardButton("❌ إلغاء", callback_data="yemen_mobile_menu")]
+                ])
+            )
+            return
+    # ======================================================================
 
     if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state and admin_state.get(user_id, {}).get('action') == 'waiting_for_owner_channel_post':
         admin_state.pop(user_id, None)
