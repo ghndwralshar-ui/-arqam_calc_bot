@@ -518,6 +518,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
+    # ✅ الرد الفوري على كل الضغطات لمنع أي أزرار صامتة
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
     if data == 'check_subscription':
         if await check_user_subscription(user_id, context):
             verification_cache[user_id] = "waiting_math"
@@ -541,7 +547,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not await check_user_subscription(user_id, context):
-        await query.answer("⚠️ يجب عليك الاشتراك في القناة أولاً لاستخدام البوت!", show_alert=True)
         try:
             await query.edit_message_text(
                 FORCED_SUB_MESSAGE,
@@ -550,11 +555,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         return
-
-    try:
-        await query.answer()
-    except Exception:
-        pass
 
     if data == 'main_menu':
         u_data = db_get_user(user_id)
@@ -574,7 +574,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'free_social_number':
-        await query.answer("⚠️ قسم الأرقام المجانية معطل حالياً من الإدارة.", show_alert=True)
         return
 
     elif data == 'buy_virtual_number':
@@ -649,7 +648,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔄 جاري توفير أرقام جديدة قريباً، يمكنك اختيار دولة أخرى متاحة حالياً بكل سهولة! 👇"
         )
 
-        await query.answer("🔄 جاري الشراء وتجهيز الرقم من أفضل مشغل...", show_alert=False)
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
                 res = await client.get(f"https://5sim.net/v1/user/buy/activation/{country_code}/{operator_name}/{service}")
@@ -730,11 +728,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         order_status_info = active_numbers_cache.get(old_order_id, {})
         if order_status_info.get('has_sms', False):
-            await query.answer("⚠️ عذراً، لا يمكن تغيير الرقم أو إلغاؤه لأنه قد وصل كود التحقق بالفعل!", show_alert=True)
             return
 
-        await query.answer("🔄 جاري إلغاء الرقم الحالي واستخراج رقم جديد بأعلى نسبة نجاح...", show_alert=False)
-        
         async with httpx.AsyncClient(headers=HEADERS, timeout=15.0) as client:
             try:
                 await client.get(f"https://5sim.net/v1/user/cancel/{old_order_id}")
@@ -807,7 +802,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         order_status_info = active_numbers_cache.get(order_id, {})
         if order_status_info.get('has_sms', False):
-            await query.answer("⚠️ عذراً، لا يمكن إلغاء الرقم لأنه قد وصل كود التحقق بالفعل وتم الخصم!", show_alert=True)
             return
 
         async with httpx.AsyncClient(headers=HEADERS, timeout=10.0) as client:
@@ -816,7 +810,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if order_status_info.get('balance_deducted', False):
                     db_update_balance(user_id, price, mode="add")
 
-                await query.answer("✅ تم إلغاء الرقم بنجاح!", show_alert=True)
                 try:
                     await query.edit_message_text("🚫 **تم إلغاء الرقم بنجاح.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
                 except Exception:
@@ -925,7 +918,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data in ["sec_twitter", "sec_kwai", "sec_snapchat", "sec_linkedin"]:
-        await query.answer("⚠️ عذراً، لا توجد خدمات متاحة في هذه الفئة حالياً.", show_alert=True)
         return
 
     elif data == 'free_services_menu':
@@ -1023,7 +1015,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
@@ -1289,7 +1281,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         service = user_selected_service.get(user_id)
         
         if not order or not service:
-            await query.answer("⚠️ انتهت صلاحية الطلب أو حدث خطأ، يرجى إعادة محاولة الطلب من جديد.", show_alert=True)
             return
 
         qty = order.get('count', 1)
@@ -1308,8 +1299,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
             return
-
-        await query.answer("⏳ جاري إرسال الطلب للمنصة...", show_alert=False)
 
         payload = {
             'key': HMCARD_API_KEY,
@@ -1501,9 +1490,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=user_id, title=f"شحن رصيد بقيمة ${usd_amount}", description="شحن فوري",
                 payload=f"deposit_{user_id}_{usd_amount}", provider_token="", currency="XTR", prices=[LabeledPrice("شحن", int(stars_count))]
             )
-            await query.answer("✅ تم إرسال فاتورة النجوم في المحادثة.", show_alert=True)
         except Exception:
-            await query.answer("⚠️ تعذر إنشاء الفاتورة.", show_alert=True)
+            pass
 
     elif data == 'dep_jaib':
         admin_state[user_id] = {'action': 'waiting_for_jaib_deposit'}
@@ -1539,13 +1527,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_panel':
-        try:
-            await query.answer("🔄 جاري تحميل لوحة التحكم...", show_alert=False)
-        except Exception:
-            pass
-
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
-            await query.answer("⛔ ليس لديك صلاحيات لوحة التحكم.", show_alert=True)
             return
         
         if is_owner(user_id) or user_id == ADMIN_ID:
@@ -1573,7 +1555,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception as e:
                 print(f"Error loading owner panel: {e}")
-                await query.answer("⚠️ حدث خطأ أثناء تحميل البيانات، جرب مجدداً.", show_alert=True)
         else:
             try:
                 sub_panel_text = (
@@ -1591,7 +1572,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'owner_publish_to_channel':
         if not is_owner(user_id):
-            await query.answer("⛔ هذا الزر مخصص للمالك الأساسي للبوت فقط!", show_alert=True)
             return
         
         admin_state[user_id] = {'action': 'waiting_for_owner_channel_post'}
@@ -1603,8 +1583,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
             )
-        except Exception as e:
-            print(f"Error in owner_publish: {e}")
+        except Exception:
             pass
 
     elif data == 'admin_top_refs':
@@ -1700,7 +1679,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'admin_reset_balances':
         if not is_owner(user_id):
-            await query.answer("⛔ عذراً، هذا الإجراء مخصص للمالك الأساسي فقط!", show_alert=True)
             return
         try:
             res = supabase.table("users").select("user_id").execute()
@@ -1708,7 +1686,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
         except Exception:
             pass
-        await query.answer("✅ تمت التصفير بأمان تام بواسطة المالك!", show_alert=True)
         try:
             await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بناءً على طلب المالك حصرياً.", reply_markup=get_admin_keyboard())
         except Exception:
@@ -1916,7 +1893,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # معالجة نشر المالك رسالة لقناة البوت
     if is_owner(user_id) and user_id in admin_state and admin_state.get(user_id, {}).get('action') == 'waiting_for_owner_channel_post':
         admin_state.pop(user_id, None)
         bot_username = context.bot.username
@@ -1951,7 +1927,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     u_data = db_get_user(user_id)
 
-    # === معالجة إضافة وخصم الرصيد عبر إرسال الآيدي ثم المبلغ ===
     if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state:
         st = admin_state[user_id].get('action')
 
@@ -2034,8 +2009,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 except Exception:
                     pass
 
-                bot_username = context.bot.username
-                promo_link = f"https://t.me/{bot_username}?start=promo_{promo_code}"
                 await update.message.reply_text(f"✅ تم إنشاء كود الهدية `{promo_code}` بقيمة `${promo_amount}` بنجاح!", parse_mode='Markdown')
             except Exception as e:
                 await update.message.reply_text(f"❌ حدث خطأ: {e}")
