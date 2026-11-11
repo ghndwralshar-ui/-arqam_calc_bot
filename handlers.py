@@ -688,7 +688,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            # خطوة أساسية لكسر حماية Bot Verification وتجاوز الكوكيز
+            # تجاوز حماية Bot Verification وجلب الجلسة والكوكيز الحقيقية أولاً
             try:
                 home_res = scraper.get("https://hmcard.online/", timeout=20)
                 if home_res.cookies:
@@ -1152,7 +1152,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'fs_password_gen':
-        import random, string
         chars = string.ascii_letters + string.digits + "!@#$%&*"
         secure_pass = "".join(random.choice(chars) for _ in range(14))
         pass_text = (
@@ -1537,7 +1536,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            # تجاوز صفحة التحقق عبر زيارة الـ Home أولاً لجلب جلسة الكوكيز الصالحة
             try:
                 home_res = scraper.get("https://hmcard.online/", timeout=20)
                 if home_res.cookies:
