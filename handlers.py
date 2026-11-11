@@ -677,7 +677,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_resp = ""
 
         try:
-            # استخدام cloudscraper لتجاوز حماية Bot Verification بشكل كامل وناجح
             scraper = cloudscraper.create_scraper(
                 browser={
                     'browser': 'chrome',
@@ -689,13 +688,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            # زيارة الصفحة الرئيسية أولاً لجلب كوكيز الجلسة الحقيقية
             try:
                 home_res = scraper.get("https://hmcard.online/", timeout=20)
                 if home_res.cookies:
                     scraper.cookies.update(home_res.cookies)
-            except Exception as e:
-                print(f"Session Cookie fetch warning: {e}")
+            except Exception:
+                pass
 
             req_headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -718,18 +716,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 try:
                     clean_json_str = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
                     resp_json = json.loads(clean_json_str)
+                    
                     hm_order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                    if hm_order_id:
+                    error_msg = resp_json.get("error") or resp_json.get("message")
+                    
+                    if hm_order_id and not error_msg:
                         success_request = True
-                    elif resp_json.get("success") is True or "success" in raw_resp.lower():
+                    elif resp_json.get("success") is True and not error_msg:
                         success_request = True
                         hm_order_id = "YM_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
                 except Exception:
-                    if "success" in raw_resp.lower() and "Bot Verification" not in raw_resp:
+                    if "success" in raw_resp.lower() and "Bot Verification" not in raw_resp and "error" not in raw_resp.lower():
                         success_request = True
                         hm_order_id = "YM_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
             else:
-                raw_resp = "حماية Bot Verification تمنع الطلب الآلي مؤقتاً."
+                raw_resp = "حماية Bot Verification تمنع الطلب الآلي أو الموقع رفض الطلب."
         except Exception as e:
             raw_resp = str(e)
 
@@ -738,7 +739,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             new_bal = db_get_user(u_id).get('balance', 0.0)
             try:
                 await query.edit_message_text(
-                    f"✅ **تم إرسال طلب الشحن بنجاح وتأكيده!** 🚀✨\n\n"
+                    f"✅ **تم تنفذ الشحن واكتماله بنجاح من الموقع!** 🚀✨\n\n"
                     f"📦 الخدمة: `{service_name}`\n"
                     f"📱 الرقم: `{phone}`\n"
                     f"🆔 رقم الطلب: `{hm_order_id}`\n"
@@ -750,7 +751,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
             log_text = (
-                "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح!** ✅\n"
+                "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح تام!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👤 آيدي العميل: `{u_id}`\n"
                 f"📦 الخدمة: `{service_name}`\n"
@@ -762,7 +763,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، فشل تنفيذ الطلب من الموقع!**\n\nرد السيرفر: `{raw_resp[:300]}`",
+                    f"❌ **عذراً، رفض الموقع تنفيذ الطلب أو حدث خطأ في النظام!**\n\nرد السيرفر: `{raw_resp[:300]}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1212,7 +1213,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
@@ -1526,7 +1527,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_response_text = ""
 
         try:
-            # استخدام cloudscraper لجميع طلبات الرشق لتجاوز الحماية كمتصفح حقيقي
             scraper = cloudscraper.create_scraper(
                 browser={
                     'browser': 'chrome',
@@ -1568,17 +1568,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     resp_json = json.loads(clean_json_str)
                     if isinstance(resp_json, dict):
                         order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                        if order_id:
+                        error_msg = resp_json.get("error") or resp_json.get("message")
+                        
+                        if order_id and not error_msg:
                             success_request = True
-                        elif resp_json.get("success") is True or "success" in raw_response_text.lower():
+                        elif resp_json.get("success") is True and not error_msg:
                             success_request = True
                             order_id = "RSHQ_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
                 except Exception:
-                    if ("order" in raw_response_text.lower() or "success" in raw_response_text.lower()) and "Bot Verification" not in raw_response_text:
+                    if ("order" in raw_response_text.lower() or "success" in raw_response_text.lower()) and "Bot Verification" not in raw_response_text and "error" not in raw_response_text.lower():
                         success_request = True
                         order_id = "RSHQ_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
             else:
-                raw_response_text = "حماية Bot Verification تمنع طلب الرشق."
+                raw_response_text = "حماية Bot Verification تمنع طلب الرشق أو رفض الموقع."
         except Exception as e:
             raw_response_text = f"Connection Exception: {str(e)}"
 
@@ -1586,7 +1588,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db_update_balance(user_id, final_cost, mode="deduct")
             try:
                 await query.edit_message_text(
-                    f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح!** 🚀✨\n\n"
+                    f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح من الموقع!** 🚀✨\n\n"
                     f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
                     f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
                     f"📦 **الكمية:** `{qty:,}`\n"
@@ -1600,7 +1602,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             service_name = service.get('name', 'خدمة رقمية')
             cb_param = service.get('callback_data', 'main_rashq')
             log_msg = (
-                "🔥 **تم تنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                "🔥 **تم تنفيذ طلب رشق جديد بنجاح تام!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👤 **آيدي العميل:** `{user_id}`\n"
                 f"🛍️ **الخدمة:** `{service_name}`\n"
@@ -1615,9 +1617,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             error_display = raw_response_text[:400] if raw_response_text else "لا يوجد رد من السيرفر"
             try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، رفض الموقع الطلب!**\n\n"
+                    f"❌ **عذراً، رفض الموقع الطلب أو حدث خطأ في النظام!**\n\n"
                     f"💬 **رد السيرفر الخام:**\n`{error_display}`\n\n"
-                    f"💡 هذا الرد يوضح السبب الحقيقي الذي أرسله موقع HMCARD.",
+                    f"💡 لم يتم خصم أي رصيد من حسابك لأن الطلب لم يكتمل في المنصة.",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
