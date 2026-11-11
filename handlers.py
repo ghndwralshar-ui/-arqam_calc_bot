@@ -571,19 +571,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # ==================== معالجة خدمات يمن موبايل الجديدة (محدثة مع رابط الدعوة) ====================
+    # ==================== معالجة خدمات يمن موبايل ====================
     elif data == 'yemen_mobile_menu':
         u_data = db_get_user(user_id)
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         
         yemen_menu_text = (
-            f"🇾🇪 🎁🔥 **ربح رصيد يمن موبايل مجاناً وبأفضل الأسعار** 🔥🎁 🇾🇪\n"
+            "🇾🇪 🎁🔥 **ربح رصيد يمن موبايل مجاناً وبأفضل الأسعار** 🔥🎁 🇾🇪\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"👤 **آيدي الحساب:** `{user_id}`\n"
             f"💎 **رصيدك الحالي في البوت:** `${u_data['balance']:.2f}`\n\n"
-            "💡 *اشحن رصيدك وباقات يمن موبايل بشكل فوري وتلقائي عبر رصيد البوت!*\n"
-            "💬 *قم بمشاركة رابط دعوة الأصدقاء الخاص بك، وعن طريق كل دعوة صديق ستربح مبلغ `0.10$` دولار واستبدل أرباحك من الدعوات إلى رصيد يمن موبايل.*\n\n"
+            "💡 **اشحن رصيدك وباقات يمن موبايل بشكل فوري وتلقائي عبر رصيد البوت!**\n"
+            "💬 **قم بمشاركة رابط دعوة الأصدقاء الخاص بك، وعن طريق كل دعوة صديق ستربح مبلغ `0.10$` دولار واستبدل أرباحك من الدعوات إلى رصيد يمن موبايل.**\n\n"
             f"🔗 **رابط دعوة الأصدقاء الخاص بك:**\n`{ref_link}`\n"
             f"👥 **عدد الدعوات:** `{u_data['referrals']} شخص` | 💰 **أرباح الدعوات:** `${u_data['referrals'] * 0.10:.2f}`\n\n"
             "👇 **اختر الخدمة المطلوبة من القائمة أدناه:**"
@@ -1441,6 +1441,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         qty = order.get('count', 1)
+        
+        # التحقق من الحد الأدنى المسموح به قبل الإرسال للسيرفر
+        min_limit = service.get('min', 10)
+        if qty < min_limit:
+            try:
+                await query.edit_message_text(
+                    f"❌ **عذراً، الكمية المدخلة أقل من الحد الأدنى المسموح به لهذه الخدمة!**\n\n"
+                    f"📉 الحد الأدنى للطلب: `{min_limit:,}`\n"
+                    f"📊 الكمية التي ادخلتها: `{qty:,}`\n\n"
+                    f"🔄 يرجى المحاولة مرة أخرى وإدخال كمية تتوافق مع شروط الخدمة.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                )
+            except Exception:
+                pass
+            return
+
         fixed_cost = order.get('fixed_cost', 0.0)
         calc_cost = order.get('calc_cost', 0.0)
         final_cost = fixed_cost if fixed_cost > 0 else calc_cost
@@ -2019,8 +2036,6 @@ async def handle_contact_message(update: Update, context: ContextTypes.DEFAULT_T
                 parse_mode='Markdown',
                 reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID) or is_owner(uid))
             )
-            
-            # تم حذف الرسالة الزائدة التي كانت تظهر هنا نهائياً بناءً على طلبك
             return
         else:
             verification_cache[user_id] = "waiting_contact"
