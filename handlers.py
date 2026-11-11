@@ -664,7 +664,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        # تعديل الـ payload بحيث يتم التعامل مع الخدمة كطلب ناجح تماماً متوافق مع استقبال الموقع
         payload = {
             'key': HMCARD_API_KEY,
             'action': 'add',
@@ -673,44 +672,51 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'quantity': int(quantity)
         }
 
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Origin': 'https://hmcard.online',
-            'Referer': 'https://hmcard.online/'
-        }
-
         success_request = False
         hm_order_id = None
         raw_resp = ""
 
         try:
-            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            scraper = cloudscraper.create_scraper(
+                browser={
+                    'browser': 'chrome',
+                    'platform': 'windows',
+                    'desktop': True
+                }
+            )
+            
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
+            # خطوة أساسية لكسر حماية Bot Verification وتجاوز الكوكيز
             try:
-                main_page = scraper.get("https://hmcard.online/", headers=headers, timeout=15)
-                if main_page.cookies:
-                    scraper.cookies.update(main_page.cookies)
-            except Exception:
-                pass
+                home_res = scraper.get("https://hmcard.online/", timeout=20)
+                if home_res.cookies:
+                    scraper.cookies.update(home_res.cookies)
+            except Exception as e:
+                print(f"Session Cookie fetch warning: {e}")
 
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
+            req_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Origin': 'https://hmcard.online',
+                'Referer': 'https://hmcard.online/'
+            }
+
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=req_headers, timeout=35)
+            
             try:
                 raw_resp = response.content.decode('utf-8', errors='ignore')
             except Exception:
                 raw_resp = response.text
 
-            if response.status_code == 200:
+            if response.status_code == 200 and "Bot Verification" not in raw_resp:
                 try:
                     clean_json_str = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
                     resp_json = json.loads(clean_json_str)
-                    
-                    # التحقق من نجاح الطلب سواء كان برقم طلب عادي أو برصيد مفتوح
                     hm_order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                     if hm_order_id:
                         success_request = True
@@ -718,10 +724,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         success_request = True
                         hm_order_id = "YM_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
                 except Exception:
-                    # لو رد السيرفر يحتوي على نجاح رغم اختلاف البنية
-                    if "success" in raw_resp.lower() and "false" not in raw_resp.lower():
+                    if "success" in raw_resp.lower() and "Bot Verification" not in raw_resp:
                         success_request = True
                         hm_order_id = "YM_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            else:
+                raw_resp = "حماية Bot Verification تمنع الطلب الآلي مؤقتاً."
         except Exception as e:
             raw_resp = str(e)
 
@@ -1514,40 +1521,48 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'quantity': int(qty)
         }
 
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Origin': 'https://hmcard.online',
-            'Referer': 'https://hmcard.online/'
-        }
-
         success_request = False
         order_id = None
         raw_response_text = ""
 
         try:
-            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            scraper = cloudscraper.create_scraper(
+                browser={
+                    'browser': 'chrome',
+                    'platform': 'windows',
+                    'desktop': True
+                }
+            )
+            
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
+            # تجاوز صفحة التحقق عبر زيارة الـ Home أولاً لجلب جلسة الكوكيز الصالحة
             try:
-                main_page = scraper.get("https://hmcard.online/", headers=headers, timeout=15)
-                if main_page.cookies:
-                    scraper.cookies.update(main_page.cookies)
+                home_res = scraper.get("https://hmcard.online/", timeout=20)
+                if home_res.cookies:
+                    scraper.cookies.update(home_res.cookies)
             except Exception:
                 pass
 
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
+            req_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Origin': 'https://hmcard.online',
+                'Referer': 'https://hmcard.online/'
+            }
+
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=req_headers, timeout=35)
             
             try:
                 raw_response_text = response.content.decode('utf-8', errors='ignore')
             except Exception:
                 raw_response_text = response.text
             
-            if response.status_code == 200:
+            if response.status_code == 200 and "Bot Verification" not in raw_response_text:
                 try:
                     clean_json_str = raw_response_text[raw_response_text.find('{'):raw_response_text.rfind('}')+1]
                     resp_json = json.loads(clean_json_str)
@@ -1559,9 +1574,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             success_request = True
                             order_id = "RSHQ_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
                 except Exception:
-                    if "order" in raw_response_text.lower() or "success" in raw_response_text.lower():
+                    if ("order" in raw_response_text.lower() or "success" in raw_response_text.lower()) and "Bot Verification" not in raw_response_text:
                         success_request = True
                         order_id = "RSHQ_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            else:
+                raw_response_text = "حماية Bot Verification تمنع طلب الرشق."
         except Exception as e:
             raw_response_text = f"Connection Exception: {str(e)}"
 
