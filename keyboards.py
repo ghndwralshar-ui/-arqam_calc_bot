@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from config import FORCED_CHANNEL_URL
 
 def get_forced_subscription_keyboard():
@@ -28,42 +28,19 @@ def get_main_keyboard(user_id, is_admin_func):
 
 # دالة أزرار القائمة الفرعية لخدمات يمن موبايل الجديدة
 def get_yemen_mobile_services_keyboard():
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    # 1. خدمة الرصيد المفتوح
-    keyboard.add(
-        InlineKeyboardButton(
-            text="📶 يمن موبايل | رصيد مفتوح",
-            callback_data="ym_service_889"
-        )
-    )
-    # 2. الخدمات الثابتة والباقات (بالأسعار المضاعفة ×3)
-    keyboard.add(
-        InlineKeyboardButton(text="📶 شحن 500 أساسي — 3.39$", callback_data="ym_service_816"),
-        InlineKeyboardButton(text="📶 شحن 1,000 أساسي — 6.81$", callback_data="ym_service_817")
-    )
-    keyboard.add(
-        InlineKeyboardButton(text="📶 شحن 2,000 أساسي — 13.59$", callback_data="ym_service_818"),
-        InlineKeyboardButton(text="📶 شحن 3,000 أساسي — 20.40$", callback_data="ym_service_819")
-    )
-    keyboard.add(
-        InlineKeyboardButton(text="📶 شحن 5,000 أساسي — 34.02$", callback_data="ym_service_820"),
-        InlineKeyboardButton(text="📶 شحن 10,000 أساسي — 68.04$", callback_data="ym_service_821")
-    )
-    keyboard.add(
-        InlineKeyboardButton(text="🎁 باقة مزايا أسبوعية — 2.69$", callback_data="ym_service_822"),
-        InlineKeyboardButton(text="📦 باقة مزايا شهرية — 6.72$", callback_data="ym_service_823")
-    )
-    keyboard.add(
-        InlineKeyboardButton(text="🔥 باقة مزايا ماكس شهرية — 11.25$", callback_data="ym_service_824")
-    )
-    # زر العودة للقائمة الرئيسية
-    keyboard.add(
-        InlineKeyboardButton(
-            text="🔙 عودة للقائمة الرئيسية",
-            callback_data="main_menu"
-        )
-    )
-    return keyboard
+    buttons = [
+        # 1. خدمة الرصيد المفتوح
+        [InlineKeyboardButton("📶 يمن موبايل | رصيد مفتوح", callback_data="ym_service_889")],
+        # 2. الخدمات الثابتة والباقات (بالأسعار المضاعفة ×3)
+        [InlineKeyboardButton("📶 شحن 500 أساسي — 3.39$", callback_data="ym_service_816"), InlineKeyboardButton("📶 شحن 1,000 أساسي — 6.81$", callback_data="ym_service_817")],
+        [InlineKeyboardButton("📶 شحن 2,000 أساسي — 13.59$", callback_data="ym_service_818"), InlineKeyboardButton("📶 شحن 3,000 أساسي — 20.40$", callback_data="ym_service_819")],
+        [InlineKeyboardButton("📶 شحن 5,000 أساسي — 34.02$", callback_data="ym_service_820"), InlineKeyboardButton("📶 شحن 10,000 أساسي — 68.04$", callback_data="ym_service_821")],
+        [InlineKeyboardButton("🎁 باقة مزايا أسبوعية — 2.69$", callback_data="ym_service_822"), InlineKeyboardButton("📦 باقة مزايا شهرية — 6.72$", callback_data="ym_service_823")],
+        [InlineKeyboardButton("🔥 باقة مزايا ماكس شهرية — 11.25$", callback_data="ym_service_824")],
+        # زر العودة للقائمة الرئيسية
+        [InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data="main_menu")]
+    ]
+    return InlineKeyboardMarkup(buttons)
 
 def get_free_services_keyboard():
     return InlineKeyboardMarkup([
