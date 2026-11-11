@@ -650,7 +650,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         phone = order_info['phone']
         service_name = order_info['service_name']
         
-        # ضبط الكمية (Quantity) لتساوي المبلغ بالريال اليمني للخدمات المفتوحة، أو 1 للخدمات الثابتة
         quantity = order_info.get('quantity', 1)
         if service_id == 889:
             quantity = order_info.get('amount_yer', 100)
@@ -673,13 +672,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'link': str(phone),
             'quantity': int(quantity)
         }
+
+        # ترويسات متطابقة تماماً لمتصفح حقيقي لتجاوز 403 Forbidden
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
             'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest',
             'Origin': 'https://hmcard.online',
-            'Referer': 'https://hmcard.online/'
+            'Referer': 'https://hmcard.online/',
+            'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin'
         }
 
         success_request = False
@@ -687,20 +696,34 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_resp = ""
 
         try:
-            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            scraper = cloudscraper.create_scraper(
+                browser={
+                    'browser': 'chrome',
+                    'platform': 'windows',
+                    'desktop': True
+                }
+            )
+            
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            # جلب الكوكيز لتجاوز الحماية أولاً
+            # جلب كوكيز الجلسة والـ CF_Clearance لتجاوز 403 الحماية
             try:
-                main_page = scraper.get("https://hmcard.online/", headers=headers, timeout=15)
+                main_page = scraper.get("https://hmcard.online/", headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+                    'Referer': 'https://hmcard.online/'
+                }, timeout=15)
+                
                 if main_page.cookies:
                     scraper.cookies.update(main_page.cookies)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Pre-request cookie error: {e}")
 
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
             raw_resp = response.text
+            
             if response.status_code == 200:
                 try:
                     resp_json = response.json()
@@ -1462,7 +1485,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         qty = order.get('count', 1)
         
-        # التحقق من الحد الأدنى المسموح به قبل الإرسال للسيرفر
         min_limit = service.get('min', 10)
         if qty < min_limit:
             try:
@@ -1503,12 +1525,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
             'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest',
             'Origin': 'https://hmcard.online',
-            'Referer': 'https://hmcard.online/'
+            'Referer': 'https://hmcard.online/',
+            'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin'
         }
 
         success_request = False
@@ -1527,9 +1557,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            # زيارة الموقع أولاً لجلب الكوكيز وتجاوز حماية الـ Bot Verification
             try:
-                main_page = scraper.get("https://hmcard.online/", headers=headers, timeout=15)
+                main_page = scraper.get("https://hmcard.online/", headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+                    'Referer': 'https://hmcard.online/'
+                }, timeout=15)
+                
                 if main_page.cookies:
                     scraper.cookies.update(main_page.cookies)
             except Exception:
