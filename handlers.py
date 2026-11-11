@@ -175,14 +175,8 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
-# 🔄 الدالة المحدثة وفقاً للتوثيق الرسمي لـ HMCARD API
+# 🔄 الدالة المحدثة مع إضافة سجلات طباعة مفصلة (Debug Prints)
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
-    """
-    إرسال الطلب لـ HMCARD API بناءً على التوثيق الرسمي:
-    POST https://hmcard.online/api/v2
-    Parameters: key, action=add, service, link, quantity
-    Response: {"order": 23501} أو {"error": "..."}
-    """
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
     cleaned_quantity = int(quantity)
@@ -201,6 +195,8 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
+    print(f"🚀 [DEBUG] Sending request to HMCARD API -> Service: {cleaned_service_id}, Link: {clean_link}, Qty: {cleaned_quantity}")
+
     for attempt in range(3):
         try:
             scraper = cloudscraper.create_scraper(
@@ -214,15 +210,10 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            try:
-                home_res = scraper.get("https://hmcard.online/", timeout=15)
-                if home_res.cookies:
-                    scraper.cookies.update(home_res.cookies)
-            except Exception:
-                pass
-
             response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
             raw_resp = response.content.decode('utf-8', errors='ignore')
+
+            print(f"📥 [DEBUG] Cloudscraper Attempt {attempt+1} Status: {response.status_code}, Response: {raw_resp[:300]}")
 
             if response.status_code == 200 and "Bot Verification" not in raw_resp:
                 try:
@@ -236,10 +227,10 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
                         return False, None, str(error_msg)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as parse_err:
+                    print(f"⚠️ [DEBUG] JSON Parse Error (Cloudscraper): {parse_err}")
+        except Exception as sc_err:
+            print(f"⚠️ [DEBUG] Cloudscraper Exception Attempt {attempt+1}: {sc_err}")
         await asyncio.sleep(1)
 
     try:
@@ -247,6 +238,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         async with httpx.AsyncClient(headers=headers, timeout=35.0, transport=transport, follow_redirects=True) as client:
             res = await client.post(HMCARD_API_URL, data=payload)
             raw_text = res.text
+            print(f"📥 [DEBUG] Httpx Fallback Status: {res.status_code}, Response: {raw_text[:300]}")
             
             if res.status_code == 200 and "Bot Verification" not in raw_text:
                 try:
@@ -259,10 +251,11 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
                         return False, None, str(error_msg)
-                except Exception:
-                    pass
-            return False, None, "فشل الاتصال بخادم المنصة أو أن خدمة الـ API متوقفة مؤقتاً."
+                except Exception as parse_err:
+                    print(f"⚠️ [DEBUG] JSON Parse Error (Httpx): {parse_err}")
+            return False, None, f"فشل الاتصال (Code: {res.status_code}): {raw_text[:100]}"
     except Exception as e:
+        print(f"❌ [DEBUG] Httpx Fatal Exception: {e}")
         return False, None, str(e)[:200]
 
 async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
