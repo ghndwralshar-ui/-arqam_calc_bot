@@ -1573,6 +1573,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception:
                 pass
+
+            # إرسال تقرير الخطأ إلى قناة الرادار تلقائياً
+            service_name = service.get('name', 'خدمة رقمية')
+            error_log_msg = (
+                "⚠️ **تنبيه رادار: فشل تنفيذ طلب من المنصة!** ❌\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 **آيدي العميل:** `{user_id}`\n"
+                f"🛍️ **الخدمة:** `{service_name}`\n"
+                f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
+                f"📊 **الكمية:** `{qty:,}`\n"
+                f"🚨 **سبب الرفض الدقيق:** `{error_reason}`"
+            )
+            try:
+                await context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=error_log_msg, parse_mode='Markdown')
+            except Exception:
+                pass
             return
 
     elif data == "cancel_order":
@@ -2331,6 +2347,16 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         st_data = admin_state.get(user_id, {})
         service_info = st_data.get('service_info', {"name": "خدمة", "price": 1.0, "min": 10, "max": 100000000})
         
+        # 📌 فحص الحد الأدنى لمنع رفض الموقع
+        min_limit = service_info.get("min", 10)
+        if count < min_limit:
+            await update.message.reply_text(
+                f"❌ **عذراً، الكمية التي أدخلتها أقل من الحد الأدنى المسموح به!**\n"
+                f"📉 الحد الأدنى لهذه الخدمة هو: `{min_limit:,}`\n"
+                f"🔄 يرجى إرسال كمية أكبر أو تساوي الحد الأدنى:"
+            )
+            return
+
         calc_cost = round((service_info["price"] * count) / 1000.0, 2)
         if calc_cost <= 0: calc_cost = 0.01
 
