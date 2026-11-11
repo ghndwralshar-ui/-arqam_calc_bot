@@ -51,7 +51,6 @@ VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
 OWNER_ID = 6472852297
 
-# 🌟 ضع رابط البروكسي هنا إذا متوفر لديك لتجاوز الحظر السحابي (مثال: "http://user:pass@ip:port")
 PROXY_URL = None
 
 def is_owner(user_id: int) -> bool:
@@ -179,31 +178,28 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
 
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     """
-    دالة موحدة خارقة ومطورة لتمرير المعاملات وتنفيذ الطلبات وتجاوز الحماية السحابية بالكامل (مصححة وخالية من أخطاء البروكسي)
+    دالة موحدة ومحدثة لتمرير الطلبات لـ HMCARD مع معالجة الأرقام، الروابط، والآيديات بدقة تامة
     """
+    clean_link = str(link).strip()
+    cleaned_service_id = int(service_id)
+    cleaned_quantity = int(quantity)
+
     payload = {
-        'key': HMCARD_API_KEY,
+        'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
-        'service': int(service_id),
-        'link': str(link),
-        'quantity': int(quantity)
+        'service': cleaned_service_id,
+        'link': clean_link,
+        'quantity': cleaned_quantity
     }
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'X-Requested-With': 'XMLHttpRequest',
         'Origin': 'https://hmcard.online',
-        'Referer': 'https://hmcard.online/',
-        'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin'
+        'Referer': 'https://hmcard.online/'
     }
 
     for attempt in range(3):
@@ -242,7 +238,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     elif resp_json.get("success") is True and not error_msg:
                         return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
                     elif error_msg:
-                        return False, None, error_msg
+                        return False, None, str(error_msg)
                 except Exception:
                     if "success" in raw_resp.lower() and "Bot Verification" not in raw_resp:
                         return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
@@ -262,12 +258,16 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
                     resp_json = json.loads(clean_json)
                     order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    error_msg = resp_json.get("error") or resp_json.get("message")
+                    
                     if order_id:
                         return True, str(order_id), "تم التنفيذ بنجاح"
+                    elif error_msg:
+                        return False, None, str(error_msg)
                 except Exception:
                     if "success" in raw_text.lower():
                         return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
-            return False, None, "حماية الموقع تمنع الاتصال الآلي (Cloudflare Block)."
+            return False, None, "حماية الموقع تمنع الاتصال الآلي أو أن خدمة الـ API غير متاحة حالياً."
     except Exception as e:
         return False, None, str(e)[:200]
 
@@ -667,7 +667,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # ==================== معالجة خدمات يمن موبايل ====================
     elif data == 'yemen_mobile_menu':
         u_data = db_get_user(user_id)
         bot_username = context.bot.username
@@ -744,7 +743,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         service_id = order_info['service_id']
         phone = order_info['phone']
         service_name = order_info['service_name']
-        
         quantity = order_info.get('quantity', 1)
 
         if current_bal < cost:
@@ -796,7 +794,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
         return
-    # ======================================================================
 
     elif data == 'buy_virtual_number':
         u_data = db_get_user(user_id)
@@ -1505,7 +1502,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         qty = order.get('count', 1)
-        
         min_limit = service.get('min', 10)
         if qty < min_limit:
             try:
@@ -2232,8 +2228,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         else:
             await update.message.reply_text("❌ الإجابة خاطئة! حاول مجدداً، كم ناتج الجمع في المسألة الرياضية السابقة؟")
         return
-
-    u_data = db_get_user(user_id)
 
     if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state:
         st = admin_state[user_id].get('action')
