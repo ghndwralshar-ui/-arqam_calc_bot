@@ -49,6 +49,8 @@ VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
 OWNER_ID = 6472852297
+
+# 🌟 ضع رابط البروكسي هنا إذا متوفر لديك لتجاوز الحظر السحابي (مثال: "http://user:pass@ip:port")
 PROXY_URL = None
 
 def is_owner(user_id: int) -> bool:
@@ -176,7 +178,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
 
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     """
-    دالة قوية جداً وموحدة لتنفيذ الطلبات وتجاوز الحماية كمتصفح حقيقي بالكامل
+    دالة موحدة خارقة لتنفيذ الطلبات وتجاوز حماية Cloudflare والتحقق الآلي بالكامل
     """
     payload = {
         'key': HMCARD_API_KEY,
@@ -186,6 +188,24 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         'quantity': int(quantity)
     }
 
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Origin': 'https://hmcard.online',
+        'Referer': 'https://hmcard.online/',
+        'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin'
+    }
+
+    # المحاولة الأولى عبر CloudScraper مع تفعيل الكوكيز والبروكسي إذا توفر
     try:
         scraper = cloudscraper.create_scraper(
             browser={
@@ -197,23 +217,6 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         
         if PROXY_URL:
             scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
-
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Origin': 'https://hmcard.online',
-            'Referer': 'https://hmcard.online/',
-            'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin'
-        }
 
         try:
             home_res = scraper.get("https://hmcard.online/", timeout=15)
@@ -237,15 +240,32 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     return True, str(order_id), "تم التنفيذ بنجاح"
                 elif resp_json.get("success") is True and not error_msg:
                     return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
-                else:
-                    return False, None, error_msg or "الموقع رفض الطلب داخلياً"
+                elif error_msg:
+                    return False, None, error_msg
             except Exception:
                 if "success" in raw_resp.lower() and "Bot Verification" not in raw_resp:
                     return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
-                return False, None, raw_resp[:200]
-        else:
-            return False, None, "حماية Bot Verification رفضت الاتصال أو تطلب تحديث الجلسة."
+    except Exception:
+        pass
+
+    # المحاولة الاحتياطية عبر عميل Httpx المباشر بأسلوب محاكاة المتصفح
+    try:
+        async with httpx.AsyncClient(headers=headers, timeout=35.0, proxies=PROXY_URL if PROXY_URL else None, follow_redirects=True) as client:
+            await client.get("https://hmcard.online/")
+            res = await client.post(HMCARD_API_URL, data=payload)
+            raw_text = res.text
             
+            if res.status_code == 200 and "Bot Verification" not in raw_text:
+                try:
+                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                    resp_json = json.loads(clean_json)
+                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    if order_id:
+                        return True, str(order_id), "تم التنفيذ بنجاح"
+                except Exception:
+                    if "success" in raw_text.lower():
+                        return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
+            return False, None, "حماية الموقع تمنع الاتصال الآلي (Cloudflare Block)."
     except Exception as e:
         return False, None, str(e)[:200]
 
