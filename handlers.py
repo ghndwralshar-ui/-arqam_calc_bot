@@ -670,7 +670,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'quantity': int(quantity)
         }
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
             'Content-Type': 'application/x-www-form-urlencoded',
             'Origin': 'https://hmcard.online',
             'Referer': 'https://hmcard.online/'
@@ -682,13 +684,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            if PROXY_URL:
+                scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
+
+            try:
+                main_page = scraper.get("https://hmcard.online/", headers=headers, timeout=15)
+                if main_page.cookies:
+                    scraper.cookies.update(main_page.cookies)
+            except Exception:
+                pass
+
             response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
             raw_resp = response.text
             if response.status_code == 200:
-                resp_json = response.json()
-                hm_order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                if hm_order_id:
-                    success_request = True
+                try:
+                    resp_json = response.json()
+                    hm_order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    if hm_order_id:
+                        success_request = True
+                except Exception:
+                    pass
         except Exception as e:
             raw_resp = str(e)
 
@@ -1484,8 +1499,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
             'Content-Type': 'application/x-www-form-urlencoded',
             'Origin': 'https://hmcard.online',
             'Referer': 'https://hmcard.online/'
@@ -1507,8 +1522,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
+            # زيارة الموقع أولاً لجلب الكوكيز وتجاوز حماية الـ Bot Verification
             try:
-                scraper.get("https://hmcard.online/", headers=headers, timeout=15)
+                main_page = scraper.get("https://hmcard.online/", headers=headers, timeout=15)
+                if main_page.cookies:
+                    scraper.cookies.update(main_page.cookies)
             except Exception:
                 pass
 
