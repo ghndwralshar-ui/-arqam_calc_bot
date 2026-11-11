@@ -174,6 +174,81 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
+async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
+    """
+    دالة قوية جداً وموحدة لتنفيذ الطلبات وتجاوز الحماية كمتصفح حقيقي بالكامل
+    """
+    payload = {
+        'key': HMCARD_API_KEY,
+        'action': 'add',
+        'service': int(service_id),
+        'link': str(link),
+        'quantity': int(quantity)
+    }
+
+    try:
+        scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'desktop': True
+            }
+        )
+        
+        if PROXY_URL:
+            scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Origin': 'https://hmcard.online',
+            'Referer': 'https://hmcard.online/',
+            'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin'
+        }
+
+        try:
+            home_res = scraper.get("https://hmcard.online/", timeout=15)
+            if home_res.cookies:
+                scraper.cookies.update(home_res.cookies)
+        except Exception:
+            pass
+
+        response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
+        raw_resp = response.content.decode('utf-8', errors='ignore')
+
+        if response.status_code == 200 and "Bot Verification" not in raw_resp:
+            try:
+                clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                resp_json = json.loads(clean_json)
+                
+                order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                error_msg = resp_json.get("error") or resp_json.get("message")
+                
+                if order_id and not error_msg:
+                    return True, str(order_id), "تم التنفيذ بنجاح"
+                elif resp_json.get("success") is True and not error_msg:
+                    return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
+                else:
+                    return False, None, error_msg or "الموقع رفض الطلب داخلياً"
+            except Exception:
+                if "success" in raw_resp.lower() and "Bot Verification" not in raw_resp:
+                    return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
+                return False, None, raw_resp[:200]
+        else:
+            return False, None, "حماية Bot Verification رفضت الاتصال أو تطلب تحديث الجلسة."
+            
+    except Exception as e:
+        return False, None, str(e)[:200]
+
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
     available_countries = []
@@ -664,82 +739,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        payload = {
-            'key': HMCARD_API_KEY,
-            'action': 'add',
-            'service': int(service_id),
-            'link': str(phone),
-            'quantity': int(quantity)
-        }
+        success, hm_order_id, error_reason = await send_order_to_hmcard(service_id, phone, quantity)
 
-        success_request = False
-        hm_order_id = None
-        raw_resp = ""
-
-        try:
-            scraper = cloudscraper.create_scraper(
-                browser={
-                    'browser': 'chrome',
-                    'platform': 'windows',
-                    'desktop': True
-                }
-            )
-            
-            if PROXY_URL:
-                scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
-
-            try:
-                home_res = scraper.get("https://hmcard.online/", timeout=20)
-                if home_res.cookies:
-                    scraper.cookies.update(home_res.cookies)
-            except Exception:
-                pass
-
-            req_headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept': 'application/json, text/javascript, */*; q=0.01',
-                'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Origin': 'https://hmcard.online',
-                'Referer': 'https://hmcard.online/'
-            }
-
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=req_headers, timeout=35)
-            
-            try:
-                raw_resp = response.content.decode('utf-8', errors='ignore')
-            except Exception:
-                raw_resp = response.text
-
-            if response.status_code == 200 and "Bot Verification" not in raw_resp:
-                try:
-                    clean_json_str = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
-                    resp_json = json.loads(clean_json_str)
-                    
-                    hm_order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                    error_msg = resp_json.get("error") or resp_json.get("message")
-                    
-                    if hm_order_id and not error_msg:
-                        success_request = True
-                    elif resp_json.get("success") is True and not error_msg:
-                        success_request = True
-                        hm_order_id = "YM_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
-                except Exception:
-                    if "success" in raw_resp.lower() and "Bot Verification" not in raw_resp and "error" not in raw_resp.lower():
-                        success_request = True
-                        hm_order_id = "YM_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
-            else:
-                raw_resp = "حماية Bot Verification تمنع الطلب الآلي أو الموقع رفض الطلب."
-        except Exception as e:
-            raw_resp = str(e)
-
-        if success_request and hm_order_id:
+        if success and hm_order_id:
             db_update_balance(u_id, cost, mode="deduct")
             new_bal = db_get_user(u_id).get('balance', 0.0)
             try:
                 await query.edit_message_text(
-                    f"✅ **تم تنفذ الشحن واكتماله بنجاح من الموقع!** 🚀✨\n\n"
+                    f"✅ **تم تنفيذ الشحن واكتماله بنجاح من الموقع!** 🚀✨\n\n"
                     f"📦 الخدمة: `{service_name}`\n"
                     f"📱 الرقم: `{phone}`\n"
                     f"🆔 رقم الطلب: `{hm_order_id}`\n"
@@ -763,7 +770,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، رفض الموقع تنفيذ الطلب أو حدث خطأ في النظام!**\n\nرد السيرفر: `{raw_resp[:300]}`",
+                    f"❌ **عذراً، رفض الموقع تنفيذ الطلب!**\n\nسبب الرفض: `{error_reason}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
@@ -1213,7 +1220,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
@@ -1514,77 +1521,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        payload = {
-            'key': HMCARD_API_KEY,
-            'action': 'add',
-            'service': int(service['service_id']),
-            'link': str(order['link']),
-            'quantity': int(qty)
-        }
+        success, order_id, error_reason = await send_order_to_hmcard(service['service_id'], order['link'], qty)
 
-        success_request = False
-        order_id = None
-        raw_response_text = ""
-
-        try:
-            scraper = cloudscraper.create_scraper(
-                browser={
-                    'browser': 'chrome',
-                    'platform': 'windows',
-                    'desktop': True
-                }
-            )
-            
-            if PROXY_URL:
-                scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
-
-            try:
-                home_res = scraper.get("https://hmcard.online/", timeout=20)
-                if home_res.cookies:
-                    scraper.cookies.update(home_res.cookies)
-            except Exception:
-                pass
-
-            req_headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept': 'application/json, text/javascript, */*; q=0.01',
-                'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Origin': 'https://hmcard.online',
-                'Referer': 'https://hmcard.online/'
-            }
-
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=req_headers, timeout=35)
-            
-            try:
-                raw_response_text = response.content.decode('utf-8', errors='ignore')
-            except Exception:
-                raw_response_text = response.text
-            
-            if response.status_code == 200 and "Bot Verification" not in raw_response_text:
-                try:
-                    clean_json_str = raw_response_text[raw_response_text.find('{'):raw_response_text.rfind('}')+1]
-                    resp_json = json.loads(clean_json_str)
-                    if isinstance(resp_json, dict):
-                        order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                        error_msg = resp_json.get("error") or resp_json.get("message")
-                        
-                        if order_id and not error_msg:
-                            success_request = True
-                        elif resp_json.get("success") is True and not error_msg:
-                            success_request = True
-                            order_id = "RSHQ_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
-                except Exception:
-                    if ("order" in raw_response_text.lower() or "success" in raw_response_text.lower()) and "Bot Verification" not in raw_response_text and "error" not in raw_response_text.lower():
-                        success_request = True
-                        order_id = "RSHQ_" + ''.join([str(random.randint(0, 9)) for _ in range(6)])
-            else:
-                raw_response_text = "حماية Bot Verification تمنع طلب الرشق أو رفض الموقع."
-        except Exception as e:
-            raw_response_text = f"Connection Exception: {str(e)}"
-
-        if success_request and order_id:
+        if success and order_id:
             db_update_balance(user_id, final_cost, mode="deduct")
             try:
                 await query.edit_message_text(
@@ -1614,12 +1553,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_log_to_channel(context, log_msg, cb_param)
             return
         else:
-            error_display = raw_response_text[:400] if raw_response_text else "لا يوجد رد من السيرفر"
             try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، رفض الموقع الطلب أو حدث خطأ في النظام!**\n\n"
-                    f"💬 **رد السيرفر الخام:**\n`{error_display}`\n\n"
-                    f"💡 لم يتم خصم أي رصيد من حسابك لأن الطلب لم يكتمل في المنصة.",
+                    f"❌ **عذراً، رفض الموقع الطلب!**\n\nسبب الرفض: `{error_reason}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
                 )
