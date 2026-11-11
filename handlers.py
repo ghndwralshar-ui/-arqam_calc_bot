@@ -649,7 +649,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         service_id = order_info['service_id']
         phone = order_info['phone']
         service_name = order_info['service_name']
+        
+        # ضبط الكمية (Quantity) لتساوي المبلغ بالريال اليمني للخدمات المفتوحة، أو 1 للخدمات الثابتة
         quantity = order_info.get('quantity', 1)
+        if service_id == 889:
+            quantity = order_info.get('amount_yer', 100)
 
         if current_bal < cost:
             try:
@@ -687,6 +691,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if PROXY_URL:
                 scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
+            # جلب الكوكيز لتجاوز الحماية أولاً
             try:
                 main_page = scraper.get("https://hmcard.online/", headers=headers, timeout=15)
                 if main_page.cookies:
@@ -2122,7 +2127,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 'service_name': f"{service_name} ({amount_yer} ريال)",
                 'phone': phone,
                 'cost': cost_usd,
-                'quantity': 1
+                'amount_yer': amount_yer,
+                'quantity': amount_yer
             }
 
             summary_msg = (
