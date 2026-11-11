@@ -175,10 +175,13 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
-# 🔄 الدالة المحدثة كلياً والمحسنة لاستجابة الموقع (HMCARD API Response & Execution)
+# 🔄 الدالة المحدثة وفقاً للتوثيق الرسمي لـ HMCARD API
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     """
-    دالة موحدة ومحدثة لتمرير الطلبات لـ HMCARD مع معالجة البيانات، تجاوز الحماية، واستجابة دقيقة
+    إرسال الطلب لـ HMCARD API بناءً على التوثيق الرسمي:
+    POST https://hmcard.online/api/v2
+    Parameters: key, action=add, service, link, quantity
+    Response: {"order": 23501} أو {"error": "..."}
     """
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
@@ -195,11 +198,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://hmcard.online',
-        'Referer': 'https://hmcard.online/'
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
     for attempt in range(3):
@@ -235,13 +234,10 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     
                     if order_id and not error_msg:
                         return True, str(order_id), "تم التنفيذ بنجاح"
-                    elif resp_json.get("success") is True and not error_msg:
-                        return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
                     elif error_msg:
                         return False, None, str(error_msg)
                 except Exception:
-                    if "success" in raw_resp.lower() and "Bot Verification" not in raw_resp:
-                        return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
+                    pass
         except Exception:
             pass
         await asyncio.sleep(1)
@@ -249,7 +245,6 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     try:
         transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
         async with httpx.AsyncClient(headers=headers, timeout=35.0, transport=transport, follow_redirects=True) as client:
-            await client.get("https://hmcard.online/")
             res = await client.post(HMCARD_API_URL, data=payload)
             raw_text = res.text
             
@@ -265,17 +260,12 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     elif error_msg:
                         return False, None, str(error_msg)
                 except Exception:
-                    if "success" in raw_text.lower():
-                        return True, "HM_" + str(random.randint(100000, 999999)), "تم التنفيذ بنجاح"
-            return False, None, "حماية الموقع تمنع الاتصال الآلي أو أن خدمة الـ API غير متاحة حالياً."
+                    pass
+            return False, None, "فشل الاتصال بخادم المنصة أو أن خدمة الـ API متوقفة مؤقتاً."
     except Exception as e:
         return False, None, str(e)[:200]
 
-# 🌐 دالة جلب خطوات وأقسام خدمات يمن موبايل مباشرة من موقع HMCARD عبر الـ API
 async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
-    """
-    جلب الخدمات المرتبطة من موقع HMCARD مباشرة ديناميكياً لتحديث الخطوات والأسعار تلقائياً
-    """
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'services'
@@ -733,7 +723,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith('ym_service_'):
         service_id_str = data.split('_')[2]
         
-        # 🔄 جلب خطوات وخدمات يمن موبايل ديناميكياً من الموقع بدلاً من الثابتة
         fetched_services = await fetch_hmcard_services_by_category("يمن موبايل")
         matched_srv = None
         for s in fetched_services:
@@ -1603,7 +1592,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
 
-            # 🛡️ إرسال تقرير الخطأ للرادار بشكل غير مقيد (Non-blocking) لضمان عدم توقف إقلاع الطلب
             service_name = service.get('name', 'خدمة رقمية')
             error_log_msg = (
                 "⚠️ **تنبيه رادار: فشل تنفيذ طلب من المنصة!** ❌\n"
@@ -2155,7 +2143,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 'phone': phone,
                 'cost': cost_usd,
                 'amount_yer': amount_yer,
-                'quantity': amount_yer  # الشحن المفتوح يرسل المبلغ ككمية حسب متطلبات الموقع
+                'quantity': amount_yer
             }
 
             summary_msg = (
@@ -2423,7 +2411,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             f"💰 السعر الإجمالي الصافي: `${fixed_price:.2f}$`"
         )
         markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ تأكيد الشحن", callback_data="confirm_final_order")],
+            [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
             [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
         ])
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
