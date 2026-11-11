@@ -3,7 +3,7 @@ import re
 import json
 import random
 import httpx
-import cloudscraper
+import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
@@ -49,6 +49,8 @@ VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
 OWNER_ID = 6472852297
+
+# 🌟 ضع هنا رابط البروكسي الخاص بك إذا أردت (مثال: "http://user:pass@ip:port") أو اتركه None
 PROXY_URL = None
 
 def is_owner(user_id: int) -> bool:
@@ -677,24 +679,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_resp = ""
 
         try:
-            scraper = cloudscraper.create_scraper(
-                browser={
-                    'browser': 'chrome',
-                    'platform': 'windows',
-                    'desktop': True
-                }
-            )
+            # محاكاة طلب يدوي متطابق مع متصفح حقيقي لتجاوز الحماية
+            session = requests.Session()
             
             if PROXY_URL:
-                scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
-
-            # تجاوز حماية Bot Verification وجلب الجلسة والكوكيز الحقيقية أولاً
-            try:
-                home_res = scraper.get("https://hmcard.online/", timeout=20)
-                if home_res.cookies:
-                    scraper.cookies.update(home_res.cookies)
-            except Exception as e:
-                print(f"Session Cookie fetch warning: {e}")
+                session.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
             req_headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -706,7 +695,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'Referer': 'https://hmcard.online/'
             }
 
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=req_headers, timeout=35)
+            # زيارة الصفحة الرئيسية أولاً لجلب جلسة الكوكيز الحقيقية (مثل التصفح اليدوي)
+            try:
+                session.get("https://hmcard.online/", headers=req_headers, timeout=20)
+            except Exception:
+                pass
+
+            # إرسال طلب الشحن الفعلي
+            response = session.post(HMCARD_API_URL, data=payload, headers=req_headers, timeout=35)
             
             try:
                 raw_resp = response.content.decode('utf-8', errors='ignore')
@@ -1525,23 +1521,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_response_text = ""
 
         try:
-            scraper = cloudscraper.create_scraper(
-                browser={
-                    'browser': 'chrome',
-                    'platform': 'windows',
-                    'desktop': True
-                }
-            )
-            
+            session = requests.Session()
             if PROXY_URL:
-                scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
-
-            try:
-                home_res = scraper.get("https://hmcard.online/", timeout=20)
-                if home_res.cookies:
-                    scraper.cookies.update(home_res.cookies)
-            except Exception:
-                pass
+                session.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
             req_headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -1553,7 +1535,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'Referer': 'https://hmcard.online/'
             }
 
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=req_headers, timeout=35)
+            try:
+                session.get("https://hmcard.online/", headers=req_headers, timeout=20)
+            except Exception:
+                pass
+
+            response = session.post(HMCARD_API_URL, data=payload, headers=req_headers, timeout=35)
             
             try:
                 raw_response_text = response.content.decode('utf-8', errors='ignore')
