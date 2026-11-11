@@ -32,7 +32,7 @@ from keyboards import (
     ig_comments_menu_keyboard, ig_shares_menu_keyboard, tiktok_services_keyboard,
     youtube_services_keyboard, pubg_services_keyboard, freefire_services_keyboard,
     get_admin_keyboard, get_free_services_keyboard, get_forced_subscription_keyboard,
-    get_yemen_mobile_services_keyboard  # أزرار يمن موبايل الجديدة
+    get_yemen_mobile_services_keyboard
 )
 
 admin_state = {}
@@ -48,10 +48,7 @@ KREEMI_ACCOUNT = "3105004949"
 VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
 
-# تعريف آيدي المالك الأساسي بدقة
 OWNER_ID = 6472852297
-
-# ==================== إعدادات البروكسي (اختياري) ====================
 PROXY_URL = None
 
 def is_owner(user_id: int) -> bool:
@@ -574,7 +571,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # ==================== معالجة خدمات يمن موبايل الجديدة ====================
+    # ==================== معالجة خدمات يمن موبايل الجديدة (محدثة) ====================
     elif data == 'yemen_mobile_menu':
         u_data = db_get_user(user_id)
         yemen_menu_text = (
@@ -583,6 +580,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👤 **آيدي الحساب:** `{user_id}`\n"
             f"💎 **رصيدك الحالي في البوت:** `${u_data['balance']:.2f}`\n\n"
             "💡 *اشحن رصيدك وباقات يمن موبايل بشكل فوري وتلقائي عبر رصيد البوت!*\n"
+            "💬 *قم بمشاركة رابط دعوة الأصدقاء الخاص بك، وعن طريق كل دعوة صديق ستربح مبلغ `0.10$` دولار واستبدل أرباحك من الدعوات إلى رصيد يمن موبايل.*\n\n"
             "👇 **اختر الخدمة المطلوبة من القائمة أدناه:**"
         )
         try:
@@ -591,7 +589,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'ym_service_889':
-        # خدمة الرصيد المفتوح
         admin_state[user_id] = {'action': 'waiting_ym_open_phone', 'service_id': 889, 'service_name': 'يمن موبايل | رصيد مفتوح'}
         open_msg = (
             "⚡ **الشحن الفوري التلقائي** ⚡\n\n"
@@ -605,7 +602,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data.startswith('ym_service_'):
-        # الخدمات الثابتة والباقات
         service_id_str = data.split('_')[2]
         service_map = {
             '816': ('يمن موبايل | رصيد 500 أساسي', 3.39),
@@ -661,7 +657,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        # إرسال الطلب لـ API موقع الرشق (HMCARD)
         payload = {
             'key': HMCARD_API_KEY,
             'action': 'add',
@@ -2047,12 +2042,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    # ==================== معالجة خطوات إدخال أرقام وطلب يمن موبايل ====================
     if user_id in admin_state:
         st_action = admin_state[user_id].get('action')
         
         if st_action == 'waiting_ym_open_phone':
-            # التحقق من أن الرقم يبدأ بـ 77 أو 78 ويتكون من 9 أرقام
             if not (text_content.isdigit() and len(text_content) == 9 and (text_content.startswith('77') or text_content.startswith('78'))):
                 await update.message.reply_text(
                     "❌ **عذراً، الرقم المدخل غير صحيح!**\n"
@@ -2080,7 +2073,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text("❌ أقل مبلغ للشحن المفتوح هو 100 ريال يمني. يرجى إرسال مبلغ صحيح:")
                 return
             
-            # المعادلة: كل 100 ريال = 0.50$
             cost_usd = (amount_yer / 100.0) * 0.50
             phone = admin_state[user_id].get('phone')
             service_id = admin_state[user_id].get('service_id')
@@ -2159,7 +2151,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 ])
             )
             return
-    # ======================================================================
 
     if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state and admin_state.get(user_id, {}).get('action') == 'waiting_for_owner_channel_post':
         admin_state.pop(user_id, None)
