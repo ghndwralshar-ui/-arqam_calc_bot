@@ -175,7 +175,6 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
-# 🔄 الدالة المحدثة مع إضافة سجلات طباعة مفصلة (Debug Prints)
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
@@ -276,7 +275,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
                     filtered_services = []
                     for s in data:
                         s_name = str(s.get('name', '')).lower()
-                        if category_keyword.lower() in s_name or 'yemen' in s_name:
+                        if category_keyword.lower() in s_name or 'yemen' in s_name or 'يمن' in s_name:
                             filtered_services.append(s)
                     return filtered_services
     except Exception as e:
