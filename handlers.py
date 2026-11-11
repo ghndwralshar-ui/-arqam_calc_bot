@@ -179,7 +179,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
 
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     """
-    دالة موحدة خارقة ومطورة لتمرير المعاملات وتنفيذ الطلبات وتجاوز الحماية السحابية بالكامل
+    دالة موحدة خارقة ومطورة لتمرير المعاملات وتنفيذ الطلبات وتجاوز الحماية السحابية بالكامل (مصححة وخالية من أخطاء البروكسي)
     """
     payload = {
         'key': HMCARD_API_KEY,
@@ -251,7 +251,8 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         await asyncio.sleep(1)
 
     try:
-        async with httpx.AsyncClient(headers=headers, timeout=35.0, proxies=PROXY_URL if PROXY_URL else None, follow_redirects=True) as client:
+        transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
+        async with httpx.AsyncClient(headers=headers, timeout=35.0, transport=transport, follow_redirects=True) as client:
             await client.get("https://hmcard.online/")
             res = await client.post(HMCARD_API_URL, data=payload)
             raw_text = res.text
@@ -727,8 +728,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💰 **السعر الإجمالي:** `${s_info[1]:.2f}`\n\n"
                 "📱 **أرسل الآن رقم يمن موبايل المراد الشحن إليه (يبدأ بـ 77 أو 78 ويتكون من 9 أرقام):**",
                 parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]])
-            )
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]]))
         except Exception:
             pass
 
