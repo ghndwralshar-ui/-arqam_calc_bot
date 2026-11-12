@@ -174,87 +174,6 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
-async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
-    clean_link = str(link).strip()
-    cleaned_service_id = int(service_id)
-    current_quantity = int(quantity)
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-    }
-
-    # 🧠 دالة التتبع والتححيح التلقائي المتقدمة (تتغلب على أخطاء الرفض والحد الأدنى أوتوماتيكياً)
-    for attempt in range(5):
-        payload = {
-            'key': str(HMCARD_API_KEY).strip(),
-            'action': 'add',
-            'service': cleaned_service_id,
-            'link': clean_link,
-            'quantity': current_quantity
-        }
-
-        try:
-            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-            if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
-
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
-            raw_resp = response.content.decode('utf-8', errors='ignore')
-
-            if response.status_code == 200 and "Bot Verification" not in raw_resp:
-                try:
-                    clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
-                    resp_json = json.loads(clean_json)
-                    
-                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-                    
-                    if order_id and not error_msg:
-                        return True, str(order_id), "تم التنفيذ بنجاح"
-                    elif error_msg:
-                        error_lower = error_msg.lower()
-                        if "minimum quantity" in error_lower or "الحد الأدنى" in error_msg or "greater than" in error_lower:
-                            current_quantity = max(current_quantity + 25, 50)
-                            await asyncio.sleep(0.5)
-                            continue
-                        elif "manual order" in error_lower or "something went wrong" in error_lower:
-                            # في حال واجهت الخدمة تعارض يدوي، تقوم الدالة برفع الكمية تلقائياً لتوافق النظام التلقائي للموقع
-                            current_quantity += 10
-                            await asyncio.sleep(0.5)
-                            continue
-                        else:
-                            return False, None, error_msg
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        await asyncio.sleep(1)
-
-    # محاولة نهائية عبر httpx
-    try:
-        transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
-        async with httpx.AsyncClient(headers=headers, timeout=35.0, transport=transport, follow_redirects=True) as client:
-            payload['quantity'] = current_quantity
-            res = await client.post(HMCARD_API_URL, data=payload)
-            raw_text = res.text
-            if res.status_code == 200 and "Bot Verification" not in raw_text:
-                try:
-                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
-                    resp_json = json.loads(clean_json)
-                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                    error_msg = resp_json.get("error") or resp_json.get("message")
-                    
-                    if order_id:
-                        return True, str(order_id), "تم التنفيذ بنجاح"
-                    elif error_msg:
-                        return False, None, str(error_msg)
-                except Exception:
-                    pass
-            return False, None, f"فشل الاتصال (Code: {res.status_code}): {raw_text[:150]}"
-    except Exception as e:
-        return False, None, str(e)[:200]
-
 async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
@@ -264,21 +183,113 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
-    try:
-        async with httpx.AsyncClient(headers=headers, timeout=20.0) as client:
+    
+    keywords_to_try = [category_keyword, "yemen mobile", "يمن", "yemen", "رصيد", "باقات"]
+    
+    async with httpx.AsyncClient(headers=headers, timeout=25.0) as client:
+        try:
             res = await client.post(HMCARD_API_URL, data=payload)
             if res.status_code == 200:
                 data = res.json()
-                if isinstance(data, list):
-                    filtered_services = []
-                    for s in data:
-                        s_name = str(s.get('name', '')).lower()
-                        if category_keyword.lower() in s_name or 'yemen' in s_name or 'يمن' in s_name:
-                            filtered_services.append(s)
-                    return filtered_services
-    except Exception as e:
-        print(f"Error fetching dynamic services from HMCARD: {e}")
+                if isinstance(data, list) and len(data) > 0:
+                    for kw in keywords_to_try:
+                        filtered = []
+                        for s in data:
+                            s_name = str(s.get('name', '')).lower()
+                            s_cat = str(s.get('category', '')).lower()
+                            if kw.lower() in s_name or kw.lower() in s_cat:
+                                filtered.append(s)
+                        if filtered:
+                            return filtered
+                    return data[:15]
+        except Exception as e:
+            print(f"Error in dynamic fetch fallback: {e}")
+            
     return []
+
+async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
+    clean_link = str(link).strip()
+    cleaned_service_id = int(service_id)
+    base_quantity = int(quantity)
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+    }
+
+    strategies = [
+        lambda q: q,                      
+        lambda q: max(q + 10, 50),        
+        lambda q: max(q + 50, 100),       
+        lambda q: base_quantity * 2,      
+        lambda q: 500                     
+    ]
+
+    for strat_idx, strat in enumerate(strategies):
+        current_quantity = strat(base_quantity)
+        payload = {
+            'key': str(HMCARD_API_KEY).strip(),
+            'action': 'add',
+            'service': cleaned_service_id,
+            'link': clean_link,
+            'quantity': current_quantity
+        }
+
+        for sub_attempt in range(2):
+            try:
+                scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+                if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
+
+                response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+                raw_resp = response.content.decode('utf-8', errors='ignore')
+
+                if response.status_code == 200 and "Bot Verification" not in raw_resp:
+                    try:
+                        clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                        resp_json = json.loads(clean_json)
+                        
+                        order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                        error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                        
+                        if order_id and not error_msg:
+                            return True, str(order_id), "تم التنفيذ بنجاح"
+                        elif error_msg:
+                            error_lower = error_msg.lower()
+                            if any(k in error_lower for k in ["minimum", "greater", "wrong", "manual", "balance", "error"]):
+                                break
+                            else:
+                                return False, None, error_msg
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            await asyncio.sleep(0.5)
+
+        try:
+            transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
+            async with httpx.AsyncClient(headers=headers, timeout=30.0, transport=transport, follow_redirects=True) as client:
+                res = await client.post(HMCARD_API_URL, data=payload)
+                raw_text = res.text
+                if res.status_code == 200 and "Bot Verification" not in raw_text:
+                    try:
+                        clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                        resp_json = json.loads(clean_json)
+                        order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                        error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                        
+                        if order_id:
+                            return True, str(order_id), "تم التنفيذ بنجاح"
+                        elif error_msg and strat_idx == len(strategies) - 1:
+                            return False, None, error_msg
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        await asyncio.sleep(1)
+
+    return False, None, "فشلت كافة محاولات التتبع التلقائي، يرجى التأكد من حالة الخدمة في الموقع."
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -1284,7 +1295,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
