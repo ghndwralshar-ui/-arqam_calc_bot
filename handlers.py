@@ -179,6 +179,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     cleaned_service_id = int(service_id)
     cleaned_quantity = int(quantity)
 
+    # 🛠️ دلالات تتبع ومحاكاة كاملة لطلبات الموقع الرسمية (ربط الرقم/الهدف بالكمية المحددة)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -241,7 +242,6 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     except Exception as e:
         return False, None, str(e)[:200]
 
-# 🔄 دالة ديناميكية لجلب خدمات يمن موبايل من موقع HMCARD مباشرة وتكوين الأزرار تلقائياً
 async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
@@ -663,7 +663,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # 🇾🇪 [تحديث جديد وكامل]: جلب خدمات يمن موبايل ديناميكياً مباشرة من موقع HMCARD وعرضها بالأزرار
     elif data == 'yemen_mobile_menu':
         u_data = db_get_user(user_id)
         await query.answer("⏳ جاري جلب خدمات يمن موبايل المحدثة من الموقع...", show_alert=False)
@@ -1497,19 +1496,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         qty = order.get('count', 1)
         min_limit = service.get('min', 10)
+        
         if qty < min_limit:
-            try:
-                await query.edit_message_text(
-                    f"❌ **عذراً، الكمية المدخلة أقل من الحد الأدنى المسموح به لهذه الخدمة!**\n\n"
-                    f"📉 الحد الأدنى للطلب: `{min_limit:,}`\n"
-                    f"📊 الكمية التي ادخلتها: `{qty:,}`\n\n"
-                    f"🔄 يرجى المحاولة مرة أخرى وإدخال كمية تتوافق مع شروط الخدمة.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-            except Exception:
-                pass
-            return
+            qty = min_limit
+            order['count'] = qty
+            fixed_cost = order.get('fixed_cost', 0.0)
+            if fixed_cost <= 0:
+                calc_cost = round((service.get("price", 1.0) * qty) / 1000.0, 2)
+                order['calc_cost'] = max(calc_cost, 0.01)
 
         fixed_cost = order.get('fixed_cost', 0.0)
         calc_cost = order.get('calc_cost', 0.0)
@@ -2076,7 +2070,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     if user_id in admin_state:
         st_action = admin_state[user_id].get('action')
         
-        # 🇾🇪 معالجة إدخال رقم يمن موبايل ديناميكياً
         if st_action == 'waiting_ym_dynamic_phone':
             if not (text_content.isdigit() and len(text_content) == 9 and (text_content.startswith('77') or text_content.startswith('78'))):
                 await update.message.reply_text(
