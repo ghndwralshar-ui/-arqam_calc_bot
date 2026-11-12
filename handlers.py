@@ -11,7 +11,7 @@ from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
     FORCED_CHANNEL_URL, LOG_CHANNEL_ID, HMCARD_API_URL, HMCARD_API_KEY, 
-    HEADERS, COUNTRY_INFO, OCR_SPACE_API_KEY
+    HMCARD_NEW_API_URL, HMCARD_NEW_API_KEY, HEADERS, COUNTRY_INFO, OCR_SPACE_API_KEY
 )
 
 from database import (
@@ -174,62 +174,38 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
-# ==========================================
-# 🇾🇪 دالة تنفيذ شحن يمن موبايل (رصيد مفتوح - الخدمة 889 حصرياً)
-# ==========================================
+# =====================================================================
+# 🇾🇪 دالة تنفيذ شحن يمن موبايل (رصيد مفتوح - الخدمة 889) حصرياً عبر الـ API الجديد
+# =====================================================================
 async def send_yemen_mobile_order_to_hmcard(phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
     amount_val = int(amount_yer)
-    service_id = 889  # رقم الخدمة الثابت الخاص بيمن موبايل رصيد مفتوح من صورتك[span_1](start_span)[span_1](end_span)
+    service_id = 889  # رقم خدمة يمن موبايل رصيد مفتوح
 
     headers = {
-        'Host': HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://' + (HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net'),
-        'Referer': HMCARD_API_URL
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    # الهيكلة الدقيقة والمعتمدة تماماً للخدمة المباشرة (رقم الهاتف في link والمبلغ في quantity)[span_2](start_span)[span_2](end_span)
     payload = {
-        'key': str(HMCARD_API_KEY).strip(),
+        'key': str(HMCARD_NEW_API_KEY).strip(),
         'action': 'add',
         'service': service_id,
         'link': clean_phone,
         'quantity': amount_val
     }
 
-    # المحاولة الأولى عبر السكرابر السريع لتجاوز الحماية تماماً
-    try:
-        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
-        raw_resp = response.content.decode('utf-8', errors='ignore')
-
-        if response.status_code == 200:
-            clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
-            resp_json = json.loads(clean_json)
-            
-            order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-            error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-            
-            if order_id:
-                return True, str(order_id), "تم التنفيذ بنجاح"
-            elif error_msg:
-                return False, None, error_msg
-    except Exception as e:
-        print(f"Cloudscraper Yemen Order Error: {e}")
-
-    # محاولة بديلة ثانية عبر httpx المباشر
     try:
         async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
-            res = await client.post(HMCARD_API_URL, data=payload)
+            res = await client.post(HMCARD_NEW_API_URL, data=payload)
             raw_text = res.text
             if res.status_code == 200:
-                clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
-                resp_json = json.loads(clean_json)
+                try:
+                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                    resp_json = json.loads(clean_json)
+                except Exception:
+                    resp_json = res.json()
                 
                 order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                 error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
@@ -239,12 +215,12 @@ async def send_yemen_mobile_order_to_hmcard(phone: str, amount_yer: int):
                 elif error_msg:
                     return False, None, error_msg
     except Exception as e:
-        print(f"Httpx Yemen Order Error: {e}")
+        print(f"New API Yemen Order Error: {e}")
 
-    return False, None, "عذراً، رفض الموقع تنفيذ الطلب الآلي أو أن السيرفر مشغول حالياً."
+    return False, None, "عذراً، فشل الاتصال بالـ API الجديد أو أن السيرفر رفض الطلب."
 
 # ==========================================
-# 🚀 دالة رشق السوشيال ميديا العامة
+# 🚀 دالة رشق السوشيال ميديا العامة (تعمل على HMCARD الأصلية)
 # ==========================================
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
@@ -252,13 +228,13 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     base_quantity = int(quantity)
 
     headers = {
-        'Host': HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net',
+        'Host': HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.online',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://' + (HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net'),
+        'Origin': 'https://' + (HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.online'),
         'Referer': HMCARD_API_URL
     }
 
@@ -726,9 +702,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             await query.edit_message_text(
-                "🟢 **يمن موبايل | رصيد مفتوح - $1.87 / 1000** 💰\n\n"
+                "🟢 **يمن موبايل | رصيد مفتوح (عبر الـ API الجديد)** 💰\n\n"
                 "✏️ **أرسل المبلغ الصافي المطلوب بالريال:**\n"
-                "(أقل كمية مسموحة: 100 ريال يمني كما هو موضح في الموقع)\n\n"
+                "(أقل كمية مسموحة: 100 ريال يمني)\n\n"
                 "💡 *أو اختر من الباقات السريعة أدناه:*",
                 parse_mode='Markdown',
                 reply_markup=preset_kb
@@ -791,7 +767,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             new_bal = db_get_user(user_id).get('balance', 0.0)
             try:
                 await query.edit_message_text(
-                    f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
+                    f"✅ **تم تنفيذ طلبك بنجاح تام عبر الـ API الجديد!** 🚀✨\n\n"
                     f"📡 الشبكة: يمن موبايل (رصيد مفتوح) 🟢\n"
                     f"📞 الرقم: `{phone}`\n"
                     f"🆔 رقم الطلب: `{hm_order_id}`\n"
@@ -804,7 +780,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
             log_text = (
-                "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل (رصيد مفتوح) بنجاح تام!** ✅\n"
+                "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح عبر الـ API الجديد!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👤 آيدي العميل: `{user_id}`\n"
                 f"📱 الرقم: `{phone}`\n"
