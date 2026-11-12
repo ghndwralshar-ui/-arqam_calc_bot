@@ -184,7 +184,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
     
-    keywords_to_try = [category_keyword, "yemen mobile", "يمن", "yemen", "رصيد", "باقات"]
+    keywords_to_try = [category_keyword, "yemen mobile", "يمن", "yemen", "رصيد", "باقات", "تسديد"]
     
     async with httpx.AsyncClient(headers=headers, timeout=25.0) as client:
         try:
@@ -201,7 +201,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
                                 filtered.append(s)
                         if filtered:
                             return filtered
-                    return data[:15]
+                    return data[:20]
         except Exception as e:
             print(f"Error in dynamic fetch fallback: {e}")
             
@@ -218,12 +218,13 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
+    # استراتيجيات ذكية لتعديل الكمية وتجاوز الحد الأدنى (مثل 100 ريال) وتجاهل تماماً أي نص وقت أو "غير متاح"
     strategies = [
-        lambda q: q,                      
-        lambda q: max(q + 10, 50),        
-        lambda q: max(q + 50, 100),       
-        lambda q: base_quantity * 2,      
-        lambda q: 500                     
+        lambda q: q,                      # المحاولة الأولى بالكمية المطلوبة تماماً
+        lambda q: max(q, 100),            # المحاولة الثانية لضمان الالتزام بالحد الأدنى (100)
+        lambda q: max(q + 50, 100),       # المحاولة الثالثة برفع الكمية قليلاً
+        lambda q: base_quantity * 2,      # المحاولة الرابعة بمضاعفة الكمية
+        lambda q: 500                     # المحاولة الخامسة بكمية ثابتة آمنة
     ]
 
     for strat_idx, strat in enumerate(strategies):
@@ -236,6 +237,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             'quantity': current_quantity
         }
 
+        # الطريقة الأولى: Cloudscraper لتجاوز حماية المنصة
         for sub_attempt in range(2):
             try:
                 scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
@@ -252,11 +254,12 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                         order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                         error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                         
-                        if order_id and not error_msg:
+                        # التركيز حصرياً على استلام رقم الطلب الحقيقي وتجاهل عبارات الوقت
+                        if order_id:
                             return True, str(order_id), "تم التنفيذ بنجاح"
                         elif error_msg:
                             error_lower = error_msg.lower()
-                            if any(k in error_lower for k in ["minimum", "greater", "wrong", "manual", "balance", "error"]):
+                            if any(k in error_lower for k in ["minimum", "greater", "wrong", "balance"]):
                                 break
                             else:
                                 return False, None, error_msg
@@ -264,8 +267,9 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                         pass
             except Exception:
                 pass
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.4)
 
+        # الطريقة الثانية: بروتوكول Httpx الاحتياطي
         try:
             transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
             async with httpx.AsyncClient(headers=headers, timeout=30.0, transport=transport, follow_redirects=True) as client:
@@ -287,9 +291,9 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         except Exception:
             pass
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.8)
 
-    return False, None, "فشلت كافة محاولات التتبع التلقائي، يرجى التأكد من حالة الخدمة في الموقع."
+    return False, None, "فشلت محاولات التنفيذ، يرجى التأكد من الرصيد والحد الأدنى."
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -749,7 +753,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(
                 f"🟢 **{s_name}** 💰\n\n"
                 "✏️ **أرسل المبلغ الصافي المطلوب بالريال:**\n"
-                "(الحد الأدنى: 21 ريال – الحد الأقصى: 826,000 ريال صافي)\n\n"
+                "(الحد الأدنى: 100 ريال يمني كما هو معتمد في الخدمة)\n\n"
                 "💡 *يمكنك أيضاً إرسال أي مبلغ حر (مثال: 5000) أو اختيار من الباقات السريعة أدناه:*",
                 parse_mode='Markdown',
                 reply_markup=preset_kb
@@ -1295,7 +1299,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
@@ -2140,10 +2144,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         st_action = admin_state[user_id].get('action')
         
         if st_action == 'waiting_ym_amount_or_preset':
-            if not text_content.isdigit() or not (21 <= float(text_content) <= 826000):
+            if not text_content.isdigit() or not (100 <= float(text_content) <= 826000):
                 await update.message.reply_text(
                     "❌ **عذراً، المبلغ المدخل غير صحيح!**\n"
-                    "يجب أن يكون المبلغ بين **21** و **826,000** ريال يمني.\n"
+                    "يجب ألا يقل المبلغ عن الحد الأدنى للخدمة (100 ريال يمني).\n"
                     "✏️ يرجى إرسال المبلغ الصافي المطلوب بالريال:"
                 )
                 return
