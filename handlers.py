@@ -11,7 +11,7 @@ from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
     FORCED_CHANNEL_URL, LOG_CHANNEL_ID, HMCARD_API_URL, HMCARD_API_KEY, 
-    HMCARD_NEW_API_URL, HMCARD_NEW_API_KEY, HEADERS, COUNTRY_INFO, OCR_SPACE_API_KEY
+    HEADERS, COUNTRY_INFO, OCR_SPACE_API_KEY
 )
 
 from database import (
@@ -175,57 +175,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
 # =====================================================================
-# 🇾🇪 دالة جلب خدمات يمن موبايل ديناميكياً من الـ API الجديد
-# =====================================================================
-async def handle_yemen_mobile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    u_data = db_get_user(user_id)
-    
-    await query.answer("⏳ جاري جلب الخدمات والخطوات من المنصة...", show_alert=False)
-    
-    services_url = f"{HMCARD_NEW_API_URL}?key={HMCARD_NEW_API_KEY}&action=services"
-    
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        try:
-            res = await client.get(services_url)
-            if res.status_code == 200:
-                srv_data = res.json()
-                if isinstance(srv_data, list) and len(srv_data) > 0:
-                    buttons = []
-                    for s in srv_data:
-                        s_id = s.get("service") or s.get("id")
-                        s_name = s.get("name")
-                        
-                        if s_id and s_name and ("يمن موبايل" in str(s_name) or "yemen mobile" in str(s_name)):
-                            btn_text = f"🟢 {s_name}"
-                            buttons.append([InlineKeyboardButton(btn_text, callback_data=f"ym_select_{s_id}")])
-                    
-                    if buttons:
-                        buttons.append([InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')])
-                        await query.edit_message_text(
-                            f"🟢 **قسم خدمات يمن موبايل (جلب مباشر من الـ API)**\n"
-                            f"⭐ رصيدك: `${u_data['balance']:.2f}`\n\n"
-                            "👇 **اختر الخدمة المطلوبة من القائمة أدناه:**",
-                            parse_mode='Markdown',
-                            reply_markup=InlineKeyboardMarkup(buttons)
-                        )
-                        return
-        except Exception as e:
-            print(f"Error fetching dynamic yemen mobile services: {e}")
-            
-    fallback_kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 يمن موبايل | رصيد مفتوح", callback_data="ym_select_889")],
-        [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
-    ])
-    await query.edit_message_text(
-        f"🟢 **قسم خدمات يمن موبايل**\n⭐ رصيدك: `${u_data['balance']:.2f}`\n\n👇 **اختر الخدمة المطلوبة:**",
-        parse_mode='Markdown',
-        reply_markup=fallback_kb
-    )
-
-# =====================================================================
-# 🚀 دالة رشق السوشيال ميديا والألعاب (تعمل حصرياً على HMCARD القديمة الأصلية)
+# 🚀 دالة إرسال الطلبات للموقع الأساسي HMCARD (تشمل الرشق وشحن يمن موبايل والألعاب)
 # =====================================================================
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
@@ -631,6 +581,11 @@ def prompt_user_for_pubg_id(message, service_info, context):
     admin_state[user_id] = {'action': 'waiting_for_pubg_id', 'service_info': service_info}
     context.application.create_task(message.reply_text(f"🎮 أرسل الآن آيدي اللاعب (Player ID):\n(الخدمة: {service_info['name']})"))
 
+def prompt_user_for_yemen_mobile(message, service_info, context):
+    user_id = message.chat.id
+    admin_state[user_id] = {'action': 'waiting_for_yemen_mobile', 'service_info': service_info}
+    context.application.create_task(message.reply_text(f"🟢 أرسل الآن رقم هاتف يمن موبايل المطلوب (9 أرقام):\n(الخدمة: {service_info['name']})"))
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
@@ -691,24 +646,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'yemen_mobile_menu':
-        await handle_yemen_mobile_menu(update, context)
-        return
-
-    elif data.startswith('ym_select_'):
-        s_id = data.split('_')[2]
-        admin_state[user_id] = {
-            'action': 'waiting_ym_custom_input',
-            'service_id': int(s_id)
+        # خدمة يمن موبايل تعمل عبر الموقع الأساسي بالكامل (سيرفس ID الخاص بيمن موبايل على الموقع مثل 889 أو ما يناسبه)
+        u_data = db_get_user(user_id)
+        user_selected_service[user_id] = {
+            "service_id": 889, 
+            "name": "يمن موبايل | رصيد مفتوح", 
+            "price": 1.034, # التكلفة التقريبية بالدولار لكل وحدة/ريال حسب إعدادات موقعك
+            "min": 100, 
+            "max": 100000, 
+            "type": "yemen_mobile"
         }
-        try:
-            await query.edit_message_text(
-                "🟢 **تنفيذ خدمة يمن موبايل المباشرة**\n\n"
-                "📞 **أرسل المطلوب (رقم الهاتف أو الرابط أو العدد حسب متطلبات الخدمة):**",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
-            )
-        except Exception:
-            pass
+        prompt_user_for_yemen_mobile(update.effective_message, user_selected_service[user_id], context)
         return
 
     elif data == 'buy_virtual_number':
@@ -1990,51 +1938,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     text_content = update.message.text.strip() if update.message.text else ""
 
-    if user_id in admin_state:
-        st_action = admin_state[user_id].get('action')
-        
-        if st_action == 'waiting_ym_custom_input':
-            service_id = admin_state[user_id].get('service_id', 889)
-            admin_state.pop(user_id, None)
-
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-            }
-            payload = {
-                'key': str(HMCARD_NEW_API_KEY).strip(),
-                'action': 'add',
-                'service': service_id,
-                'link': text_content,
-                'quantity': 100
-            }
-
-            async with httpx.AsyncClient(headers=headers, timeout=30.0) as client:
-                res = await client.post(HMCARD_NEW_API_URL, data=payload)
-                raw_text = res.text
-                try:
-                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
-                    resp_json = json.loads(clean_json)
-                except Exception:
-                    resp_json = {}
-
-                order_id = resp_json.get("order") or resp_json.get("order_id")
-                error_msg = resp_json.get("error") or resp_json.get("message")
-
-                if order_id:
-                    await update.message.reply_text(
-                        f"✅ **تم تنفيذ الطلب بنجاح عبر الـ API الخاص!** 🚀\n🆔 رقم الطلب: `{order_id}`",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data='main_menu')]])
-                    )
-                else:
-                    await update.message.reply_text(
-                        f"❌ **عذراً، رفض الموقع التنفيذ!**\nالسبب: `{error_msg or 'خطأ غير معروف'}`",
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]])
-                    )
-            return
-
     if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state and admin_state.get(user_id, {}).get('action') == 'waiting_for_owner_channel_post':
         admin_state.pop(user_id, None)
         bot_username = context.bot.username
@@ -2236,6 +2139,30 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             f"🔹 الحزمة: {service_info['name']}\n"
             f"🆔 آيدي اللاعب (Player ID): `{player_id}`\n"
             f"💰 السعر الإجمالي الصافي: `${fixed_price:.2f}$`"
+        )
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
+            [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
+        ])
+        await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
+        return
+
+    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_yemen_mobile':
+        phone_number = text_content
+        st_data = admin_state.get(user_id, {})
+        service_info = st_data.get('service_info', {"name": "يمن موبايل", "price": 1.034, "min": 100})
+        
+        fixed_price = service_info.get("fixed_price", 1.0)
+        
+        user_order_data[user_id] = {"link": phone_number, "count": 1, "calc_cost": fixed_price, "fixed_cost": fixed_price}
+        user_selected_service[user_id] = service_info
+        admin_state.pop(user_id, None)
+
+        summary_text = (
+            f"🟢 ملخص طلب شحن يمن موبايل:\n\n"
+            f"🔹 الخدمة: {service_info['name']}\n"
+            f"📞 رقم الهاتف: `{phone_number}`\n"
+            f"💰 التكلفة الصافية: `${fixed_price:.2f}$`"
         )
         markup = InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
