@@ -175,15 +175,15 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
 # =====================================================================
-# 🇾🇪 دالة تنفيذ شحن يمن موبايل حصرياً عبر الـ API الجديد بمفتاحك الخاص
+# 🇾🇪 دالة تنفيذ طلب يمن موبايل حصرياً عبر الـ API الجديد الخاص بيمن موبايل
 # =====================================================================
 async def send_yemen_mobile_order_to_hmcard(phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
     amount_val = int(amount_yer)
     
-    # جلب قائمة الخدمات أولاً تلقائياً للتأكد من رقم خدمة يمن موبايل الصحيح في المنصة الجديدة
+    # جلب قائمة الخدمات من رابط يمن موبايل الجديد لتحديد رقم الخدمة الصحيح تلقائياً
     services_url = f"{HMCARD_NEW_API_URL}?key={HMCARD_NEW_API_KEY}&action=services"
-    target_service_id = 889 # افتراضي
+    target_service_id = 889 
     
     async with httpx.AsyncClient(timeout=20.0) as client:
         try:
@@ -197,7 +197,7 @@ async def send_yemen_mobile_order_to_hmcard(phone: str, amount_yer: int):
                             target_service_id = int(s.get("service") or s.get("id"))
                             break
         except Exception as e:
-            print(f"Error fetching services list for yemen mobile: {e}")
+            print(f"Error fetching services list for yemen mobile API: {e}")
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -236,9 +236,9 @@ async def send_yemen_mobile_order_to_hmcard(phone: str, amount_yer: int):
 
     return False, None, "عذراً، فشل الاتصال بالـ API الجديد أو أن الخدمة غير متوفرة."
 
-# ==========================================
-# 🚀 دالة رشق السوشيال ميديا العامة (تعمل على HMCARD الأصلية)
-# ==========================================
+# =====================================================================
+# 🚀 دالة رشق السوشيال ميديا والألعاب (تعمل حصرياً على HMCARD القديمة الأصلية)
+# =====================================================================
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
@@ -719,7 +719,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             await query.edit_message_text(
-                "🟢 **يمن موبايل | رصيد مفتوح (عبر الـ API الجديد)** 💰\n\n"
+                "🟢 **يمن موبايل | رصيد مفتوح (عبر الـ API الخاص حصرياً)** 💰\n\n"
                 "✏️ **أرسل المبلغ الصافي المطلوب بالريال:**\n"
                 "(أقل كمية مسموحة: 100 ريال يمني)\n\n"
                 "💡 *أو اختر من الباقات السريعة أدناه:*",
@@ -784,7 +784,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             new_bal = db_get_user(user_id).get('balance', 0.0)
             try:
                 await query.edit_message_text(
-                    f"✅ **تم تنفيذ طلبك بنجاح تام عبر الـ API الجديد!** 🚀✨\n\n"
+                    f"✅ **تم تنفيذ طلبك بنجاح تام عبر الـ API الخاص بيمن موبايل!** 🚀✨\n\n"
                     f"📡 الشبكة: يمن موبايل (رصيد مفتوح) 🟢\n"
                     f"📞 الرقم: `{phone}`\n"
                     f"🆔 رقم الطلب: `{hm_order_id}`\n"
@@ -797,7 +797,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
             log_text = (
-                "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح عبر الـ API الجديد!** ✅\n"
+                "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح عبر الرابط الخاص!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👤 آيدي العميل: `{user_id}`\n"
                 f"📱 الرقم: `{phone}`\n"
@@ -1550,13 +1550,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
+        # تنفيذ الرشق عبر الموقع الأصلي HMCARD_API_URL حصرياً
         success, order_id, error_reason = await send_order_to_hmcard(service['service_id'], order['link'], qty)
 
         if success and order_id:
             db_update_balance(user_id, final_cost, mode="deduct")
             try:
                 await query.edit_message_text(
-                    f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
+                    f"✅ **تم تنفيذ طلبك بنجاح تام عبر منصة الرشق!** 🚀✨\n\n"
                     f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
                     f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
                     f"📦 **الكمية:** `{qty:,}`\n"
