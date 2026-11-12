@@ -208,7 +208,83 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
     return []
 
 # ==========================================
-# 🚀 دالة الإرسال المتطورة (تضم أكثر من 100 محاولة وسيناريو ذكي)
+# 🇾🇪 دالة مخصصة وحصرية لتسديد يمن موبايل (تعالج مشكلة المبلغ ورقم الهاتف)
+# ==========================================
+async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
+    clean_phone = str(phone).strip()
+    cleaned_service_id = int(service_id)
+    amount_val = int(amount_yer)
+
+    headers = {
+        'Host': HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Origin': 'https://' + (HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net'),
+        'Referer': HMCARD_API_URL
+    }
+
+    # تنسيقات البيانات الخاصة بشحن رصيد يمن موبايل (إرسال الرقم في link والمبلغ بالريال في quantity)
+    payload = {
+        'key': str(HMCARD_API_KEY).strip(),
+        'action': 'add',
+        'service': cleaned_service_id,
+        'link': clean_phone,
+        'quantity': amount_val
+    }
+
+    for attempt in range(3):
+        try:
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
+
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+            raw_resp = response.content.decode('utf-8', errors='ignore')
+
+            if response.status_code == 200 and "Bot Verification" not in raw_resp:
+                try:
+                    clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                    resp_json = json.loads(clean_json)
+                    
+                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                    
+                    if order_id:
+                        return True, str(order_id), "تم التنفيذ بنجاح"
+                    elif error_msg:
+                        if "غير متاح" in error_msg.lower() or "unavailable" in error_msg.lower():
+                            continue
+                        elif any(k in error_msg.lower() for k in ["minimum", "balance"]):
+                            return False, None, error_msg
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        await asyncio.sleep(0.3)
+
+    try:
+        async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
+            res = await client.post(HMCARD_API_URL, data=payload)
+            raw_text = res.text
+            if res.status_code == 200:
+                clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                resp_json = json.loads(clean_json)
+                order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                
+                if order_id:
+                    return True, str(order_id), "تم التنفيذ بنجاح"
+                elif error_msg:
+                    return False, None, error_msg
+    except Exception as e:
+        return False, None, f"خطأ اتصال: {str(e)[:50]}"
+
+    return False, None, "عذراً، رفض السيرفر تنفيذ طلب شحن يمن موبايل."
+
+# ==========================================
+# 🚀 دالة رشق السوشيال ميديا العامة
 # ==========================================
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
@@ -226,100 +302,56 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         'Referer': HMCARD_API_URL
     }
 
-    # مصفوفة استراتيجيات الكميات لتجاوز الرفض اليدوي (Manual Order)
     strategies = [
         lambda q: q,                      
         lambda q: max(q, 100),            
         lambda q: max(q + 50, 100),       
         lambda q: base_quantity * 2,      
-        lambda q: 500,
-        lambda q: 1,
-        lambda q: 10
+        lambda q: 500                     
     ]
 
-    # قائمة متطورة من Actions البديلة في حال تطلب السيرفر صيغة طلب مختلفة
-    actions_to_try = ['add', 'order', 'create', 'new']
+    for strat_idx, strat in enumerate(strategies):
+        current_quantity = strat(base_quantity)
+        payload = {
+            'key': str(HMCARD_API_KEY).strip(),
+            'action': 'add',
+            'service': cleaned_service_id,
+            'link': clean_link,
+            'quantity': current_quantity,
+            'runs': 1,
+            'interval': 0
+        }
 
-    # نظام تكرار موسع (يغطي أكثر من 100 سيناريو ومحاولة فحص)
-    for action in actions_to_try:
-        for strat_idx, strat in enumerate(strategies):
-            current_quantity = strat(base_quantity)
-            
-            payload = {
-                'key': str(HMCARD_API_KEY).strip(),
-                'action': action,
-                'service': cleaned_service_id,
-                'link': clean_link,
-                'quantity': current_quantity,
-                'runs': 1,
-                'interval': 0
-            }
+        try:
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-            # محاولة عبر Cloudscraper المتقدمة لمحاكاة تصفح الكمبيوتر بالكامل
-            for sub_attempt in range(3):
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+            raw_resp = response.content.decode('utf-8', errors='ignore')
+
+            if response.status_code == 200 and "Bot Verification" not in raw_resp:
                 try:
-                    scraper = cloudscraper.create_scraper(
-                        browser={
-                            'browser': 'chrome',
-                            'platform': 'windows',
-                            'desktop': True
-                        }
-                    )
-                    if PROXY_URL: 
-                        scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
-
-                    response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
-                    raw_resp = response.content.decode('utf-8', errors='ignore')
-
-                    if response.status_code == 200 and "Bot Verification" not in raw_resp:
-                        try:
-                            clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
-                            resp_json = json.loads(clean_json)
-                            
-                            order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                            error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-                            
-                            if order_id:
-                                return True, str(order_id), "تم التنفيذ بنجاح"
-                            elif error_msg:
-                                error_lower = error_msg.lower()
-                                # تجاهل عبارات غير متاح والمضي قدماً في الفحص
-                                if "غير متاح" in error_lower or "unavailable" in error_lower:
-                                    continue
-                                elif any(k in error_lower for k in ["minimum", "balance"]):
-                                    return False, None, error_msg
-                        except Exception:
-                            pass
+                    clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                    resp_json = json.loads(clean_json)
+                    
+                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                    
+                    if order_id:
+                        return True, str(order_id), "تم التنفيذ بنجاح"
+                    elif error_msg:
+                        if "غير متاح" in error_msg.lower():
+                            continue
+                        elif any(k in error_msg.lower() for k in ["minimum", "balance"]):
+                            return False, None, error_msg
                 except Exception:
                     pass
-                await asyncio.sleep(0.1)
+        except Exception:
+            pass
 
-            # محاولة بديلة عبر بروتوكول Httpx الاحترافي
-            try:
-                transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
-                async with httpx.AsyncClient(headers=headers, timeout=30.0, transport=transport, follow_redirects=True) as client:
-                    res = await client.post(HMCARD_API_URL, data=payload)
-                    raw_text = res.text
-                    if res.status_code == 200 and "Bot Verification" not in raw_text:
-                        try:
-                            clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
-                            resp_json = json.loads(clean_json)
-                            order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                            error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-                            
-                            if order_id:
-                                return True, str(order_id), "تم التنفيذ بنجاح"
-                            elif error_msg and "غير متاح" not in error_msg.lower():
-                                if "manual" not in error_msg.lower():
-                                    return False, None, error_msg
-                        except Exception:
-                            pass
-            except Exception:
-                pass
+        await asyncio.sleep(0.3)
 
-            await asyncio.sleep(0.1)
-
-    return False, None, "عذراً، الخدمة تتطلب ربطاً خاصاً أو أن السيرفر يرفض الطلب الآلي حالياً."
+    return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -842,7 +874,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        success, hm_order_id, error_reason = await send_order_to_hmcard(service_id, phone, int(amount_yer))
+        # استدعاء دالة يمن موبايل المخصصة والصحيحة 100%
+        success, hm_order_id, error_reason = await send_yemen_mobile_order_to_hmcard(service_id, phone, int(amount_yer))
 
         if success and hm_order_id:
             db_update_balance(u_id, cost, mode="deduct")
@@ -1325,7 +1358,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
