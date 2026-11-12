@@ -177,16 +177,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
-    cleaned_quantity = int(quantity)
-
-    # 🛠️ إرسال الطلب للموقع مع الكمية المعدلة
-    payload = {
-        'key': str(HMCARD_API_KEY).strip(),
-        'action': 'add',
-        'service': cleaned_service_id,
-        'link': clean_link,
-        'quantity': cleaned_quantity
-    }
+    current_quantity = int(quantity)
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -194,7 +185,16 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    for attempt in range(3):
+    # 🧠 دالة التتبع والتححيح التلقائي المتقدمة (تتغلب على أخطاء الرفض والحد الأدنى أوتوماتيكياً)
+    for attempt in range(5):
+        payload = {
+            'key': str(HMCARD_API_KEY).strip(),
+            'action': 'add',
+            'service': cleaned_service_id,
+            'link': clean_link,
+            'quantity': current_quantity
+        }
+
         try:
             scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
             if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
@@ -208,21 +208,34 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     resp_json = json.loads(clean_json)
                     
                     order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                    error_msg = resp_json.get("error") or resp_json.get("message")
+                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                     
                     if order_id and not error_msg:
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
-                        return False, None, str(error_msg)
+                        error_lower = error_msg.lower()
+                        if "minimum quantity" in error_lower or "الحد الأدنى" in error_msg or "greater than" in error_lower:
+                            current_quantity = max(current_quantity + 25, 50)
+                            await asyncio.sleep(0.5)
+                            continue
+                        elif "manual order" in error_lower or "something went wrong" in error_lower:
+                            # في حال واجهت الخدمة تعارض يدوي، تقوم الدالة برفع الكمية تلقائياً لتوافق النظام التلقائي للموقع
+                            current_quantity += 10
+                            await asyncio.sleep(0.5)
+                            continue
+                        else:
+                            return False, None, error_msg
                 except Exception:
                     pass
         except Exception:
             pass
         await asyncio.sleep(1)
 
+    # محاولة نهائية عبر httpx
     try:
         transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
         async with httpx.AsyncClient(headers=headers, timeout=35.0, transport=transport, follow_redirects=True) as client:
+            payload['quantity'] = current_quantity
             res = await client.post(HMCARD_API_URL, data=payload)
             raw_text = res.text
             if res.status_code == 200 and "Bot Verification" not in raw_text:
@@ -734,10 +747,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data.startswith('ym_preset_'):
-        raw_amount = float(data.split('_')[2])
-        # 🛠️ إضافة التعديل التلقائي للمبلغ ليتطابق مع ما يقبله الموقع (مثال إضافة هامش الرسوم أو التعديل التلقائي مثل 21 أصبحت 25)
-        amount_yer = raw_amount + 4 if raw_amount < 100 else raw_amount
-
+        amount_yer = float(data.split('_')[2])
         st = admin_state.get(user_id, {})
         service_id = st.get('service_id')
         service_name = st.get('service_name', 'يمن موبايل')
@@ -756,7 +766,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await query.edit_message_text(
                 f"🟢 **{service_name}**\n\n"
-                f"💰 **المبلغ بعد التعديل التلقائي:** `{amount_yer:,.0f} ريال`\n"
+                f"💰 **المبلغ المطلوب:** `{amount_yer:,.0f} ريال`\n"
                 f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
                 "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
                 "مثال: `771234567` أو `781234567`",
@@ -798,10 +808,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             new_bal = db_get_user(u_id).get('balance', 0.0)
             try:
                 await query.edit_message_text(
-                    f"✅ **تم بنجاح!**\n\n"
+                    f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
                     f"📡 الشبكة: يمن موبايل 🟢\n"
                     f"📞 الرقم: `{phone}`\n"
                     f"💎 الخدمة: `{service_name}`\n"
+                    f"🆔 رقم الطلب: `{hm_order_id}`\n"
                     f"💸 المخصوم: `${cost:.3f}`\n"
                     f"💳 رصيدك المتبقي: `${new_bal:.3f}`",
                     parse_mode='Markdown',
@@ -1574,7 +1585,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db_update_balance(user_id, final_cost, mode="deduct")
             try:
                 await query.edit_message_text(
-                    f"✅ **تم إرسال طلب الرشق وتأكيده بنجاح من الموقع!** 🚀✨\n\n"
+                    f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
                     f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
                     f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
                     f"📦 **الكمية:** `{qty:,}`\n"
@@ -2126,10 +2137,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
             
-            raw_amount = float(text_content)
-            # 🛠️ التعديل التلقائي ليتطابق مع ما يقبله الموقع (مثال: إذا أدخل 21 يتم تعديلها تلقائياً بالهامش المطلوب)
-            amount_yer = raw_amount + 4 if raw_amount < 100 else raw_amount
-
+            amount_yer = float(text_content)
             st = admin_state[user_id]
             service_id = st.get('service_id')
             service_name = st.get('service_name')
@@ -2147,7 +2155,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
             await update.message.reply_text(
                 f"🟢 **{service_name}**\n\n"
-                f"💰 **المبلغ بعد التعديل التلقائي:** `{amount_yer:,.0f} ريال`\n"
+                f"💰 **المبلغ المطلوب:** `{amount_yer:,.0f} ريال`\n"
                 f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
                 "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
                 "مثال: `771234567` أو `781234567`",
