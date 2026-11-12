@@ -15,10 +15,6 @@ LOG_CHANNEL_ID = -1004374640175
 HMCARD_API_KEY = "3c812fdec7ccdc1fe1df4c06b78346ed"
 HMCARD_API_URL = "https://hmcard.online/api/v2"
 
-# --- مفاتيح الـ API الجديد (خاص بيمن موبايل حصرياً) ---
-HMCARD_NEW_API_URL = "https://hm-card.com/X7_Manage/smm-api/api.php"
-HMCARD_NEW_API_KEY = "bbb2737e7d088bc104e1d85d4f1b0a0321982c79"
-
 # --- مفتاح محرك قراءة الإيصالات (OCR.space) ---
 OCR_SPACE_API_KEY = "K8801265751720788957"
 
