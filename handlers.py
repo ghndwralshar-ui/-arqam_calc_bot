@@ -184,7 +184,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
     
-    keywords_to_try = [category_keyword, "yemen mobile", "يمن", "yemen", "رصيد", "باقات", "تسديد"]
+    keywords_to_try = [category_keyword, "يمن موبايل", "yemen mobile", "يمن", "yemen", "رصيد", "باقات", "تسديد"]
     
     async with httpx.AsyncClient(headers=headers, timeout=25.0) as client:
         try:
@@ -201,7 +201,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
                                 filtered.append(s)
                         if filtered:
                             return filtered
-                    return data[:20]
+                    return data[:30] # إرجاع أول 30 خدمة كاحتياطي مضمون لكي لا تظهر القائمة فارغة أبداً
         except Exception as e:
             print(f"Error in dynamic fetch fallback: {e}")
             
@@ -218,13 +218,13 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    # استراتيجيات ذكية لتعديل الكمية وتجاوز الحد الأدنى (مثل 100 ريال) وتجاهل تماماً أي نص وقت أو "غير متاح"
+    # استراتيجيات ذكية لتعديل الكمية وتجاوز الحد الأدنى (مثل 100) وتجاهل عبارة "غير تماماً"
     strategies = [
-        lambda q: q,                      # المحاولة الأولى بالكمية المطلوبة تماماً
-        lambda q: max(q, 100),            # المحاولة الثانية لضمان الالتزام بالحد الأدنى (100)
+        lambda q: q,                      # المحاولة الأولى بالكمية الأساسية المطلوبة
+        lambda q: max(q, 100),            # المحاولة الثانية لضمان الالتزام بالحد الأدنى للخدمة (100)
         lambda q: max(q + 50, 100),       # المحاولة الثالثة برفع الكمية قليلاً
         lambda q: base_quantity * 2,      # المحاولة الرابعة بمضاعفة الكمية
-        lambda q: 500                     # المحاولة الخامسة بكمية ثابتة آمنة
+        lambda q: 500                     # المحاولة الخامسة بكمية ثابتة آمنة تقبلها المنصة فوراً
     ]
 
     for strat_idx, strat in enumerate(strategies):
@@ -237,7 +237,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             'quantity': current_quantity
         }
 
-        # الطريقة الأولى: Cloudscraper لتجاوز حماية المنصة
+        # الطريقة الأولى: Cloudscraper المتقدمة
         for sub_attempt in range(2):
             try:
                 scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
@@ -254,7 +254,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                         order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                         error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                         
-                        # التركيز حصرياً على استلام رقم الطلب الحقيقي وتجاهل عبارات الوقت
+                        # التركيز فقط على استلام رقم الطلب الحقيقي وتجاهل أي نص وقت أو "غير متاح"
                         if order_id:
                             return True, str(order_id), "تم التنفيذ بنجاح"
                         elif error_msg:
@@ -269,7 +269,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                 pass
             await asyncio.sleep(0.4)
 
-        # الطريقة الثانية: بروتوكول Httpx الاحتياطي
+        # الطريقة الثانية: بروتوكول Httpx البديل
         try:
             transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
             async with httpx.AsyncClient(headers=headers, timeout=30.0, transport=transport, follow_redirects=True) as client:
@@ -2147,7 +2147,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             if not text_content.isdigit() or not (100 <= float(text_content) <= 826000):
                 await update.message.reply_text(
                     "❌ **عذراً، المبلغ المدخل غير صحيح!**\n"
-                    "يجب ألا يقل المبلغ عن الحد الأدنى للخدمة (100 ريال يمني).\n"
+                    "يجب ألا يقل المبلغ عن الحد الأدنى المسموح به (100 ريال يمني).\n"
                     "✏️ يرجى إرسال المبلغ الصافي المطلوب بالريال:"
                 )
                 return
