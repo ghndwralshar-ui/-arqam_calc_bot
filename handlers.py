@@ -179,7 +179,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     cleaned_service_id = int(service_id)
     cleaned_quantity = int(quantity)
 
-    # 🛠️ معالجة الطلب تماماً حسب المعايير القياسية لمنصات SMM/HMCARD
+    # 🛠️ إرسال الطلب للموقع مع الكمية المعدلة
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -734,7 +734,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data.startswith('ym_preset_'):
-        amount_yer = float(data.split('_')[2])
+        raw_amount = float(data.split('_')[2])
+        # 🛠️ إضافة التعديل التلقائي للمبلغ ليتطابق مع ما يقبله الموقع (مثال إضافة هامش الرسوم أو التعديل التلقائي مثل 21 أصبحت 25)
+        amount_yer = raw_amount + 4 if raw_amount < 100 else raw_amount
+
         st = admin_state.get(user_id, {})
         service_id = st.get('service_id')
         service_name = st.get('service_name', 'يمن موبايل')
@@ -753,7 +756,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await query.edit_message_text(
                 f"🟢 **{service_name}**\n\n"
-                f"💰 **الصافي المطلوب:** `{amount_yer:,.0f} ريال`\n"
+                f"💰 **المبلغ بعد التعديل التلقائي:** `{amount_yer:,.0f} ريال`\n"
                 f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
                 "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
                 "مثال: `771234567` أو `781234567`",
@@ -2123,7 +2126,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 return
             
-            amount_yer = float(text_content)
+            raw_amount = float(text_content)
+            # 🛠️ التعديل التلقائي ليتطابق مع ما يقبله الموقع (مثال: إذا أدخل 21 يتم تعديلها تلقائياً بالهامش المطلوب)
+            amount_yer = raw_amount + 4 if raw_amount < 100 else raw_amount
+
             st = admin_state[user_id]
             service_id = st.get('service_id')
             service_name = st.get('service_name')
@@ -2141,7 +2147,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
             await update.message.reply_text(
                 f"🟢 **{service_name}**\n\n"
-                f"💰 **الصافي المطلوب:** `{amount_yer:,.0f} ريال`\n"
+                f"💰 **المبلغ بعد التعديل التلقائي:** `{amount_yer:,.0f} ريال`\n"
                 f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
                 "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
                 "مثال: `771234567` أو `781234567`",
@@ -2339,7 +2345,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
         admin_state[user_id]['link'] = text_content
-        admin_state[user_id]['action'] == 'waiting_for_rashq_count'
+        admin_state[user_id]['action'] = 'waiting_for_rashq_count'
         await update.message.reply_text("📊 أرسل الآن العدد المطلوب للتمويل (أرقام صحيحة فقط):")
         return
 
