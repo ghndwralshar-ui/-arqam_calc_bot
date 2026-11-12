@@ -175,7 +175,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
 # =====================================================================
-# 🇾🇪 دالة جلب خدمات يمن موبايل ديناميكياً مع حفظ الحد الأدنى والأقصى
+# 🇾🇪 دالة جلب خدمات يمن موبايل ديناميكياً
 # =====================================================================
 async def handle_yemen_mobile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -217,7 +217,7 @@ async def handle_yemen_mobile_menu(update: Update, context: ContextTypes.DEFAULT
             print(f"Error fetching dynamic yemen mobile services: {e}")
             
     fallback_kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 يمن موبايل | رصيد فوري وباقات", callback_data="ym_select_889")],
+        [InlineKeyboardButton("🟢 يمن موبايل — رصيد أساسي", callback_data="ym_select_889")],
         [InlineKeyboardButton("🟢 يمن موبايل | تسديد فاتورة/رصيد", callback_data="ym_select_890")],
         [InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]
     ])
@@ -228,7 +228,7 @@ async def handle_yemen_mobile_menu(update: Update, context: ContextTypes.DEFAULT
     )
 
 # =====================================================================
-# 🎯 معالجة اختيار الخدمة وجلب الحد الأدنى بدقة
+# 🎯 معالجة اختيار الخدمة وطلب المبلغ الصافي بالريال اليمني
 # =====================================================================
 async def handle_ym_selection_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -237,10 +237,10 @@ async def handle_ym_selection_step(update: Update, context: ContextTypes.DEFAULT
     s_id = data.split('_')[2]
     
     services_url = f"{HMCARD_API_URL}?key={HMCARD_API_KEY}&action=services"
-    service_name = "يمن موبايل"
+    service_name = "يمن موبايل — رصيد أساسي"
     service_rate = 1.0
-    min_qty = 1
-    max_qty = 10000
+    min_qty = 100
+    max_qty = 826000
     
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -250,8 +250,8 @@ async def handle_ym_selection_step(update: Update, context: ContextTypes.DEFAULT
                     if str(s.get("service") or s.get("id")) == str(s_id):
                         service_name = s.get("name", "يمن موبايل")
                         service_rate = float(s.get("rate", 1.0))
-                        min_qty = int(s.get("min", 1))
-                        max_qty = int(s.get("max", 10000))
+                        min_qty = int(s.get("min", 100))
+                        max_qty = int(s.get("max", 826000))
                         break
         except Exception:
             pass
@@ -265,16 +265,17 @@ async def handle_ym_selection_step(update: Update, context: ContextTypes.DEFAULT
         "type": "yemen_mobile"
     }
     
-    admin_state[user_id] = {'action': 'waiting_for_ym_phone', 'service_info': user_selected_service[user_id]}
+    admin_state[user_id] = {'action': 'waiting_for_ym_amount', 'service_info': user_selected_service[user_id]}
     await query.message.reply_text(
-        f"🟢 **الخدمة المحددة:** `{service_name}`\n\n"
-        f"📉 الحد الأدنى للكمية/المبلغ في المنصة: `{min_qty}`\n\n"
-        "📞 **أرسل الآن رقم هاتف يمن موبايل المستهدف:**",
+        f"🟢 **{service_name}**\n\n"
+        f"✏️ **أرسل المبلغ الصافي المطلوب بالريال:**\n"
+        f"(الحد الأدنى: `{min_qty:,} ريال` — الحد الأقصى: `{max_qty:,} ريال صافي`)\n\n"
+        "مثال: `5000`",
         parse_mode='Markdown'
     )
 
 # =====================================================================
-# 🚀 منظومة الإرسال الخارقة بـ 10 استراتيجيات تعديل وتصحيح تلقائي للطلبات
+# 🚀 منظومة الإرسال الخارقة بـ 10 استراتيجيات تصحيح وتعديل تلقائي
 # =====================================================================
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int, min_limit: int = 1):
     clean_link = str(link).strip()
@@ -292,18 +293,17 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int, min_li
         'Referer': HMCARD_API_URL
     }
 
-    # 10 استراتيجيات ذكية للتصحيح التلقائي وتجاوز رفض الموقع
     strategies = [
-        lambda q: max(q, min_limit),                                # 1. الكمية الأساسية مع ضمان الحد الأدنى
-        lambda q: max(min_limit, 100),                              # 2. فرض حد أدنى افتراضي آمن 100
-        lambda q: max(base_quantity * 10, min_limit),               # 3. مضاعفة الكمية لتجاوز القيود
-        lambda q: 1,                                                # 4. تعيين الكمية إلى 1 (للباقات الثابتة والفواتير)
-        lambda q: 10,                                               # 5. تعيين الكمية إلى 10 وحدات
-        lambda q: 50,                                               # 6. تعيين الكمية إلى 50 وحدة
-        lambda q: 500,                                              # 7. تعيين الكمية إلى 500 وحدة
-        lambda q: max(min_limit, 1000),                             # 8. تعيين الكمية إلى 1000 وحدة
-        lambda q: base_quantity,                                    # 9. إعادة محاولة بالكمية الأصلية
-        lambda q: 10000                                             # 10. الحد الأقصى الآمن للكمية
+        lambda q: max(q, min_limit),
+        lambda q: max(min_limit, 100),
+        lambda q: max(base_quantity * 10, min_limit),
+        lambda q: 1,
+        lambda q: 10,
+        lambda q: 50,
+        lambda q: 500,
+        lambda q: max(min_limit, 1000),
+        lambda q: base_quantity,
+        lambda q: 10000
     ]
 
     last_error_reason = "خطأ غير معروف في الاتصال بالمنصة."
@@ -1494,7 +1494,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        # استدعاء دالة الإرسال الخارقة بـ 10 استراتيجيات
         success, order_id, error_reason = await send_order_to_hmcard(service['service_id'], order['link'], qty, min_limit)
 
         if success and order_id:
@@ -2248,61 +2247,92 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
         return
 
-    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_ym_phone':
-        phone_number = text_content
+    # =====================================================================
+    # 🇾🇪 معالجة إدخال المبلغ الصافي لخدمات يمن موبايل (مع تطبيق معامل الزيادة 25%)
+    # =====================================================================
+    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_ym_amount':
+        if not text_content.isdigit():
+            await update.message.reply_text("⚠️ يرجى إرسال أرقام صحيحة فقط للمبلغ بالريال:")
+            return
+            
+        raw_amount = int(text_content)
         st_data = admin_state.get(user_id, {})
-        service_info = st_data.get('service_info', {"name": "يمن موبايل", "price": 1.0, "min": 1})
+        service_info = st_data.get('service_info', {"name": "يمن موبايل", "price": 1.0, "min": 100, "max": 826000})
         
+        min_limit = service_info.get("min", 100)
+        max_limit = service_info.get("max", 826000)
+        
+        if raw_amount < min_limit or raw_amount > max_limit:
+            await update.message.reply_text(
+                f"❌ **المبلغ المدخل خارج الحدود المسموحة!**\n"
+                f"📉 الحد الأدنى: `{min_limit:,} ريال`\n"
+                f"📈 الحد الأقصى: `{max_limit:,} ريال`\n"
+                f"🔄 يرجى إرسال مبلغ صحيح داخل النطاق:"
+            )
+            return
+
+        # تطبيق معامل الزيادة بنسبة 25% (× 1.25) كما اكتشفنا في النظام
+        adjusted_amount = int(round(raw_amount * 1.25))
+
+        unit_price = service_info.get("price", 1.0)
+        # حساب التكلفة بالدولار بناءً على المبلغ المعدل
+        calc_cost = round((unit_price * adjusted_amount) / 1000.0, 3)
+        if calc_cost <= 0: calc_cost = round(unit_price * (adjusted_amount / 100), 3)
+
         admin_state[user_id] = {
-            'action': 'waiting_for_ym_quantity',
+            'action': 'waiting_for_ym_phone_final',
             'service_info': service_info,
-            'phone': phone_number
+            'adjusted_amount': adjusted_amount,
+            'raw_amount': raw_amount,
+            'calc_cost': calc_cost
         }
-        min_limit = service_info.get("min", 1)
+
         await update.message.reply_text(
-            f"📱 تم استلام الرقم: `{phone_number}`\n\n"
-            f"📊 **أرسل الآن الكمية أو الوحدات المطلوبة (الحد الأدنى المسموح به هو `{min_limit}`):**",
+            f"🟢 **{service_info['name']}**\n\n"
+            f"💰 الصافي المطلوب: `{raw_amount}` ريال (تم التعديل إلى `{adjusted_amount}`)\n"
+            f"💸 التكلفة: `${calc_cost:.3f}$`\n\n"
+            "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
+            "مثال: `771234567` أو `781234567`",
             parse_mode='Markdown'
         )
         return
 
-    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_ym_quantity':
-        if not text_content.isdigit():
-            await update.message.reply_text("⚠️ يرجى إرسال أرقام صحيحة فقط للكمية:")
+    # =====================================================================
+    # 🇾🇪 استقبال رقم الهاتف وعرض رسالة تأكيد الطلب النهائية
+    # =====================================================================
+    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_ym_phone_final':
+        phone_number = text_content.strip()
+        if not phone_number.isdigit() or len(phone_number) != 9:
+            await update.message.reply_text("⚠️ يرجى إرسال رقم هاتف صحيح يتكون من 9 أرقام فقط (مثال: `771234567`):", parse_mode='Markdown')
             return
-            
-        quantity = int(text_content)
+
         st_data = admin_state.get(user_id, {})
-        service_info = st_data.get('service_info', {"name": "يمن موبايل", "price": 1.0, "min": 1})
-        phone_number = st_data.get('phone', '')
-        
-        min_limit = service_info.get("min", 1)
-        if quantity < min_limit:
-            await update.message.reply_text(
-                f"❌ **الكمية المدخلة أقل من الحد الأدنى للموقع!**\n"
-                f"📉 الحد الأدنى المطلوب لهذه الخدمة هو: `{min_limit}`\n"
-                f"🔄 يرجى إرسال كمية صحيحة توافق الحد الأدنى:"
-            )
-            return
+        service_info = st_data.get('service_info', {"name": "يمن موبايل"})
+        adjusted_amount = st_data.get('adjusted_amount', 100)
+        calc_cost = st_data.get('calc_cost', 0.5)
 
-        unit_price = service_info.get("price", 1.0)
-        calc_cost = round((unit_price * quantity) / 1000.0, 2)
-        if calc_cost <= 0: calc_cost = round(unit_price * (quantity / 100), 2)
-
-        user_order_data[user_id] = {"link": phone_number, "count": quantity, "calc_cost": calc_cost, "fixed_cost": calc_cost}
+        user_order_data[user_id] = {
+            "link": phone_number, 
+            "count": adjusted_amount, 
+            "calc_cost": calc_cost, 
+            "fixed_cost": calc_cost
+        }
         user_selected_service[user_id] = service_info
         admin_state.pop(user_id, None)
 
-        summary_text = (
-            f"🟢 **ملخص طلب يمن موبايل النهائي:**\n\n"
-            f"🔹 الخدمة: {service_info['name']}\n"
-            f"📞 الرقم المستهدف: `{phone_number}`\n"
-            f"📊 الكمية / الوحدات: `{quantity:,}`\n"
-            f"💰 التكلفة الإجمالية: `${calc_cost:.2f}$`"
+        confirmation_text = (
+            "🔔 **تأكيد الطلب**\n\n"
+            "📡 الشبكة: 🟢 يمن موبايل\n"
+            f"📞 الرقم: `{phone_number}`\n"
+            f"💎 الخدمة: `{adjusted_amount} ريال يمن موبايل (تسديد رصيد)`\n"
+            f"💸 التكلفة: `${calc_cost:.3f}$`\n\n"
+            "⚠️ تأكد من صحة الرقم قبل المتابعة."
         )
+
         markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ تأكيد التنفيذ وإرسال الطلب", callback_data="confirm_final_order")],
+            [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
             [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
         ])
-        await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
+        
+        await update.message.reply_text(confirmation_text, reply_markup=markup, parse_mode="Markdown")
         return
