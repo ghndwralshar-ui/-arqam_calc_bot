@@ -175,7 +175,7 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
 # =====================================================================
-# 🇾🇪 دالة جلب خدمات يمن موبايل ديناميكياً
+# 🇾🇪 دالة جلب كافة خدمات يمن موبايل ديناميكياً بدقة شاملة
 # =====================================================================
 async def handle_yemen_mobile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -199,7 +199,8 @@ async def handle_yemen_mobile_menu(update: Update, context: ContextTypes.DEFAULT
                         s_rate = s.get("rate")
                         
                         s_name_lower = str(s_name).lower()
-                        if s_id and s_name and any(k in s_name_lower for k in ["يمن موبايل", "yemen mobile", "yemen", "رصيد يمن", "فوري", "تسديد"]):
+                        # فحص شامل يضمن جلب كل خدمات يمن موبايل (رصيد، فوري، باقات، تسديد)
+                        if s_id and s_name and any(k in s_name_lower for k in ["يمن موبايل", "yemen mobile", "yemen", "رصيد", "تسديد", "فوري", "رصيد أساسي"]):
                             btn_text = f"🟢 {s_name} (${s_rate})" if s_rate else f"🟢 {s_name}"
                             buttons.append([InlineKeyboardButton(btn_text, callback_data=f"ym_select_{s_id}")])
                     
@@ -275,7 +276,7 @@ async def handle_ym_selection_step(update: Update, context: ContextTypes.DEFAULT
     )
 
 # =====================================================================
-# 🚀 منظومة الإرسال الخارقة بـ 10 استراتيجيات تصحيح وتعديل تلقائي
+# 🚀 منظومة الإرسال الخارقة بـ 10 استراتيجيات وحل رصيد المنصة
 # =====================================================================
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int, min_limit: int = 1):
     clean_link = str(link).strip()
@@ -346,10 +347,11 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int, min_li
                         return True, str(order_id), f"تم التنفيذ بنجاح (استراتيجية رقم {strat_idx + 1})"
                     elif error_msg:
                         last_error_reason = error_msg
+                        # معالجة مشكلة رصيد المنصة غير الكافي
+                        if "balance" in error_msg.lower() or "sufficient" in error_msg.lower():
+                            return False, None, "رصيد الحساب الأساسي في منصة HMCARD غير كافٍ لتنفيذ الطلب. يرجى شحن حساب المنصة."
                         if any(k in error_msg.lower() for k in ["quantity", "minimum", "min", "greater"]):
                             continue
-                        elif "balance" in error_msg.lower():
-                            return False, None, error_msg
                 except Exception:
                     pass
             else:
