@@ -212,7 +212,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
     return []
 
 # ==========================================
-# 🇾🇪 التحديث الجديد والمطور: دالة تنفيذ تسديد يمن موبايل
+# 🇾🇪 دالة تنفيذ تسديد يمن موبايل المحدثة حسب توثيق API الجديد
 # ==========================================
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
@@ -220,17 +220,12 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
     amount_val = int(amount_yer)
 
     headers = {
-        'Host': HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://' + (HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net'),
-        'Referer': HMCARD_API_URL
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    # تم ضبط الحقول تماماً كما تظهر في واجهة الموقع (رقم الهاتف في link، والمبلغ بالريال في quantity)
+    # مطابقة تامة لتعليمات الـ API (key, action=add, service, link, quantity)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -239,15 +234,19 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'quantity': amount_val
     }
 
-    # محاولة التنفيذ عبر httpx المباشر
+    # محاولة الإرسال عبر httpx
     try:
         async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
             res = await client.post(HMCARD_API_URL, data=payload)
-            raw_text = res.text
             if res.status_code == 200:
-                clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
-                resp_json = json.loads(clean_json)
+                try:
+                    resp_json = res.json()
+                except Exception:
+                    raw_text = res.text
+                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                    resp_json = json.loads(clean_json)
                 
+                # استخراج رقم الطلب بناءً على مثال الاستجابة {"order": 23501}
                 order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                 error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                 
@@ -258,15 +257,17 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
     except Exception as e:
         print(f"Httpx Yemen Order Error: {e}")
 
-    # محاولة احتياطية عبر cloudscraper لتجاوز حماية السيرفر
+    # محاولة احتياطية عبر cloudscraper
     try:
         scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
         response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
-        raw_resp = response.content.decode('utf-8', errors='ignore')
-
         if response.status_code == 200:
-            clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
-            resp_json = json.loads(clean_json)
+            try:
+                resp_json = response.json()
+            except Exception:
+                raw_resp = response.content.decode('utf-8', errors='ignore')
+                clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                resp_json = json.loads(clean_json)
             
             order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
             error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
@@ -289,14 +290,9 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     base_quantity = int(quantity)
 
     headers = {
-        'Host': HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://' + (HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net'),
-        'Referer': HMCARD_API_URL
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
     strategies = [
@@ -314,9 +310,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             'action': 'add',
             'service': cleaned_service_id,
             'link': clean_link,
-            'quantity': current_quantity,
-            'runs': 1,
-            'interval': 0
+            'quantity': current_quantity
         }
 
         try:
