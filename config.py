@@ -11,10 +11,13 @@ FORCED_CHANNEL_USERNAME = "@DigitalHubOrders"
 FORCED_CHANNEL_URL = "https://t.me/DigitalHubOrders"
 LOG_CHANNEL_ID = -1004374640175
 
-# --- مفاتيح خدمات الرشق (HMCARD) - تم التحديث بالمفتاح الجديد ---
+# --- مفاتيح خدمات الرشق (HMCARD الأصلية للرشق والألعاب) ---
 HMCARD_API_KEY = "3c812fdec7ccdc1fe1df4c06b78346ed"
 HMCARD_API_URL = "https://hmcard.online/api/v2"
 
+# --- مفتاح ورابط الـ API الجديد الخاص بيمن موبايل (البوت الثاني / جلب الخدمات) ---
+HMCARD_NEW_API_KEY = "bbb2737e7d088bc104e1d85d4f1b0a0321982c79"
+HMCARD_NEW_API_URL = "https://hm-card.com/X7_Manage/smm-api/api.php"
 
 # --- مفتاح محرك قراءة الإيصالات (OCR.space) ---
 OCR_SPACE_API_KEY = "K8801265751720788957"
@@ -66,4 +69,4 @@ COUNTRY_INFO = {
     "yemen": {"name_ar": "اليمن", "flag": "🇾🇪", "dial": "+967"}
 }
 
-STATIC_COUNTRIES = [{"code": k, **v} for k, v in COUNTRY_INFO.items()]
+STATIC_COUNTRIES = [{"code": k, **v} for k, v in COUNTRY_INFO]
