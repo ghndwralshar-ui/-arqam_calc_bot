@@ -212,7 +212,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
     return []
 
 # ==========================================
-# 🇾🇪 دالة تنفيذ تسديد يمن موبايل المخصصة بدقة (الرابط للرقم والكمية للمبلغ بالريال)
+# 🇾🇪 التحديث الجديد والمطور: دالة تنفيذ تسديد يمن موبايل
 # ==========================================
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
@@ -230,6 +230,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'Referer': HMCARD_API_URL
     }
 
+    # تم ضبط الحقول تماماً كما تظهر في واجهة الموقع (رقم الهاتف في link، والمبلغ بالريال في quantity)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -238,7 +239,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'quantity': amount_val
     }
 
-    # المحاولة عبر httpx المباشر مع الترويسات الصحيحة
+    # محاولة التنفيذ عبر httpx المباشر
     try:
         async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
             res = await client.post(HMCARD_API_URL, data=payload)
@@ -257,7 +258,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
     except Exception as e:
         print(f"Httpx Yemen Order Error: {e}")
 
-    # محاولة احتياطية عبر cloudscraper
+    # محاولة احتياطية عبر cloudscraper لتجاوز حماية السيرفر
     try:
         scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
         response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
