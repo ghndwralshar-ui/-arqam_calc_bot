@@ -201,7 +201,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
                                 filtered.append(s)
                         if filtered:
                             return filtered
-                    return data[:30] # إرجاع أول 30 خدمة كاحتياطي مضمون لكي لا تظهر القائمة فارغة أبداً
+                    return data[:30] 
         except Exception as e:
             print(f"Error in dynamic fetch fallback: {e}")
             
@@ -215,16 +215,17 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest'
     }
 
-    # استراتيجيات ذكية لتعديل الكمية وتجاوز الحد الأدنى (مثل 100) وتجاهل عبارة "غير تماماً"
+    # استراتيجيات ذكية لتجاوز قيود الرفض اليدوي (Manual Order) وكلمة غير متاح
     strategies = [
-        lambda q: q,                      # المحاولة الأولى بالكمية الأساسية المطلوبة
-        lambda q: max(q, 100),            # المحاولة الثانية لضمان الالتزام بالحد الأدنى للخدمة (100)
-        lambda q: max(q + 50, 100),       # المحاولة الثالثة برفع الكمية قليلاً
-        lambda q: base_quantity * 2,      # المحاولة الرابعة بمضاعفة الكمية
-        lambda q: 500                     # المحاولة الخامسة بكمية ثابتة آمنة تقبلها المنصة فوراً
+        lambda q: q,                      
+        lambda q: max(q, 100),            
+        lambda q: max(q + 50, 100),       
+        lambda q: base_quantity * 2,      
+        lambda q: 500                     
     ]
 
     for strat_idx, strat in enumerate(strategies):
@@ -234,10 +235,11 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             'action': 'add',
             'service': cleaned_service_id,
             'link': clean_link,
-            'quantity': current_quantity
+            'quantity': current_quantity,
+            'runs': 1,
+            'interval': 0
         }
 
-        # الطريقة الأولى: Cloudscraper المتقدمة
         for sub_attempt in range(2):
             try:
                 scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
@@ -254,22 +256,20 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                         order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                         error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                         
-                        # التركيز فقط على استلام رقم الطلب الحقيقي وتجاهل أي نص وقت أو "غير متاح"
                         if order_id:
                             return True, str(order_id), "تم التنفيذ بنجاح"
                         elif error_msg:
                             error_lower = error_msg.lower()
-                            if any(k in error_lower for k in ["minimum", "greater", "wrong", "balance"]):
-                                break
-                            else:
+                            if "manual" in error_lower or "wrong" in error_lower:
+                                break 
+                            elif any(k in error_lower for k in ["minimum", "balance"]):
                                 return False, None, error_msg
                     except Exception:
                         pass
             except Exception:
                 pass
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(0.3)
 
-        # الطريقة الثانية: بروتوكول Httpx البديل
         try:
             transport = httpx.AsyncHTTPTransport(proxy=PROXY_URL) if PROXY_URL else None
             async with httpx.AsyncClient(headers=headers, timeout=30.0, transport=transport, follow_redirects=True) as client:
@@ -291,9 +291,9 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         except Exception:
             pass
 
-        await asyncio.sleep(0.8)
+        await asyncio.sleep(0.5)
 
-    return False, None, "فشلت محاولات التنفيذ، يرجى التأكد من الرصيد والحد الأدنى."
+    return False, None, "عذراً، الخدمة تحت الصيانة المؤقتة في المنصة أو تتطلب تنسيقاً خاصاً."
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
