@@ -175,12 +175,29 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
 # =====================================================================
-# 🇾🇪 دالة تنفيذ شحن يمن موبايل (رصيد مفتوح - الخدمة 889) حصرياً عبر الـ API الجديد
+# 🇾🇪 دالة تنفيذ شحن يمن موبايل حصرياً عبر الـ API الجديد بمفتاحك الخاص
 # =====================================================================
 async def send_yemen_mobile_order_to_hmcard(phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
     amount_val = int(amount_yer)
-    service_id = 889  # رقم خدمة يمن موبايل رصيد مفتوح
+    
+    # جلب قائمة الخدمات أولاً تلقائياً للتأكد من رقم خدمة يمن موبايل الصحيح في المنصة الجديدة
+    services_url = f"{HMCARD_NEW_API_URL}?key={HMCARD_NEW_API_KEY}&action=services"
+    target_service_id = 889 # افتراضي
+    
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        try:
+            srv_res = await client.get(services_url)
+            if srv_res.status_code == 200:
+                srv_data = srv_res.json()
+                if isinstance(srv_data, list):
+                    for s in srv_data:
+                        s_name = str(s.get("name", "")).lower()
+                        if "يمن موبايل" in s_name or "yemen mobile" in s_name:
+                            target_service_id = int(s.get("service") or s.get("id"))
+                            break
+        except Exception as e:
+            print(f"Error fetching services list for yemen mobile: {e}")
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -191,7 +208,7 @@ async def send_yemen_mobile_order_to_hmcard(phone: str, amount_yer: int):
     payload = {
         'key': str(HMCARD_NEW_API_KEY).strip(),
         'action': 'add',
-        'service': service_id,
+        'service': target_service_id,
         'link': clean_phone,
         'quantity': amount_val
     }
@@ -217,7 +234,7 @@ async def send_yemen_mobile_order_to_hmcard(phone: str, amount_yer: int):
     except Exception as e:
         print(f"New API Yemen Order Error: {e}")
 
-    return False, None, "عذراً، فشل الاتصال بالـ API الجديد أو أن السيرفر رفض الطلب."
+    return False, None, "عذراً، فشل الاتصال بالـ API الجديد أو أن الخدمة غير متوفرة."
 
 # ==========================================
 # 🚀 دالة رشق السوشيال ميديا العامة (تعمل على HMCARD الأصلية)
@@ -690,7 +707,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin_state[user_id] = {
             'action': 'waiting_ym_amount',
             'service_id': 889,
-            'service_name': 'يمن موبايل | رصيد مفتوح - $1.87 / 1000',
+            'service_name': 'يمن موبايل | رصيد مفتوح',
             'rate': 1.87
         }
         
