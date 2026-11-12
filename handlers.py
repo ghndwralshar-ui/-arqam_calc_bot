@@ -212,7 +212,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
     return []
 
 # ==========================================
-# 🇾🇪 دالة تنفيذ تسديد يمن موبايل المحدثة حسب توثيق API الجديد
+# 🇾🇪 دالة تنفيذ تسديد يمن موبايل المحدثة مع إعادة المحاولة التلقائية
 # ==========================================
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
@@ -225,7 +225,6 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    # مطابقة تامة لتعليمات الـ API (key, action=add, service, link, quantity)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -234,52 +233,60 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'quantity': amount_val
     }
 
-    # محاولة الإرسال عبر httpx
-    try:
-        async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
-            res = await client.post(HMCARD_API_URL, data=payload)
-            if res.status_code == 200:
+    # محاولة الإرسال مع إعادة المحاولة التلقائية 3 مرات في حال حدوث خطأ يدوي مؤقت
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
+                res = await client.post(HMCARD_API_URL, data=payload)
+                if res.status_code == 200:
+                    try:
+                        resp_json = res.json()
+                    except Exception:
+                        raw_text = res.text
+                        clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                        resp_json = json.loads(clean_json)
+                    
+                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                    
+                    if order_id:
+                        return True, str(order_id), "تم التنفيذ بنجاح"
+                    elif error_msg:
+                        if "manual order" in error_msg.lower() and attempt < 2:
+                            await asyncio.sleep(1.5)
+                            continue
+                        return False, None, error_msg
+        except Exception as e:
+            print(f"Httpx Yemen Order Error (Attempt {attempt+1}): {e}")
+
+        # محاولة عبر cloudscraper كبديل آمن
+        try:
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+            if response.status_code == 200:
                 try:
-                    resp_json = res.json()
+                    resp_json = response.json()
                 except Exception:
-                    raw_text = res.text
-                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                    raw_resp = response.content.decode('utf-8', errors='ignore')
+                    clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
                     resp_json = json.loads(clean_json)
                 
-                # استخراج رقم الطلب بناءً على مثال الاستجابة {"order": 23501}
                 order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                 error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                 
                 if order_id:
                     return True, str(order_id), "تم التنفيذ بنجاح"
                 elif error_msg:
+                    if "manual order" in error_msg.lower() and attempt < 2:
+                        await asyncio.sleep(1.5)
+                        continue
                     return False, None, error_msg
-    except Exception as e:
-        print(f"Httpx Yemen Order Error: {e}")
+        except Exception as e:
+            print(f"Cloudscraper Yemen Order Error (Attempt {attempt+1}): {e}")
 
-    # محاولة احتياطية عبر cloudscraper
-    try:
-        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
-        if response.status_code == 200:
-            try:
-                resp_json = response.json()
-            except Exception:
-                raw_resp = response.content.decode('utf-8', errors='ignore')
-                clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
-                resp_json = json.loads(clean_json)
-            
-            order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-            error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-            
-            if order_id:
-                return True, str(order_id), "تم التنفيذ بنجاح"
-            elif error_msg:
-                return False, None, error_msg
-    except Exception as e:
-        print(f"Cloudscraper Yemen Order Error: {e}")
+        await asyncio.sleep(1.0)
 
-    return False, None, "عذراً، فشل الاتصال بالسيرفر أو أن صيغة الرد غير متوافقة."
+    return False, None, "عذراً، الموقع يواجه ضغطاً مؤقتاً (Manual Order Error)، يرجى المحاولة بعد قليل."
 
 # ==========================================
 # 🚀 دالة رشق السوشيال ميديا العامة
@@ -331,7 +338,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     if order_id:
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
-                        if "غير متاح" in error_msg.lower():
+                        if "غير متاح" in error_msg.lower() or "manual order" in error_msg.lower():
                             continue
                         elif any(k in error_msg.lower() for k in ["minimum", "balance"]):
                             return False, None, error_msg
