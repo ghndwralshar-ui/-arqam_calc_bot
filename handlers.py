@@ -179,7 +179,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     cleaned_service_id = int(service_id)
     cleaned_quantity = int(quantity)
 
-    # 🛠️ دلالات تتبع مطابقة تماماً للموقع (تمرير الرقم في link والمبلغ الحر/الباقة في quantity)
+    # 🛠️ معالجة الطلب تماماً حسب المعايير القياسية لمنصات SMM/HMCARD
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -238,7 +238,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                         return False, None, str(error_msg)
                 except Exception:
                     pass
-            return False, None, f"فشل الاتصال (Code: {res.status_code}): {raw_text[:100]}"
+            return False, None, f"فشل الاتصال (Code: {res.status_code}): {raw_text[:150]}"
     except Exception as e:
         return False, None, str(e)[:200]
 
@@ -788,7 +788,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        # 🛠️ تمرير المبلغ بالريال ككمية (quantity) ورقم الهاتف كـ link تماماً كما يفعل الموقع الأصلي
         success, hm_order_id, error_reason = await send_order_to_hmcard(service_id, phone, int(amount_yer))
 
         if success and hm_order_id:
@@ -2340,7 +2339,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
         admin_state[user_id]['link'] = text_content
-        admin_state[user_id]['action'] = 'waiting_for_rashq_count'
+        admin_state[user_id]['action'] == 'waiting_for_rashq_count'
         await update.message.reply_text("📊 أرسل الآن العدد المطلوب للتمويل (أرقام صحيحة فقط):")
         return
 
