@@ -179,7 +179,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     cleaned_service_id = int(service_id)
     cleaned_quantity = int(quantity)
 
-    # 🛠️ دلالات تتبع ومحاكاة كاملة لطلبات الموقع الرسمية (ربط الرقم/الهدف بالكمية المحددة)
+    # 🛠️ دلالات تتبع مطابقة تماماً للموقع (تمرير الرقم في link والمبلغ الحر/الباقة في quantity)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -708,18 +708,57 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         s_rate = float(matched_srv.get('rate', 1.0)) if matched_srv else 1.0
 
         admin_state[user_id] = {
-            'action': 'waiting_ym_dynamic_phone',
+            'action': 'waiting_ym_amount_or_preset',
             'service_id': int(service_id_str),
             'service_name': s_name,
-            'price': s_rate
+            'rate': s_rate
         }
+        
+        preset_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("500 ريال", callback_data="ym_preset_500"), InlineKeyboardButton("1,000 ريال", callback_data="ym_preset_1000")],
+            [InlineKeyboardButton("2,000 ريال", callback_data="ym_preset_2000"), InlineKeyboardButton("3,000 ريال", callback_data="ym_preset_3000")],
+            [InlineKeyboardButton("5,000 ريال", callback_data="ym_preset_5000"), InlineKeyboardButton("10,000 ريال", callback_data="ym_preset_10000")],
+            [InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]
+        ])
+
         try:
             await query.edit_message_text(
-                f"📦 **الخدمة المختارة:** `{s_name}`\n"
-                f"💰 **السعر التلقائي:** `${s_rate:.2f}`\n\n"
-                "📱 **أرسل الآن رقم يمن موبايل المراد الشحن إليه (يبدأ بـ 77 أو 78 ويتكون من 9 أرقام):**",
+                f"🟢 **{s_name}** 💰\n\n"
+                "✏️ **أرسل المبلغ الصافي المطلوب بالريال:**\n"
+                "(الحد الأدنى: 21 ريال – الحد الأقصى: 826,000 ريال صافي)\n\n"
+                "💡 *يمكنك أيضاً إرسال أي مبلغ حر (مثال: 5000) أو اختيار من الباقات السريعة أدناه:*",
                 parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]])
+                reply_markup=preset_kb
+            )
+        except Exception:
+            pass
+
+    elif data.startswith('ym_preset_'):
+        amount_yer = float(data.split('_')[2])
+        st = admin_state.get(user_id, {})
+        service_id = st.get('service_id')
+        service_name = st.get('service_name', 'يمن موبايل')
+        rate = st.get('rate', 1.0)
+        
+        cost_usd = round((rate * amount_yer) / 1000.0, 4)
+
+        admin_state[user_id] = {
+            'action': 'waiting_ym_phone',
+            'service_id': service_id,
+            'service_name': service_name,
+            'amount_yer': amount_yer,
+            'cost': cost_usd
+        }
+
+        try:
+            await query.edit_message_text(
+                f"🟢 **{service_name}**\n\n"
+                f"💰 **الصافي المطلوب:** `{amount_yer:,.0f} ريال`\n"
+                f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
+                "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
+                "مثال: `771234567` أو `781234567`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
             )
         except Exception:
             pass
@@ -736,12 +775,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         service_id = order_info['service_id']
         phone = order_info['phone']
         service_name = order_info['service_name']
-        quantity = order_info.get('quantity', 1)
+        amount_yer = order_info['amount_yer']
 
         if current_bal < cost:
             try:
                 await query.edit_message_text(
-                    f"❌ **عذراً، رصيدك الحالي غير كافٍ لإتمام الشحن!**\n⭐ رصيدك: `${current_bal:.2f}`\n💰 التكلفة: `${cost:.2f}`",
+                    f"❌ **عذراً، رصيدك الحالي غير كافٍ لإتمام الشحن!**\n⭐ رصيدك: `${current_bal:.2f}`\n💰 التكلفة: `${cost:.4f}`",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
                 )
@@ -749,20 +788,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        success, hm_order_id, error_reason = await send_order_to_hmcard(service_id, phone, quantity)
+        # 🛠️ تمرير المبلغ بالريال ككمية (quantity) ورقم الهاتف كـ link تماماً كما يفعل الموقع الأصلي
+        success, hm_order_id, error_reason = await send_order_to_hmcard(service_id, phone, int(amount_yer))
 
         if success and hm_order_id:
             db_update_balance(u_id, cost, mode="deduct")
             new_bal = db_get_user(u_id).get('balance', 0.0)
             try:
                 await query.edit_message_text(
-                    f"✅ **تم تنفيذ الشحن واكتماله بنجاح من الموقع!** 🚀✨\n\n"
-                    f"📦 الخدمة: `{service_name}`\n"
-                    f"📱 الرقم: `{phone}`\n"
-                    f"🆔 رقم الطلب: `{hm_order_id}`\n"
-                    f"⭐ تم خصم: `${cost:.2f}` | رصيدك المتبقي: `${new_bal:.2f}`",
+                    f"✅ **تم بنجاح!**\n\n"
+                    f"📡 الشبكة: يمن موبايل 🟢\n"
+                    f"📞 الرقم: `{phone}`\n"
+                    f"💎 الخدمة: `{service_name}`\n"
+                    f"💸 المخصوم: `${cost:.3f}`\n"
+                    f"💳 رصيدك المتبقي: `${new_bal:.3f}`",
                     parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📱 تسديد آخر", callback_data='yemen_mobile_menu')],
+                        [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data='main_menu')]
+                    ])
                 )
             except Exception:
                 pass
@@ -773,8 +817,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"👤 آيدي العميل: `{u_id}`\n"
                 f"📦 الخدمة: `{service_name}`\n"
                 f"📱 الرقم: `{phone}`\n"
+                f"💵 المبلغ باليمني: `{amount_yer:,.0f} ريال`\n"
                 f"🆔 رقم الطلب: `{hm_order_id}`\n"
-                f"💰 المبلغ المخصوم: `${cost:.2f}`"
+                f"💰 المبلغ المخصوم: `${cost:.4f}`"
             )
             await send_log_to_channel(context, log_text, 'yemen_mobile_menu')
         else:
@@ -2070,19 +2115,57 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     if user_id in admin_state:
         st_action = admin_state[user_id].get('action')
         
-        if st_action == 'waiting_ym_dynamic_phone':
+        if st_action == 'waiting_ym_amount_or_preset':
+            if not text_content.isdigit() or not (21 <= float(text_content) <= 826000):
+                await update.message.reply_text(
+                    "❌ **عذراً، المبلغ المدخل غير صحيح!**\n"
+                    "يجب أن يكون المبلغ بين **21** و **826,000** ريال يمني.\n"
+                    "✏️ يرجى إرسال المبلغ الصافي المطلوب بالريال:"
+                )
+                return
+            
+            amount_yer = float(text_content)
+            st = admin_state[user_id]
+            service_id = st.get('service_id')
+            service_name = st.get('service_name')
+            rate = st.get('rate', 1.0)
+            
+            cost_usd = round((rate * amount_yer) / 1000.0, 4)
+
+            admin_state[user_id] = {
+                'action': 'waiting_ym_phone',
+                'service_id': service_id,
+                'service_name': service_name,
+                'amount_yer': amount_yer,
+                'cost': cost_usd
+            }
+
+            await update.message.reply_text(
+                f"🟢 **{service_name}**\n\n"
+                f"💰 **الصافي المطلوب:** `{amount_yer:,.0f} ريال`\n"
+                f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
+                "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
+                "مثال: `771234567` أو `781234567`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
+            )
+            return
+
+        elif st_action == 'waiting_ym_phone':
             if not (text_content.isdigit() and len(text_content) == 9 and (text_content.startswith('77') or text_content.startswith('78'))):
                 await update.message.reply_text(
                     "❌ **عذراً، الرقم المدخل غير صحيح!**\n"
-                    "يجب أن يكون الرقم خاص بشبكة يمن موبايل ويتكون من 9 أرقام ويبدأ بـ **77** أو **78** فقط.\n"
+                    "يجب أن يتكون الرقم من 9 أرقام ويبدأ بـ **77** أو **78**.\n"
                     "📱 يرجى إرسال الرقم الصحيح مجدداً:"
                 )
                 return
             
             phone = text_content
-            service_id = admin_state[user_id].get('service_id')
-            service_name = admin_state[user_id].get('service_name')
-            cost = admin_state[user_id].get('price')
+            st = admin_state[user_id]
+            service_id = st.get('service_id')
+            service_name = st.get('service_name')
+            amount_yer = st.get('amount_yer')
+            cost = st.get('cost')
             
             admin_state.pop(user_id, None)
             u_data = db_get_user(user_id)
@@ -2092,24 +2175,24 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 'service_id': service_id,
                 'service_name': service_name,
                 'phone': phone,
-                'cost': cost,
-                'quantity': 1
+                'amount_yer': amount_yer,
+                'cost': cost
             }
 
             summary_msg = (
-                "📋 **تفاصيل طلب يمن موبايل:**\n\n"
-                f"📦 الخدمة: `{service_name}`\n"
-                f"📱 الرقم: `{phone}`\n"
-                f"💵 التكلفة: `${cost:.2f}`\n"
-                f"💳 رصيدك: `${current_balance:.2f}`\n\n"
-                "⚠️ هل تريد تأكيد الطلب؟"
+                "🔔 **تأكيد الطلب**\n\n"
+                f"📡 الشبكة: يمن موبايل 🟢\n"
+                f"📞 الرقم: `{phone}`\n"
+                f"💎 الخدمة: `{amount_yer:,.0f} ريال يمن موبايل (تسديد رصيد)`\n"
+                f"💵 التكلفة: `${cost:.4f}`\n\n"
+                "⚠️ *تأكد من صحة الرقم قبل المتابعة.*"
             )
             await update.message.reply_text(
                 summary_msg,
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_ym_order")],
-                    [InlineKeyboardButton("❌ إلغاء", callback_data="yemen_mobile_menu")]
+                    [InlineKeyboardButton("🔙 رجوع", callback_data='yemen_mobile_menu')]
                 ])
             )
             return
