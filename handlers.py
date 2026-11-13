@@ -65,9 +65,6 @@ FORCED_SUB_MESSAGE = (
     "👇 **اشترك الآن عبر الأزرار أدناه، ثم اضغط على زر التحقق للمتابعة:**"
 )
 
-# ==========================================
-# 🛠️ مولد العمليات الوهمية الدقيق بالحرف والنمط المطلوب
-# ==========================================
 def generate_exact_styled_operation():
     operation_type = random.choice(["number", "rashq", "game"])
     
@@ -519,15 +516,18 @@ async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str,
         ]
     ])
     
-    try:
-        await context.bot.send_message(
-            chat_id=LOG_CHANNEL_ID,
-            text=log_text,
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
-    except Exception as log_err:
-        print(f"❌ خطأ إرسال لوج لقناة الطلبات: {log_err}")
+    for _ in range(3):
+        try:
+            await context.bot.send_message(
+                chat_id=LOG_CHANNEL_ID,
+                text=log_text,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+            return
+        except Exception as log_err:
+            print(f"❌ خطأ إرسال لوج لقناة الطلبات (إعادة محاولة): {log_err}")
+            await asyncio.sleep(1)
 
 async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -560,13 +560,15 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     current_text = query.message.text
                     if "🔑 **الكود الواصل:**" not in current_text:
                         updated_text = current_text + f"\n\n🔑 **الكود الواصل:** `{sms_code}`\n💬 **النص الكامل:** `{full_text}`"
-                        try:
-                            await query.edit_message_text(
-                                updated_text, parse_mode='Markdown',
-                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                            )
-                        except Exception:
-                            pass
+                        for _ in range(3):
+                            try:
+                                await query.edit_message_text(
+                                    updated_text, parse_mode='Markdown',
+                                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                                )
+                                break
+                            except Exception:
+                                await asyncio.sleep(1)
                     else:
                         await query.answer(f"✅ الكود وصل بالفعل: {sms_code}", show_alert=True)
                         
@@ -635,14 +637,16 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                             f"💬 **النص الكامل:** `{full_text}`\n\n"
                             f"💡 *تم وصول الكود بنجاح وخصم المبلغ من رصيدك بعد التأكيد!* 🚀"
                         )
-                        try:
-                            await context.bot.edit_message_text(
-                                chat_id=chat_id, message_id=message_id,
-                                text=success_msg, parse_mode='Markdown',
-                                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                            )
-                        except Exception:
-                            pass
+                        for _ in range(3):
+                            try:
+                                await context.bot.edit_message_text(
+                                    chat_id=chat_id, message_id=message_id,
+                                    text=success_msg, parse_mode='Markdown',
+                                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                                )
+                                break
+                            except Exception:
+                                await asyncio.sleep(1)
 
                         if not already_logged:
                             log_msg = (
@@ -761,7 +765,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == 'none_info':
         return
 
-    # زر توليد العملية الوهمية الجديد للأدمن (معالج مضمون 100%)
     if data == 'admin_generate_fake_order':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
             return
@@ -778,25 +781,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🔙 عودة للوحة الأدمن", callback_data='admin_panel')]
         ])
         
-        try:
-            await query.message.edit_text(
-                text="🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n" + fake_msg_text,
-                parse_mode='Markdown',
-                reply_markup=generated_keyboard
-            )
-        except Exception as e:
-            print(f"Error editing message for fake order: {e}")
+        for _ in range(3):
             try:
-                await query.message.reply_text(
+                await query.message.edit_text(
                     text="🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n" + fake_msg_text,
                     parse_mode='Markdown',
                     reply_markup=generated_keyboard
                 )
+                break
             except Exception:
-                pass
+                await asyncio.sleep(1)
         return
 
-    # زر إرسال العملية المتولدة فوراً للقناة
     if data == 'publish_fake_to_chan':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
             return
@@ -833,22 +829,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🔹 كم ناتج: ` {n1} + {n2} = ? `\n\n"
                 f"*(أرسل الرقم الناتج في رسالة الآن)*"
             )
-            try:
-                await query.edit_message_text(math_text, parse_mode='Markdown')
-            except Exception:
-                await context.bot.send_message(chat_id=user_id, text=math_text, parse_mode='Markdown')
+            for _ in range(3):
+                try:
+                    await query.edit_message_text(math_text, parse_mode='Markdown')
+                    break
+                except Exception:
+                    await asyncio.sleep(1)
         else:
             await query.answer("❌ عذراً، لم تقم بالاشتراك في القناة بعد! يرجى الاشتراك ثم إعادة المحاولة.", show_alert=True)
         return
 
     if not await check_user_subscription(user_id, context):
-        try:
-            await query.edit_message_text(
-                FORCED_SUB_MESSAGE,
-                parse_mode='Markdown', reply_markup=get_forced_subscription_keyboard()
-            )
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    FORCED_SUB_MESSAGE,
+                    parse_mode='Markdown', reply_markup=get_forced_subscription_keyboard()
+                )
+                break
+            except Exception:
+                await asyncio.sleep(1)
         return
 
     if data == 'main_menu':
@@ -863,10 +863,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🌟 بوابتك الأولى والأسرع للخدمات الرقمية المتكاملة، الأرقام الافتراضية، والرشق!\n\n"
             "👇 **اختر ما يناسبك من القائمة أدناه:**"
         )
-        try:
-            await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID) or is_owner(uid)))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(welcome_text, parse_mode='Markdown', reply_markup=get_main_keyboard(user_id, lambda uid: is_admin_or_sub(uid, ADMIN_ID) or is_owner(uid)))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'yemen_mobile_menu':
         u_data = db_get_user(user_id)
@@ -895,10 +897,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💡 يتم جلب الخدمات الآلية وتصفيتها تلقائياً من السيرفر.\n"
             "👇 **اختر الخدمة المطلوبة أدناه:**"
         )
-        try:
-            await query.edit_message_text(yemen_menu_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(yemen_menu_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data.startswith('ym_srv_'):
         service_id_str = data.split('_')[2]
@@ -926,17 +930,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]
         ])
 
-        try:
-            await query.edit_message_text(
-                f"🟢 **{s_name}** 💰\n\n"
-                "✏️ **أرسل المبلغ الصافي المطلوب بالريال:**\n"
-                "(الحد الأدنى: 100 ريال يمني)\n\n"
-                "💡 *يمكنك اختيار من الباقات السريعة أدناه أو إرسال المبلغ:*",
-                parse_mode='Markdown',
-                reply_markup=preset_kb
-            )
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    f"🟢 **{s_name}** 💰\n\n"
+                    "✏️ **أرسل المبلغ الصافي المطلوب بالريال:**\n"
+                    "(الحد الأدنى: 100 ريال يمني)\n\n"
+                    "💡 *يمكنك اختيار من الباقات السريعة أدناه أو إرسال المبلغ:*",
+                    parse_mode='Markdown',
+                    reply_markup=preset_kb
+                )
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data.startswith('ym_preset_'):
         amount_yer = float(data.split('_')[2])
@@ -955,18 +961,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'cost': cost_usd
         }
 
-        try:
-            await query.edit_message_text(
-                f"🟢 **{service_name}**\n\n"
-                f"💰 **المبلغ المطلوب:** `{amount_yer:,.0f} ريال`\n"
-                f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
-                "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
-                "مثال: `771234567` أو `781234567`",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
-            )
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    f"🟢 **{service_name}**\n\n"
+                    f"💰 **المبلغ المطلوب:** `{amount_yer:,.0f} ريال`\n"
+                    f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
+                    "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
+                    "مثال: `771234567` أو `781234567`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
+                )
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'confirm_ym_order':
         order_info = user_order_data.get(user_id)
@@ -983,14 +991,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         amount_yer = order_info['amount_yer']
 
         if current_bal < cost:
-            try:
-                await query.edit_message_text(
-                    f"❌ **عذراً، رصيدك الحالي غير كافٍ لإتمام الشحن!**\n⭐ رصيدك: `${current_bal:.2f}`\n💰 التكلفة: `${cost:.4f}`",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-                )
-            except Exception:
-                pass
+            for _ in range(3):
+                try:
+                    await query.edit_message_text(
+                        f"❌ **عذراً، رصيدك الحالي غير كافٍ لإتمام الشحن!**\n⭐ رصيدك: `${current_bal:.2f}`\n💰 التكلفة: `${cost:.4f}`",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                    )
+                    break
+                except Exception:
+                    await asyncio.sleep(1)
             return
 
         success, hm_order_id, error_reason = await send_yemen_mobile_order_to_hmcard(service_id, phone, int(amount_yer))
@@ -998,23 +1008,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if success and hm_order_id:
             db_update_balance(u_id, cost, mode="deduct")
             new_bal = db_get_user(u_id).get('balance', 0.0)
-            try:
-                await query.edit_message_text(
-                    f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
-                    f"📡 الشبكة: يمن موبايل 🟢\n"
-                    f"📞 الرقم: `{phone}`\n"
-                    f"💎 الخدمة: `{service_name}`\n"
-                    f"🆔 رقم الطلب: `{hm_order_id}`\n"
-                    f"💸 المخصوم: `${cost:.3f}`\n"
-                    f"💳 رصيدك المتبقي: `${new_bal:.3f}`",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("📱 تسديد آخر", callback_data='yemen_mobile_menu')],
-                        [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data='main_menu')]
-                    ])
-                )
-            except Exception:
-                pass
+            for _ in range(3):
+                try:
+                    await query.edit_message_text(
+                        f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
+                        f"📡 الشبكة: يمن موبايل 🟢\n"
+                        f"📞 الرقم: `{phone}`\n"
+                        f"💎 الخدمة: `{service_name}`\n"
+                        f"🆔 رقم الطلب: `{hm_order_id}`\n"
+                        f"💸 المخصوم: `${cost:.3f}`\n"
+                        f"💳 رصيدك المتبقي: `${new_bal:.3f}`",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("📱 تسديد آخر", callback_data='yemen_mobile_menu')],
+                            [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data='main_menu')]
+                        ])
+                    )
+                    break
+                except Exception:
+                    await asyncio.sleep(1)
 
             log_text = (
                 "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح تام!** ✅\n"
@@ -1028,14 +1040,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await send_log_to_channel(context, log_text, 'yemen_mobile_menu')
         else:
-            try:
-                await query.edit_message_text(
-                    f"❌ **عذراً، رفض الموقع تنفيذ الطلب!**\n\nسبب الرفض: `{error_reason}`",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-            except Exception:
-                pass
+            for _ in range(3):
+                try:
+                    await query.edit_message_text(
+                        f"❌ **عذراً، رفض الموقع تنفيذ الطلب!**\n\nسبب الرفض: `{error_reason}`",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                    break
+                except Exception:
+                    await asyncio.sleep(1)
         return
 
     elif data == 'buy_virtual_number':
@@ -1047,10 +1061,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💖 **قناة التفعيلات الرسمية** 💖\n"
             "━━━━━━━━━━━━━━━━━━"
         )
-        try:
-            await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(services_text, parse_mode='Markdown', reply_markup=get_virtual_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data in ['most_available', 'deals_whatsapp', 'service_whatsapp']:
         await show_available_countries_menu(update, context, "whatsapp", "واتساب 🟢")
@@ -1083,14 +1099,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
         if current_balance <= 0 or current_balance < country_price:
-            try:
-                await query.edit_message_text(
-                    f"❌ **عذراً، رصيدك غير كافٍ أو صفر لشراء الرقم!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 سعر الرقم: `${country_price:.2f}`",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-                )
-            except Exception:
-                pass
+            for _ in range(3):
+                try:
+                    await query.edit_message_text(
+                        f"❌ **عذراً، رصيدك غير كافٍ أو صفر لشراء الرقم!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 سعر الرقم: `${country_price:.2f}`",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                    )
+                    break
+                except Exception:
+                    await asyncio.sleep(1)
             return
 
         section_names_ar = {
@@ -1117,18 +1135,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     try:
                         res_data = res.json()
                     except Exception:
-                        try:
-                            await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-                        except Exception:
-                            pass
+                        for _ in range(3):
+                            try:
+                                await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                                break
+                            except Exception:
+                                await asyncio.sleep(1)
                         return
 
                     phone, order_id = res_data.get('phone'), res_data.get('id')
                     if not phone or not order_id:
-                        try:
-                            await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-                        except Exception:
-                            pass
+                        for _ in range(3):
+                            try:
+                                await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                                break
+                            except Exception:
+                                await asyncio.sleep(1)
                         return
 
                     active_numbers_cache[str(order_id)] = {
@@ -1157,27 +1179,38 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
                     )
                     
-                    sent_msg = await query.edit_message_text(
-                        success_msg,
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{order_id}")],
-                            [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{order_id}_{service}_{country_code}_{country_price}_{operator_name}")],
-                            [InlineKeyboardButton("❌ إلغاء الرقم", callback_data=f"cnl_paid_{order_id}_{country_price}")]
-                        ])
-                    )
+                    sent_msg = None
+                    for _ in range(3):
+                        try:
+                            sent_msg = await query.edit_message_text(
+                                success_msg,
+                                parse_mode='Markdown',
+                                reply_markup=InlineKeyboardMarkup([
+                                    [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{order_id}")],
+                                    [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{order_id}_{service}_{country_code}_{country_price}_{operator_name}")],
+                                    [InlineKeyboardButton("❌ إلغاء الرقم", callback_data=f"cnl_paid_{order_id}_{country_price}")]
+                                ])
+                            )
+                            break
+                        except Exception:
+                            await asyncio.sleep(1)
                     
-                    asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username, sec_name_ar, c_name_ar, c_dial))
+                    if sent_msg:
+                        asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(order_id), phone, country_price, service, user_id, context.bot.username, sec_name_ar, c_name_ar, c_dial))
                 else:
-                    try:
-                        await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
-                    except Exception:
-                        pass
+                    for _ in range(3):
+                        try:
+                            await query.edit_message_text(out_of_stock_msg, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='buy_virtual_number')]]))
+                            break
+                        except Exception:
+                            await asyncio.sleep(1)
             except Exception as e:
-                try:
-                    await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
-                except Exception:
-                    pass
+                for _ in range(3):
+                    try:
+                        await query.edit_message_text(f"⚠️ خطأ بالاتصال: `{str(e)[:50]}`", parse_mode='Markdown')
+                        break
+                    except Exception:
+                        await asyncio.sleep(1)
 
     elif data.startswith('chk_sms_'):
         await check_sms_manual(update, context)
@@ -1202,10 +1235,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     new_phone, new_order_id = res_data.get('phone'), res_data.get('id')
                     
                     if not new_phone or not new_order_id:
-                        try:
-                            await query.edit_message_text("❌ عذراً، نفدت أرقام هذه الدولة مؤقتاً أثناء التغيير.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
-                        except Exception:
-                            pass
+                        for _ in range(3):
+                            try:
+                                await query.edit_message_text("❌ عذراً، نفدت أرقام هذه الدولة مؤقتاً أثناء التغيير.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                                break
+                            except Exception:
+                                await asyncio.sleep(1)
                         return
                     
                     section_names_ar = {'whatsapp': 'واتساب', 'telegram': 'تليجرام', 'instagram': 'انستغرام', 'facebook': 'فيسبوك'}
@@ -1237,26 +1272,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"⏳ **جاري رصد الكود تلقائياً للرقم الجديد...** 🚀"
                     )
 
-                    sent_msg = await query.edit_message_text(
-                        success_msg,
-                        parse_mode='Markdown',
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{new_order_id}")],
-                            [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{new_order_id}_{service}_{country_code}_{price_str}_{operator_name}")],
-                            [InlineKeyboardButton("❌ إلغاء الرقم", callback_data=f"cnl_paid_{new_order_id}_{price_str}")]
-                        ])
-                    )
-                    asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(new_order_id), new_phone, price_str, service, user_id, context.bot.username, sec_name_ar, c_info['name_ar'], c_info['dial']))
+                    sent_msg = None
+                    for _ in range(3):
+                        try:
+                            sent_msg = await query.edit_message_text(
+                                success_msg,
+                                parse_mode='Markdown',
+                                reply_markup=InlineKeyboardMarkup([
+                                    [InlineKeyboardButton("🔄 طلب الكود", callback_data=f"chk_sms_{new_order_id}")],
+                                    [InlineKeyboardButton("🔄 تغيير الرقم", callback_data=f"change_num_{new_order_id}_{service}_{country_code}_{price_str}_{operator_name}")],
+                                    [InlineKeyboardButton("❌ إلغاء الرقم", callback_data=f"cnl_paid_{new_order_id}_{price_str}")]
+                                ])
+                            )
+                            break
+                        except Exception:
+                            await asyncio.sleep(1)
+                    if sent_msg:
+                        asyncio.create_task(watch_order_sms_auto(context, query.message.chat_id, sent_msg.message_id, str(new_order_id), new_phone, price_str, service, user_id, context.bot.username, sec_name_ar, c_info['name_ar'], c_info['dial']))
                 else:
-                    try:
-                        await query.edit_message_text("❌ عذراً، فشل توفير رقم بديل حالياً.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
-                    except Exception:
-                        pass
+                    for _ in range(3):
+                        try:
+                            await query.edit_message_text("❌ عذراً، فشل توفير رقم بديل حالياً.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]]))
+                            break
+                        except Exception:
+                            await asyncio.sleep(1)
             except Exception as e:
-                try:
-                    await query.edit_message_text(f"⚠️ خطأ أثناء استبدال الرقم: `{str(e)[:50]}`", parse_mode='Markdown')
-                except Exception:
-                    pass
+                for _ in range(3):
+                    try:
+                        await query.edit_message_text(f"⚠️ خطأ أثناء استبدال الرقم: `{str(e)[:50]}`", parse_mode='Markdown')
+                        break
+                    except Exception:
+                        await asyncio.sleep(1)
 
     elif data.startswith('cnl_'):
         parts = data.split('_')
@@ -1272,112 +1318,148 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if order_status_info.get('balance_deducted', False):
                     db_update_balance(user_id, price, mode="add")
 
-                try:
-                    await query.edit_message_text("🚫 **تم إلغاء الرقم بنجاح.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
-                except Exception:
-                    pass
+                for _ in range(3):
+                    try:
+                        await query.edit_message_text("🚫 **تم إلغاء الرقم بنجاح.**", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                        break
+                    except Exception:
+                        await asyncio.sleep(1)
 
     elif data == "main_rashq":
-        try:
-            await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📂 اختر القسم المطلوب:", reply_markup=sections_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "sec_telegram":
-        try:
-            await query.edit_message_text("🚀 خدمات تليجرام الرئيسية:\nاختر القسم المطلوب:", reply_markup=telegram_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🚀 خدمات تليجرام الرئيسية:\nاختر القسم المطلوب:", reply_markup=telegram_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "tg_arab_menu":
-        try:
-            await query.edit_message_text("🇸🇦 أعضاء تيليجرام عرب:\nاختر الباقة المطلوبة:", reply_markup=tg_arab_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🇸🇦 أعضاء تيليجرام عرب:\nاختر الباقة المطلوبة:", reply_markup=tg_arab_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "tg_foreign_menu":
-        try:
-            await query.edit_message_text("🌍 أعضاء تيليجرام أجانب:\nاختر الباقة المطلوبة:", reply_markup=tg_foreign_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🌍 أعضاء تيليجرام أجانب:\nاختر الباقة المطلوبة:", reply_markup=tg_foreign_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "tg_prem_menu":
-        try:
-            await query.edit_message_text("⭐ أعضاء تيليجرام بريميوم:\nاختر الباقة المطلوبة:", reply_markup=tg_prem_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("⭐ أعضاء تيليجرام بريميوم:\nاختر الباقة المطلوبة:", reply_markup=tg_prem_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "tg_views_menu":
-        try:
-            await query.edit_message_text("👁️ مشاهدات ومشاركات تليجرام:\nاختر الخدمة المطلوبة:", reply_markup=tg_views_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("👁️ مشاهدات ومشاركات تليجرام:\nاختر الخدمة المطلوبة:", reply_markup=tg_views_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "tg_auto_menu":
-        try:
-            await query.edit_message_text("⚡ خدمات التفاعل والمشاهدات التلقائية:\nاختر الخدمة المطلوبة:", reply_markup=tg_auto_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("⚡ خدمات التفاعل والمشاهدات التلقائية:\nاختر الخدمة المطلوبة:", reply_markup=tg_auto_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "tg_react_menu":
-        try:
-            await query.edit_message_text("⭐ تفاعلات إيموجي تليجرام:\nاختر نوع التفاعل المطلوب:", reply_markup=tg_react_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("⭐ تفاعلات إيموجي تليجرام:\nاختر نوع التفاعل المطلوب:", reply_markup=tg_react_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "tg_polls_menu":
-        try:
-            await query.edit_message_text("🗳️ تصويتات واستطلاعات تليجرام:\nاختر نوع التصويت المطلوب:", reply_markup=tg_polls_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🗳️ تصويتات واستطلاعات تليجرام:\nاختر نوع التصويت المطلوب:", reply_markup=tg_polls_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "tg_boost_menu":
-        try:
-            await query.edit_message_text("🚀 تعزيزات قنوات ومجموعات تليجرام (Boosts):\nاختر المدة المطلوبة:", reply_markup=tg_boost_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🚀 تعزيزات قنوات ومجموعات تليجرام (Boosts):\nاختر المدة المطلوبة:", reply_markup=tg_boost_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "sec_whatsapp":
-        try:
-            await query.edit_message_text("🟢 خدمات واتساب (رشق):\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🟢 خدمات واتساب (رشق):\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "sec_facebook":
-        try:
-            await query.edit_message_text("📘 خدمات فيسبوك:", reply_markup=facebook_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📘 خدمات فيسبوك:", reply_markup=facebook_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "sec_instagram":
-        try:
-            await query.edit_message_text("📸 خدمات انستغرام:", reply_markup=instagram_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📸 خدمات انستغرام:", reply_markup=instagram_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "sec_tiktok":
-        try:
-            await query.edit_message_text("🎵 خدمات تيك توك:", reply_markup=tiktok_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🎵 خدمات تيك توك:", reply_markup=tiktok_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "sec_youtube":
-        try:
-            await query.edit_message_text("📺 خدمات يوتيوب:", reply_markup=youtube_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📺 خدمات يوتيوب:", reply_markup=youtube_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "sec_pubg":
-        try:
-            await query.edit_message_text("🎮 قسم شحن شدات ببجي موبايل:", reply_markup=pubg_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🎮 قسم شحن شدات ببجي موبايل:", reply_markup=pubg_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "sec_freefire":
-        try:
-            await query.edit_message_text("🔥 قسم شحن فري فاير:", reply_markup=freefire_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔥 قسم شحن فري فاير:", reply_markup=freefire_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data in ["sec_twitter", "sec_kwai", "sec_snapchat", "sec_linkedin"]:
         return
@@ -1390,31 +1472,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "مرحباً بك عزيزي العميل في مركز الخدمات المجانية المتاحة لك بالكامل دون أي رسوم!\n\n"
             "👇 **اختر الأداة أو الخدمة المطلوبة من القائمة أدناه:**"
         )
-        try:
-            await query.edit_message_text(free_services_main_text, parse_mode='Markdown', reply_markup=get_free_services_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(free_services_main_text, parse_mode='Markdown', reply_markup=get_free_services_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_url_info':
         admin_state[user_id] = {'action': 'fs_url_info_action'}
-        try:
-            await query.edit_message_text("🔗 **فحص ومعالجة الروابط:**\nأرسل الآن الرابط المراد فحصه أو التحقق من صحته لتظهر لك تفاصيله بالكامل:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔗 **فحص ومعالجة الروابط:**\nأرسل الآن الرابط المراد فحصه أو التحقق من صحته لتظهر لك تفاصيله بالكامل:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_text_deco':
         admin_state[user_id] = {'action': 'fs_text_deco_action'}
-        try:
-            await query.edit_message_text("🎨 **زخرفة النصوص والأسماء:**\nأرسل الآن الاسم أو النص المراد زخرفته بأشكال عربية وإنجليزية فخمة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🎨 **زخرفة النصوص والأسماء:**\nأرسل الآن الاسم أو النص المراد زخرفته بأشكال عربية وإنجليزية فخمة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_id_lookup':
         admin_state[user_id] = {'action': 'fs_id_lookup_action'}
-        try:
-            await query.edit_message_text("🔍 **كشف الآيدي والمعرفات:**\nأرسل معرف (Username) أو قم بتوجيه رسالة (Forward) من أي شخص أو قناة لمعرفة الآيدي الخاص به فوراً:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔍 **كشف الآيدي والمعرفات:**\nأرسل معرف (Username) أو قم بتوجيه رسالة (Forward) من أي شخص أو قناة لمعرفة الآيدي الخاص به فوراً:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_password_gen':
         chars = string.ascii_letters + string.digits + "!@#$%&*"
@@ -1424,37 +1514,47 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔑 كلمة المرور المقترحة:\n`{secure_pass}`\n\n"
             "*(انقر فوق الكود لنسخه واستخدامه لحماية حساباتك)*"
         )
-        try:
-            await query.edit_message_text(pass_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 توليد كلمة أخرى", callback_data='fs_password_gen'), InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(pass_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 توليد كلمة أخرى", callback_data='fs_password_gen'), InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_price_calc':
-        try:
-            await query.edit_message_text("📊 **حاسبة أسعار الرشق:**\nيمكنك استخدام أقسام الرشق الرئيسية في البوت لمعرفة الأسعار بدقة، أو اختيار الخدمة للاستعلام الفوري.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📊 **حاسبة أسعار الرشق:**\nيمكنك استخدام أقسام الرشق الرئيسية في البوت لمعرفة الأسعار بدقة، أو اختيار الخدمة للاستعلام الفوري.", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_url_short':
         admin_state[user_id] = {'action': 'fs_url_short_action'}
-        try:
-            await query.edit_message_text("✂️ **اختصار الروابط السريع:**\nأرسل الرابط الطويل المراد اختصاره وتوليد رابط نظيف ومختصر له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("✂️ **اختصار الروابط السريع:**\nأرسل الرابط الطويل المراد اختصاره وتوليد رابط نظيف ومختصر له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_tg_info':
         admin_state[user_id] = {'action': 'fs_tg_info_action'}
-        try:
-            await query.edit_message_text("📥 **معلومات القنوات العامة:**\nأرسل معرف القناة أو المجموعة العامة (مثال: `@ChannelName`) لجلب معلوماتها الأساسية:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📥 **معلومات القنوات العامة:**\nأرسل معرف القناة أو المجموعة العامة (مثال: `@ChannelName`) لجلب معلوماتها الأساسية:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_markdown_fmt':
         admin_state[user_id] = {'action': 'fs_markdown_fmt_action'}
-        try:
-            await query.edit_message_text("🔤 **منسق النصوص والمخفي:**\nأرسل النص الذي تريد تنسيقه لتجهيزه بصيغة `Markdown` الخاصة بمنشوراتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔤 **منسق النصوص والمخفي:**\nأرسل النص الذي تريد تنسيقه لتجهيزه بصيغة `Markdown` الخاصة بمنشوراتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_dial_codes':
         dial_text = (
@@ -1468,38 +1568,48 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🇹🇷 تركيا: `+90`\n\n"
             "💡 *يمكنك دائماً الاعتماد على هذا الدليل السريع لتفعيل أرقامك.*"
         )
-        try:
-            await query.edit_message_text(dial_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(dial_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
-        try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_percent_calc':
         admin_state[user_id] = {'action': 'fs_percent_calc_action'}
-        try:
-            await query.edit_message_text("🔢 **حاسبة النسب والخصومات:**\nأرسل المبلغ والنسبة المئوية (مثال: `100 15`) لحساب قيمة الخصم أو الربح بسرعة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔢 **حاسبة النسب والخصومات:**\nأرسل المبلغ والنسبة المئوية (مثال: `100 15`) لحساب قيمة الخصم أو الربح بسرعة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_word_counter':
         admin_state[user_id] = {'action': 'fs_word_counter_action'}
-        try:
-            await query.edit_message_text("🔠 **عدّاد الكلمات والحروف:**\nأرسل أي نص طويل ليقوم البوت بحساب عدد الكلمات، الحروف، والأسطر بدقة تامة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔠 **عدّاد الكلمات والحروف:**\nأرسل أي نص طويل ليقوم البوت بحساب عدد الكلمات، الحروف، والأسطر بدقة تامة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_text_cleaner':
         admin_state[user_id] = {'action': 'fs_text_cleaner_action'}
-        try:
-            await query.edit_message_text("🗑️ **تنظيف النصوص والمسافات:**\nأرسل النص المليء بالمسافات الفارغة لإزالة الزوائد وتنسيقه في ثوانٍ:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🗑️ **تنظيف النصوص والمسافات:**\nأرسل النص المليء بالمسافات الفارغة لإزالة الزوائد وتنسيقه في ثوانٍ:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'fs_unban_guide':
         unban_guide_text = (
@@ -1512,52 +1622,68 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "إذا كان حسابك مقيداً (Spam Bot)، تواصل مع بوت الدعم الرسمي: `@SpamBot` واتبع التعليمات لرفع القيود.\n\n"
             "💡 *هذه الإرشادات الرسمية المعتمدة لتقديم طلبات الاستئناف.*"
         )
-        try:
-            await query.edit_message_text(unban_guide_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(unban_guide_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "ig_channel_menu":
-        try:
-            await query.edit_message_text("📺 متابعو قناة انستغرام:", reply_markup=ig_channel_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📺 متابعو قناة انستغرام:", reply_markup=ig_channel_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "ig_views_menu":
-        try:
-            await query.edit_message_text("👁️ مشاهدات انستغرام:", reply_markup=ig_views_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("👁️ مشاهدات انستغرام:", reply_markup=ig_views_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "ig_story_menu":
-        try:
-            await query.edit_message_text("📸 مشاهدات قصص انستغرام:", reply_markup=ig_story_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📸 مشاهدات قصص انستغرام:", reply_markup=ig_story_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "ig_likes_menu":
-        try:
-            await query.edit_message_text("👍 إعجابات انستغرام:", reply_markup=ig_likes_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("👍 إعجابات انستغرام:", reply_markup=ig_likes_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "ig_comment_likes_menu":
-        try:
-            await query.edit_message_text("💬 إعجابات تعليقات انستغرام:", reply_markup=ig_comment_likes_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("💬 إعجابات تعليقات انستغرام:", reply_markup=ig_comment_likes_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "ig_comments_menu":
-        try:
-            await query.edit_message_text("💬 تعليقات انستغرام مخصصة:", reply_markup=ig_comments_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("💬 تعليقات انستغرام مخصصة:", reply_markup=ig_comments_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "ig_shares_menu":
-        try:
-            await query.edit_message_text("🔄 مشاركات انستغرام:", reply_markup=ig_shares_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔄 مشاركات انستغرام:", reply_markup=ig_shares_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "ig_f_961":
         user_selected_service[user_id] = {"service_id": 961, "name": "متابعين انستغرام فوري بدون ضمان", "price": 0.78, "min": 10, "max": 100000000, "type": "channel"}
@@ -1619,44 +1745,56 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prompt_user_for_pubg_id(update.effective_message, user_selected_service[user_id], context)
 
     elif data == "fb_profile_menu":
-        try:
-            await query.edit_message_text("👤 متابعو الملف الشخصي:", reply_markup=fb_profile_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("👤 متابعو الملف الشخصي:", reply_markup=fb_profile_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "fb_page_menu":
-        try:
-            await query.edit_message_text("📘 متابعو الصفحة:", reply_markup=fb_page_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📘 متابعو الصفحة:", reply_markup=fb_page_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "fb_group_744":
         user_selected_service[user_id] = {"service_id": 744, "name": "أعضاء مجموعة فيسبوك", "price": 0.72, "min": 10, "max": 100000, "type": "channel"}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
     elif data == "fb_react_menu":
-        try:
-            await query.edit_message_text("👍 تفاعلات منشورات فيسبوك:", reply_markup=fb_react_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("👍 تفاعلات منشورات فيسبوك:", reply_markup=fb_react_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "fb_comment_react_menu":
-        try:
-            await query.edit_message_text("💬 تفاعلات تعليقات فيسبوك:", reply_markup=fb_comment_react_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("💬 تفاعلات تعليقات فيسبوك:", reply_markup=fb_comment_react_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "fb_story_menu":
-        try:
-            await query.edit_message_text("📸 مشاهدات قصة فيسبوك:", reply_markup=fb_story_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📸 مشاهدات قصة فيسبوك:", reply_markup=fb_story_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == "fb_share_menu":
-        try:
-            await query.edit_message_text("🔄 مشارقات فيسبوك:", reply_markup=fb_share_menu_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🔄 مشارقات فيسبوك:", reply_markup=fb_share_menu_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data.startswith("sub_"):
         service_ids = {"sub_no_guarantee": 729, "sub_30d": 730, "sub_60d": 731, "sub_90d": 732, "sub_global": 805, "sub_arabic": 806}
@@ -1762,31 +1900,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_data = db_get_user(user_id)
         current_balance = float(u_data.get('balance', 0.0))
         if current_balance <= 0 or current_balance < final_cost:
-            try:
-                await query.edit_message_text(
-                    f"❌ **عذراً، رصيدك غير كافٍ أو صفر لإتمام الطلب!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 التكلفة المطلوبة: `${final_cost:.2f}`",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
-                )
-            except Exception:
-                pass
+            for _ in range(3):
+                try:
+                    await query.edit_message_text(
+                        f"❌ **عذراً، رصيدك غير كافٍ أو صفر لإتمام الطلب!**\n⭐ رصيدك الحالي: `${current_balance:.2f}`\n💰 التكلفة المطلوبة: `${final_cost:.2f}`",
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 شحن الرصيد", callback_data='deposit_menu'), InlineKeyboardButton("🔙 الرئيسية", callback_data='main_menu')]])
+                    )
+                    break
+                except Exception:
+                    await asyncio.sleep(1)
             return
 
         success, order_id, error_reason = await send_order_to_hmcard(service['service_id'], order['link'], qty)
 
         if success and order_id:
             db_update_balance(user_id, final_cost, mode="deduct")
-            try:
-                await query.edit_message_text(
-                    f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
-                    f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
-                    f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
-                    f"📦 **الكمية:** `{qty:,}`\n"
-                    f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-            except Exception:
-                pass
+            for _ in range(3):
+                try:
+                    await query.edit_message_text(
+                        f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
+                        f"🆔 **رقم الطلب في المنصة:** `{order_id}`\n"
+                        f"🔗 **الهدف:** `{mask_link(order['link'])}`\n"
+                        f"📦 **الكمية:** `{qty:,}`\n"
+                        f"⭐ **تم خصم:** `${final_cost:.2f}` من رصيدك.",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                    break
+                except Exception:
+                    await asyncio.sleep(1)
             
             service_name = service.get('name', 'خدمة رقمية')
             cb_param = service.get('callback_data', 'main_rashq')
@@ -1803,21 +1945,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_log_to_channel(context, log_msg, cb_param)
             return
         else:
-            try:
-                await query.edit_message_text(
-                    f"❌ **عذراً، رفض الموقع الطلب!**\n\nسبب الرفض: `{error_reason}`",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
-                )
-            except Exception:
-                pass
+            for _ in range(3):
+                try:
+                    await query.edit_message_text(
+                        f"❌ **عذراً، رفض الموقع الطلب!**\n\nسبب الرفض: `{error_reason}`",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]])
+                    )
+                    break
+                except Exception:
+                    await asyncio.sleep(1)
             return
 
     elif data == "cancel_order":
-        try:
-            await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'bot_instructions':
         instructions_text = (
@@ -1832,13 +1978,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💳 **3️⃣ شحن الرصيد التلقائي والآلي:**\n"
             "• يمكنك شحن حسابك عبر محفظة **جيب (Jaib)**، **بنك الكريمي**، أو **محفظة جوالي** بسعر صرف ثابت (1$ = 550 ريال يمني)."
         )
-        try:
-            await query.edit_message_text(
-                instructions_text, parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]])
-            )
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    instructions_text, parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]])
+                )
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'free_points':
         bot_username = context.bot.username
@@ -1854,18 +2002,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👥 عدد الأشخاص الذين دعوتهم: `{u_data['referrals']} شخص`\n"
             f"⭐ إجمالي رصيدك المكتسب: `${u_data['referrals'] * 0.10:.2f}`"
         )
-        try:
-            await query.edit_message_text(free_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(free_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'transfer_balance':
         admin_state[user_id] = {'action': 'waiting_for_transfer_id'}
         u_data = db_get_user(user_id)
-        try:
-            await query.edit_message_text(f"🔄 **تحويل الرصيد:**\n⭐ رصيدك الحالي: `${u_data['balance']:.2f}`\n\nأرسل الآن **آيدي (ID)** المستخدم المراد التحويل إليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(f"🔄 **تحويل الرصيد:**\n⭐ رصيدك الحالي: `${u_data['balance']:.2f}`\n\nأرسل الآن **آيدي (ID)** المستخدم المراد التحويل إليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='main_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'deposit_menu':
         deposit_text = (
@@ -1884,10 +2036,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⭐ الشحن الفوري عبر نجوم تليجرام (Stars)", callback_data='dep_telegram_stars')],
             [InlineKeyboardButton("• عودة •", callback_data='main_menu')]
         ])
-        try:
-            await query.edit_message_text(deposit_text, parse_mode='Markdown', reply_markup=deposit_keyboard)
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(deposit_text, parse_mode='Markdown', reply_markup=deposit_keyboard)
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'dep_telegram_stars':
         stars_keyboard = InlineKeyboardMarkup([
@@ -1896,101 +2050,119 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⭐ شحن $20 (1000 نجمة)", callback_data='pay_stars_1000_20')],
             [InlineKeyboardButton("🔙 عودة", callback_data='deposit_menu')]
         ])
-        try:
-            await query.edit_message_text("⭐ **اختر الباقة المناسبة لك لشحن رصيدك فوراً:**", parse_mode='Markdown', reply_markup=stars_keyboard)
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("⭐ **اختر الباقة المناسبة لك لشحن رصيدك فوراً:**", parse_mode='Markdown', reply_markup=stars_keyboard)
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data.startswith('pay_stars_'):
         _, _, stars_count, usd_amount = data.split('_')
-        try:
-            await context.bot.send_invoice(
-                chat_id=user_id, title=f"شحن رصيد بقيمة ${usd_amount}", description="شحن فوري",
-                payload=f"deposit_{user_id}_{usd_amount}", provider_token="", currency="XTR", prices=[LabeledPrice("شحن", int(stars_count))]
-            )
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await context.bot.send_invoice(
+                    chat_id=user_id, title=f"شحن رصيد بقيمة ${usd_amount}", description="شحن فوري",
+                    payload=f"deposit_{user_id}_{usd_amount}", provider_token="", currency="XTR", prices=[LabeledPrice("شحن", int(stars_count))]
+                )
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'dep_jaib':
         admin_state[user_id] = {'action': 'waiting_for_jaib_deposit'}
-        try:
-            await query.edit_message_text(
-                "💳 **تعليمات الشحن عبر محفظة جيب:**\n\n"
-                f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
-                f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
-                "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    "💳 **تعليمات الشحن عبر محفظة جيب:**\n\n"
+                    f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جيب:\n"
+                    f"   📌 رقم الحساب: `{JAIB_ACCOUNT}`\n\n"
+                    "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'dep_kreemi':
         admin_state[user_id] = {'action': 'waiting_for_kreemi_deposit'}
-        try:
-            await query.edit_message_text(
-                "🏦 **تعليمات الشحن عبر بنك الكريمي:**\n\n"
-                "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
-                f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
-                "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    "🏦 **تعليمات الشحن عبر بنك الكريمي:**\n\n"
+                    "1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في الكريمي:\n"
+                    f"   📌 رقم الحساب : `{KREEMI_ACCOUNT}`\n\n"
+                    "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'dep_jowali':
         admin_state[user_id] = {'action': 'waiting_for_jowali_deposit'}
-        try:
-            await query.edit_message_text(
-                "📱 **تعليمات الشحن عبر محفظة جوالي:**\n\n"
-                f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جوالي:\n"
-                f"   📌 رقم الحساب / الهاتف: `{JOWALI_ACCOUNT}`\n\n"
-                "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    "📱 **تعليمات الشحن عبر محفظة جوالي:**\n\n"
+                    f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جوالي:\n"
+                    f"   📌 رقم الحساب / الهاتف: `{JOWALI_ACCOUNT}`\n\n"
+                    "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'user_account':
         u_data = db_get_user(user_id)
-        try:
-            await query.edit_message_text(f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(f"👤 **معلومات الحساب:**\n\n🆔 الآيدي: `{user_id}`\n⭐ رصيدك: `${u_data['balance']:.2f}`\n👥 الدعوات: `{u_data['referrals']}`", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 رجوع", callback_data='main_menu')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_panel':
         if is_owner(user_id) or int(user_id) == int(ADMIN_ID) or user_id == 6472852297:
-            try:
-                stats = db_get_advanced_stats() or {}
-                panel_text = (
-                    "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
-                    f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
-                    f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n"
-                    f"🔗 **إجمالي الإحالات الكلية:** `{stats.get('total_referrals', 0)} دعوة`\n\n"
-                    "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
-                )
-                await query.edit_message_text(
-                    text=panel_text,
-                    parse_mode='Markdown',
-                    reply_markup=get_subadmin_keyboard()
-                )
-            except Exception as e:
-                print(f"Error loading owner panel: {e}")
+            for _ in range(3):
+                try:
+                    stats = db_get_advanced_stats() or {}
+                    panel_text = (
+                        "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
+                        f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
+                        f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n"
+                        f"🔗 **إجمالي الإحالات الكلية:** `{stats.get('total_referrals', 0)} دعوة`\n\n"
+                        "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
+                    )
+                    await query.edit_message_text(
+                        text=panel_text,
+                        parse_mode='Markdown',
+                        reply_markup=get_subadmin_keyboard()
+                    )
+                    break
+                except Exception as e:
+                    print(f"Error loading owner panel: {e}")
+                    await asyncio.sleep(1)
         else:
-            try:
-                sub_panel_text = (
-                    "🛡️ **• لوحة تحكم المشرف المساعد •** 🛡️\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للرد على المستخدمين وإدارة الأرصدة:"
-                )
-                await query.edit_message_text(
-                    text=sub_panel_text,
-                    parse_mode='Markdown',
-                    reply_markup=get_subadmin_keyboard()
-                )
-            except Exception as e:
-                print(f"Error loading subadmin panel: {e}")
+            for _ in range(3):
+                try:
+                    sub_panel_text = (
+                        "🛡️ **• لوحة تحكم المشرف المساعد •** 🛡️\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للرد على المستخدمين وإدارة الأرصدة:"
+                    )
+                    await query.edit_message_text(
+                        text=sub_panel_text,
+                        parse_mode='Markdown',
+                        reply_markup=get_subadmin_keyboard()
+                    )
+                    break
+                except Exception as e:
+                    print(f"Error loading subadmin panel: {e}")
+                    await asyncio.sleep(1)
 
     elif data == 'owner_publish_to_channel':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
@@ -1998,14 +2170,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         admin_state[user_id] = {'action': 'waiting_for_owner_channel_post'}
         
-        try:
-            await query.edit_message_text(
-                "📢 **نشر منشور لقناة البوت الرسمية:**\n\n"
-                "أرسل الآن النص، الصورة، الفيديو، أو الوسائط التي تريد نشرها في القناة وسيتم إرسالها فوراً مع زر (الدخول للبوت).",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    "📢 **نشر منشور لقناة البوت الرسمية:**\n\n"
+                    "أرسل الآن النص، الصورة، الفيديو، أو الوسائط التي تريد نشرها في القناة وسيتم إرسالها فوراً مع زر (الدخول للبوت).",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_top_refs':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
@@ -2015,88 +2189,108 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if top_list:
             for idx, (uid, refs) in enumerate(top_list, 1): text += f"{idx}. الآيدي: `{uid}` ⟵ **{refs} دعوة** 🌟\n"
         else: text += "⚠️ لا توجد إحالات مسجلة حتى الآن."
-        try:
-            await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_create_promo':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_promo_details'}
-        try:
-            await query.edit_message_text(
-                "🎟️ **إنشاء كود هدية جديد:**\n"
-                "أرسل التفاصيل بالصيغة التالية:\n"
-                "`الكود المبلغ عدد_الاستخدامات`",
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(
+                    "🎟️ **إنشاء كود هدية جديد:**\n"
+                    "أرسل التفاصيل بالصيغة التالية:\n"
+                    "`الكود المبلغ عدد_الاستخدامات`",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_reply_user':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_reply_id'}
-        try:
-            await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآن **آيدي المستخدم** المراد الرد عليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("💬 **الرد على مستخدم:**\nأرسل الآن **آيدي المستخدم** المراد الرد عليه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_send_gift_user':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_gift_id'}
-        try:
-            await query.edit_message_text("🎁 **إرسال هدية مالية:**\nأرسل الآن **آيدي المستخدم** المراد إرسال الهدية له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🎁 **إرسال هدية مالية:**\nأرسل الآن **آيدي المستخدم** المراد إرسال الهدية له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_add_balance':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_add_bal_id'}
-        try:
-            await query.edit_message_text("➕ **إضافة رصيد:**\nأرسل الآن **آيدي المستخدم** المراد إضافة الرصيد له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("➕ **إضافة رصيد:**\nأرسل الآن **آيدي المستخدم** المراد إضافة الرصيد له:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_deduct_balance':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_deduct_bal_id'}
-        try:
-            await query.edit_message_text("➖ **خصم رصيد:**\nأرسل الآن **آيدي المستخدم** المراد الخصم من حسابه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("➖ **خصم رصيد:**\nأرسل الآن **آيدي المستخدم** المراد الخصم من حسابه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_manage_subadmins':
         if not is_owner(user_id) and int(user_id) != int(ADMIN_ID): return
         subs = get_all_sub_admins()
         subs_text = "👥 المشرفون المساعدون:\n" + ("\n".join([f"• `{sid}`" for sid in subs]) if subs else "لا يوجد مشرفين مساعدين.")
-        try:
-            await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_sub'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_sub')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_sub'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_sub')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_add_sub':
         if not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_sub_id'}
-        try:
-            await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_del_sub':
         if not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
-        try:
-            await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_send_bonus':
         if not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_bonus_amount'}
-        try:
-            await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_reset_balances':
         if not is_owner(user_id):
@@ -2107,26 +2301,32 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
         except Exception:
             pass
-        try:
-            await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بناءً على طلب المالك حصرياً.", reply_markup=get_admin_keyboard())
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بناءً على طلب المالك حصرياً.", reply_markup=get_admin_keyboard())
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_ban_user':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_ban_id'}
-        try:
-            await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر أو فك الحظر:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر أو فك الحظر:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
     elif data == 'admin_broadcast':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_broadcast'}
-        try:
-            await query.edit_message_text("📢 **إذاعة شاملة ضخمة:**\nأرسل الآن نص الإذاعة، الصورة، أو أي وسائط تريد إرسالها لجميع المشتركين:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
+        for _ in range(3):
+            try:
+                await query.edit_message_text("📢 **إذاعة شاملة ضخمة:**\nأرسل الآن نص الإذاعة، الصورة، أو أي وسائط تريد إرسالها لجميع المشتركين:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
+                break
+            except Exception:
+                await asyncio.sleep(1)
 
 async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
