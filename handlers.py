@@ -5,8 +5,9 @@ import random
 import httpx
 import cloudscraper
 import string
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
-from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, PreCheckoutQueryHandler, CallbackQueryHandler
+from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, PreCheckoutQueryHandler, CallbackQueryHandler, Application
 from telegram.request import HTTPXRequest
 
 from config import (
@@ -772,7 +773,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🔙 عودة للوحة الأدمن", callback_data='admin_panel')]
         ])
         
-        # نشر العملية مباشرة إلى قناة البوت فور توليدها دون الحاجة لضغط زر إضافي
         try:
             await context.bot.send_message(
                 chat_id=LOG_CHANNEL_ID,
@@ -2722,13 +2722,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             return
 
 def main():
-    from telegram.ext import Application
-    
+    # ضبط مهلات الاتصال لمنع أخطاء الـ Bad Gateway والـ Timeout
     request = HTTPXRequest(
-        connect_timeout=30.0, 
-        read_timeout=30.0, 
-        write_timeout=30.0, 
-        pool_timeout=30.0
+        connect_timeout=60.0, 
+        read_timeout=60.0, 
+        write_timeout=60.0, 
+        pool_timeout=60.0
     )
     
     application = Application.builder().token(BOT_TOKEN).request(request).build()
@@ -2743,7 +2742,17 @@ def main():
 
     print("🚀 Bot is running successfully with stable polling...")
     
-    application.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+    # حلقة تكرار لإعادة تشغيل الـ Polling تلقائياً في حال انقطاع الاتصال أو حدوث خطأ 502
+    while True:
+        try:
+            application.run_polling(
+                drop_pending_updates=True, 
+                allowed_updates=Update.ALL_TYPES,
+                close_loop=False
+            )
+        except Exception as e:
+            print(f"⚠️ حدث انقطاع في الشبكة أو Bad Gateway، جاري إعادة الاتصال خلال 5 ثوانٍ... الخطأ: {e}")
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()
