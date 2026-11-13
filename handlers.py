@@ -1658,7 +1658,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "fb_share_menu":
         try:
-            await query.edit_message_text("🔄 مشاركات فيسبوك:", reply_markup=fb_share_menu_keyboard())
+            await query.edit_message_text("🔄 مشارقات فيسبوك:", reply_markup=fb_share_menu_keyboard())
         except Exception:
             pass
 
@@ -2566,80 +2566,15 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
                 await update.message.reply_text(f"✅ تم إنشاء كود الهدية `{promo_code}` بقيمة `${promo_amount}` بنجاح!", parse_mode='Markdown')
             except Exception as e:
-                await update.message.reply_text(f"❌ حدث خطأ: {e}")
+                await update.message.reply_text(f"❌ خطأ أثناء إنشاء الكود: {e}")
             return
 
-    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
-        admin_state[user_id]['link'] = text_content
-        admin_state[user_id]['action'] = 'waiting_for_rashq_count'
-        await update.message.reply_text("📊 أرسل الآن العدد المطلوب للتمويل (أرقام صحيحة فقط):")
-        return
-
-    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_count':
-        if not text_content.isdigit():
-            await update.message.reply_text("⚠️ يرجى إرسال أرقام صحيحة فقط للعدد:")
-            return
-        
-        count = int(text_content)
-        st_data = admin_state.get(user_id, {})
-        service_info = st_data.get('service_info', {"name": "خدمة", "price": 1.0, "min": 10, "max": 100000000})
-        
-        min_limit = service_info.get("min", 10)
-        if count < min_limit:
-            await update.message.reply_text(
-                f"❌ **عذراً، الكمية التي أدخلتها أقل من الحد الأدنى المسموح به!**\n"
-                f"📉 الحد الأدنى لهذه الخدمة هو: `{min_limit:,}`\n"
-                f"🔄 يرجى إرسال كمية أكبر أو تساوي الحد الأدنى:"
-            )
-            return
-
-        calc_cost = round((service_info["price"] * count) / 1000.0, 2)
-        if calc_cost <= 0: calc_cost = 0.01
-
-        user_order_data[user_id] = {"link": st_data['link'], "count": count, "calc_cost": calc_cost, "fixed_cost": 0.0}
-        user_selected_service[user_id] = service_info
-        admin_state.pop(user_id, None)
-
-        summary_text = (
-            f"📌 ملخص طلبك:\n\n"
-            f"🔹 الخدمة: {service_info['name']}\n"
-            f"🔗 الرابط: `{mask_link(st_data['link'])}`\n"
-            f"📊 العدد: `{count:,}`\n"
-            f"💰 التكلفة الإجمالية: `${calc_cost:.2f}$`"
-        )
-        markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
-        ])
-        await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
-        return
-
-    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_pubg_id':
-        player_id = text_content
-        st_data = admin_state.get(user_id, {})
-        service_info = st_data.get('service_info', {"name": "شدات ببجي", "fixed_price": 1.14})
-        fixed_price = service_info.get("fixed_price", 1.14)
-        
-        user_order_data[user_id] = {"link": player_id, "count": 1, "calc_cost": 0.0, "fixed_cost": fixed_price}
-        user_selected_service[user_id] = service_info
-        admin_state.pop(user_id, None)
-
-        summary_text = (
-            f"🎮 ملخص طلب الشحن (بالآيدي):\n\n"
-            f"🔹 الحزمة: {service_info['name']}\n"
-            f"🆔 آيدي اللاعب (Player ID): `{player_id}`\n"
-            f"💰 السعر الإجمالي الصافي: `${fixed_price:.2f}$`"
-        )
-        markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
-        ])
-        await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
-        return
-
+# ==========================================
+# 🚀 دالة الإقلاع لتشغيل محرك النشر التلقائي في الخلفية فوراً
+# ==========================================
 async def on_startup(application):
     application.create_task(auto_fake_activity_task(application))
-    print("🚀 تم تشغيل محرك النشر التلقائي الوهمي في الخلفية بنجاح!")
+    print("🚀 تم تشغيل محرك النشر التلقائي للعمليات في الخلفية بنجاح تام!")
 
 def main():
     from telegram.ext import Application
@@ -2652,10 +2587,11 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     application.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
-
+    
+    # ربط دالة الإقلاع لضمان عمل النشر التلقائي فوراً
     application.post_init = on_startup
 
-    print("🚀 Bot is running successfully with auto-fake activity engine & control buttons...")
+    print("🚀 Bot is running successfully...")
     application.run_polling()
 
 if __name__ == "__main__":
