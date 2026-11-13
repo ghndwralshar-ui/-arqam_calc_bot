@@ -41,7 +41,7 @@ user_order_data = {}
 active_numbers_cache = {}
 verification_cache = {}
 
-# متغير التحكم بحالة النشر التلقائي (يعمل افتراضياً عند الإقلاع)
+# جعل النشر التلقائي يعمل افتراضياً بوضع التشغيل (True) عند إقلاع البوت
 AUTO_POSTING_ENABLED = True
 
 EXCHANGE_RATE = 550.0
@@ -70,12 +70,13 @@ FORCED_SUB_MESSAGE = (
 
 def get_subadmin_keyboard():
     status_emoji = "🟢 يعمل" if AUTO_POSTING_ENABLED else "🔴 متوقف"
+    auto_btn_text = "⏹️ إيقاف النشر التلقائي" if AUTO_POSTING_ENABLED else "▶️ تشغيل النشر التلقائي"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
         [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
         [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast'), InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
-        [InlineKeyboardButton(f"النشر التلقائي: {status_emoji}", callback_data='toggle_auto_posting')],
+        [InlineKeyboardButton(auto_btn_text, callback_data='toggle_auto_posting')],
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
     ])
 
@@ -331,16 +332,15 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
 
 # ==========================================
-# 🤖 نظام النشر التلقائي للعمليات الوهمية (كل دقيقة إلى دقيقتين بدقة مطابقة تماماً)
+# 🤖 محرك النشر التلقائي للعمليات الوهمية (كل دقيقة تماماً بالأنماط المطلوبة)
 # ==========================================
 async def auto_fake_activity_task(app):
     while True:
         try:
-            # الانتظار بين 60 إلى 120 ثانية (دقيقة إلى دقيقتين تماماً كما طلبت)
-            wait_time = random.randint(60, 120)
-            await asyncio.sleep(wait_time)
+            # الانتظار دقيقة كاملة (60 ثانية) بين كل عملية والأخرى
+            await asyncio.sleep(60)
 
-            # إذا تم إيقاف النشر من لوحة الأدمن، نتخطى النشر حتى يتم إعادة تفعيله
+            # إذا تم إيقاف النشر من لوحة الأدمن، نتخطى النشر حتى يتم تفعيله
             if not AUTO_POSTING_ENABLED:
                 continue
 
@@ -348,14 +348,15 @@ async def auto_fake_activity_task(app):
             start_url = f"https://t.me/{bot_username}?start=fake_act"
             reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
 
-            templates_type = random.choice(["virtual_number", "rashq_social", "pubg_game", "whatsapp_react", "youtube_sub"])
+            # اختيار قالب عشوائي من النماذج التي حددتها بدقة
+            templates_type = random.choice(["virtual_number", "pubg_service", "whatsapp_react", "virtual_number_2", "youtube_sub"])
 
             fake_user_id = random.randint(710000000, 999999999)
             fake_order_id = random.randint(1100000000, 1999999999)
 
             if templates_type == "virtual_number":
-                countries = [("اليمن", "+96778", "واتساب"), ("السعودية", "+96655", "تليجرام"), ("كندا", "+1249", "واتساب"), ("تركيا", "+9053", "واتساب")]
-                c_name, c_prefix, c_app = random.choice(countries)
+                countries = [("اليمن", "+96778"), ("كندا", "+1249"), ("السعودية", "+96655"), ("تركيا", "+9053")]
+                c_name, c_prefix = random.choice(countries)
                 fake_phone = f"{c_prefix}{random.randint(1000000, 9999999)}"
                 fake_code = f"{random.randint(100, 999)}{random.randint(100, 999)}"
                 price = round(random.uniform(0.50, 1.20), 2)
@@ -363,78 +364,73 @@ async def auto_fake_activity_task(app):
                 log_msg = (
                     "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 **آيدي العميل:** `{fake_user_id}`\n"
-                    f"📦 **القسم:** `{c_app}`\n"
-                    f"🌍 **الدولة:** {c_name}\n"
-                    f"📞 **الرقم:** `{fake_phone}`\n"
-                    f"🔑 **الكود الواصل:** `{fake_code}`\n"
-                    f"💰 **المبلغ المخصوم:** `${price:.2f}`\n"
-                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
-                    f"⭐ **الحالة:** تم وصول الكود بنجاح 🚀"
+                    f"👤 آيدي العميل:`{fake_user_id}`\n"
+                    "📦 القسم: واتساب\n"
+                    f"🌍 الدولة: {c_name}\n"
+                    f"📞 الرقم: +`{fake_phone}`\n"
+                    f"🔑 الكود الواصل : `{fake_code}`\n"
+                    f"💰 المبلغ المخصوم: `${price:.2f}`\n"
+                    f"🆔 رقم الطلب:`{fake_order_id}`\n"
+                    "⭐ الحالة: تم وصول الكود بنجاح 🚀"
                 )
 
-            elif templates_type == "rashq_social":
-                services_list = [
-                    ("متابعين انستغرام فوري - بدون ضمان", "https://instagram.com/p/...", 1000, 0.78),
-                    ("أعضاء تليجرام عرب نشطين", "https://t.me/DigitalHubOrders", 500, 2.00),
-                    ("متابعين تيك توك فوري", "https://tiktok.com/@user", 500, 1.50)
-                ]
-                s_name, s_link, s_qty, s_price = random.choice(services_list)
-                
+            elif templates_type == "virtual_number_2":
+                fake_phone = f"+1249{random.randint(1000000, 9999999)}"
+                fake_code = f"{random.randint(100, 999)}{random.randint(100, 999)}"
                 log_msg = (
-                    "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                    "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 **آيدي الشخص:** `{fake_user_id}`\n"
-                    f"🔭 **الخدمة:** `{s_name}`\n"
-                    f"🔗 **الرابط:** `{mask_link(s_link)}`\n"
-                    f"📊 **الكمية:** `{s_qty:,}`\n"
-                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
-                    f"💰 **المبلغ المخصوم:** `${s_price:.2f}`\n"
-                    f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
+                    f"👤 آيدي العميل: `{fake_user_id}`\n"
+                    "📦 القسم: واتساب\n"
+                    "🌍 الدولة: كندا\n"
+                    f"📞 الرقم: `{fake_phone}`\n"
+                    f"🔑 الكود الواصل: `{fake_code}`\n"
+                    "💰 المبلغ المخصوم: `$1.05`\n"
+                    f"🆔 رقم الطلب: `{fake_order_id}`\n"
+                    "⭐ الحالة: تم وصول الكود بنجاح 🚀"
                 )
 
-            elif templates_type == "pubg_game":
+            elif templates_type == "pubg_service":
                 pubg_items = [
                     ("PUBG Mobile - 60 UC", 1.14),
                     ("PUBG Mobile - 325 UC", 5.94)
                 ]
                 g_name, g_price = random.choice(pubg_items)
-
                 log_msg = (
                     "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 **آيدي الشخص:** `{fake_user_id}`\n"
-                    f"🔭 **الخدمة:** `{g_name}`\n"
-                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
-                    f"📦 **الكمية:** `1`\n"
-                    f"🔗 **الرابط:** `{random.randint(500, 999)}...`\n"
-                    f"💰 **المبلغ المخصوم:** `${g_price:.2f}`\n"
-                    f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
+                    f"👤 آيدي الشخص: `{fake_user_id}`\n"
+                    f"🔭 الخدمة: `{g_name}`\n"
+                    f"🆔 رقم الطلب: `{fake_order_id}`\n"
+                    "📦 الكمية: `1`\n"
+                    f"🔗 الرابط: `{random.randint(500, 999)}...`\n"
+                    f"💰 المبلغ المخصوم: `${g_price:.2f}`\n"
+                    "⭐ الحالة: مكتمل ومُرسل للمنصة 🚀"
                 )
 
             elif templates_type == "whatsapp_react":
                 log_msg = (
                     "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 **آيدي الشخص:** `{fake_user_id}`\n"
-                    f"🔭 **الخدمة:** `ردود فعل واتساب | مزيج عشوائي [👍❤️😂😲😥🙏]  | بداية فورية 🚀`\n"
-                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
-                    f"📦 **الكمية:** `1000`\n"
-                    f"🔗 **الرابط:** `https://whatsapp.com/channel/...`\n"
-                    f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
+                    f"👤 آيدي الشخص: `{fake_user_id}`\n"
+                    "🔭 الخدمة: `ردود فعل واتساب | مزيج عشوائي [👍❤️😂😲😥🙏]  | بداية فورية 🚀`\n"
+                    f"🆔 رقم الطلب: `{fake_order_id}`\n"
+                    "📦 الكمية: `1000`\n"
+                    "🔗 الرابط: `https://whatsapp.com/channel/...`\n"
+                    "⭐ الحالة: مكتمل ومُرسل للمنصة 🚀"
                 )
 
             else:
                 log_msg = (
                     "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 **آيدي العميل:** `{fake_user_id}`\n"
-                    f"🛍️ **الخدمة:** `مشتركين يوتيوب فوري بدون ضمان`\n"
-                    f"🔗 **الرابط/الآيدي:** `{random.randint(100, 999)}...`\n"
-                    f"📊 **الكمية:** `1000`\n"
-                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
-                    f"💰 **المبلغ المخصوم:** `$0.20`\n"
-                    f"⭐ **الحالة:** تم الإرسال للمنصة بنجاح 🚀"
+                    f"👤 آيدي العميل: `{fake_user_id}`\n"
+                    "🛍️ الخدمة: `مشتركين يوتيوب فوري بدون ضمان`\n"
+                    f"🔗 الرابط/الآيدي: `{random.randint(100, 999)}...`\n"
+                    "📊 الكمية: `1000`\n"
+                    f"🆔 رقم الطلب: `{fake_order_id}`\n"
+                    "💰 المبلغ المخصوم: `$0.20`\n"
+                    "⭐ الحالة: تم الإرسال للمنصة بنجاح 🚀"
                 )
 
             await app.bot.send_message(
@@ -617,14 +613,14 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         log_msg = (
                             "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
                             "━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"👤 **آيدي العميل:** `{u_id}`\n"
-                            f"📦 **القسم:** `{sec_ar}`\n"
-                            f"🌍 **الدولة:** {c_ar}\n"
-                            f"📞 **الرقم:** `{phone_num}`\n"
-                            f"🔑 **الكود الواصل:** `{sms_code}`\n"
-                            f"💰 **المبلغ المخصوم:** `${price_num:.2f}`\n"
-                            f"🆔 **رقم الطلب:** `{order_id}`\n"
-                            f"⭐ **الحالة:** تم وصول الكود بنجاح 🚀"
+                            f"👤 آيدي العميل:`{u_id}`\n"
+                            f"📦 القسم: `{sec_ar}`\n"
+                            f"🌍 الدولة: {c_ar}\n"
+                            f"📞 الرقم: +`{phone_num}`\n"
+                            f"🔑 الكود الواصل : `{sms_code}`\n"
+                            f"💰 المبلغ المخصوم: `${price_num:.2f}`\n"
+                            f"🆔 رقم الطلب:`{order_id}`\n"
+                            "⭐ الحالة: تم وصول الكود بنجاح 🚀"
                         )
                         await send_log_to_channel(context, log_msg, "buy_virtual_number")
                 else:
@@ -685,14 +681,14 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                             log_msg = (
                                 "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                f"👤 **آيدي العميل:** `{user_id}`\n"
-                                f"📦 **القسم:** `{section_name}`\n"
-                                f"🌍 **الدولة:** {country_name}\n"
-                                f"📞 **الرقم:** `{phone}`\n"
-                                f"🔑 **الكود الواصل:** `{sms_code}`\n"
-                                f"💰 **المبلغ المخصوم:** `${price:.2f}`\n"
-                                f"🆔 **رقم الطلب:** `{order_id}`\n"
-                                f"⭐ **الحالة:** تم وصول الكود بنجاح 🚀"
+                                f"👤 آيدي العميل:`{user_id}`\n"
+                                f"📦 القسم: `{section_name}`\n"
+                                f"🌍 الدولة: {country_name}\n"
+                                f"📞 الرقم: +`{phone}`\n"
+                                f"🔑 الكود الواصل : `{sms_code}`\n"
+                                f"💰 المبلغ المخصوم: `${price:.2f}`\n"
+                                f"🆔 رقم الطلب:`{order_id}`\n"
+                                "⭐ الحالة: تم وصول الكود بنجاح 🚀"
                             )
                             await send_log_to_channel(context, log_msg, "buy_virtual_number")
                         return
@@ -802,7 +798,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status_text = "🟢 تم تفعيل النشر التلقائي بنجاح!" if AUTO_POSTING_ENABLED else "🔴 تم إيقاف النشر التلقائي بنجاح!"
         await query.answer(status_text, show_alert=True)
         
-        # تحديث لوحة التحكم مباشرة
         try:
             if is_owner(user_id) or int(user_id) == int(ADMIN_ID):
                 stats = db_get_advanced_stats() or {}
@@ -1028,11 +1023,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log_text = (
                 "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح تام!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 آيدي العميل: `{u_id}`\n"
+                f"👤 آيدي العميل:`{u_id}`\n"
                 f"📦 الخدمة: `{service_name}`\n"
                 f"📱 الرقم: `{phone}`\n"
                 f"💵 المبلغ باليمني: `{amount_yer:,.0f} ريال`\n"
-                f"🆔 رقم الطلب: `{hm_order_id}`\n"
+                f"🆔 رقم الطلب:`{hm_order_id}`\n"
                 f"💰 المبلغ المخصوم: `${cost:.4f}`"
             )
             await send_log_to_channel(context, log_text, 'yemen_mobile_menu')
@@ -1802,12 +1797,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log_msg = (
                 "🔥 **تم تنفيذ طلب رشق جديد بنجاح تام!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 **آيدي العميل:** `{user_id}`\n"
-                f"🛍️ **الخدمة:** `{service_name}`\n"
-                f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
-                f"📊 **الكمية:** `{qty:,}`\n"
-                f"🆔 **رقم الطلب:** `{order_id}`\n"
-                f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`"
+                f"👤 آيدي العميل:`{user_id}`\n"
+                f"🛍️ الخدمة: `{service_name}`\n"
+                f"🔗 الرابط: `{mask_link(order['link'])}`\n"
+                f"📊 الكمية: `{qty:,}`\n"
+                f"🆔 رقم الطلب:`{order_id}`\n"
+                f"💰 المبلغ المخصوم: `${final_cost:.2f}`"
             )
             await send_log_to_channel(context, log_msg, cb_param)
             return
@@ -1825,11 +1820,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             error_log_msg = (
                 "⚠️ **تنبيه رادار: فشل تنفيذ طلب من المنصة!** ❌\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 **آيدي العميل:** `{user_id}`\n"
-                f"🛍️ **الخدمة:** `{service_name}`\n"
-                f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
-                f"📊 **الكمية:** `{qty:,}`\n"
-                f"🚨 **سبب الرفض الدقيق:** `{error_reason}`"
+                f"👤 آيدي العميل:`{user_id}`\n"
+                f"🛍️ الخدمة: `{service_name}`\n"
+                f"🔗 الرابط: `{mask_link(order['link'])}`\n"
+                f"📊 الكمية: `{qty:,}`\n"
+                f"🚨 سبب الرفض الدقيق: `{error_reason}`"
             )
             try:
                 asyncio.create_task(context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=error_log_msg, parse_mode='Markdown'))
@@ -2282,10 +2277,10 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             log_msg = (
                 "📥 **عملية شحن رصيد ناجحة وموثقة عبر الإيصال!** ✅\n"
-                f"👤 **آيدي العميل:** `{user_id}`\n"
-                f"💳 **المحفظة:** {wallet_name}\n"
-                f"🆔 **رقم المرجع:** `{tx_id}`\n"
-                f"⭐ **المبلغ المضاف:** `${amount_usd:.2f}`"
+                f"👤 آيدي العميل:`{user_id}`\n"
+                f"💳 المحفظة: {wallet_name}\n"
+                f"🆔 رقم المرجع:`{tx_id}`\n"
+                f"⭐ المبلغ المضاف: `${amount_usd:.2f}`"
             )
             await send_log_to_channel(context, log_msg, "deposit_menu")
 
