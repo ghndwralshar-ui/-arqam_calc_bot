@@ -41,9 +41,13 @@ user_order_data = {}
 active_numbers_cache = {}
 verification_cache = {}
 
+# متغير التحكم بحالة النشر التلقائي (يعمل افتراضياً عند الإقلاع)
+AUTO_POSTING_ENABLED = True
+
 EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
 KREEMI_ACCOUNT = "3105004949"
+JOWALI_ACCOUNT = "772074924"
 
 VALID_BENEFICIARY_PHONE = "772074924"
 VALID_BENEFICIARY_NAME = "سالم احمد يحيى صالح السعدي"
@@ -65,11 +69,13 @@ FORCED_SUB_MESSAGE = (
 )
 
 def get_subadmin_keyboard():
+    status_emoji = "🟢 يعمل" if AUTO_POSTING_ENABLED else "🔴 متوقف"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
         [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
         [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast'), InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
+        [InlineKeyboardButton(f"النشر التلقائي: {status_emoji}", callback_data='toggle_auto_posting')],
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
     ])
 
@@ -174,9 +180,6 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
-# ==========================================
-# 🇾🇪 دالة جلب الخدمات الآلية وتصفية الخدمات اليدوية من HMCARD تلقائياً
-# ==========================================
 async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
@@ -216,9 +219,6 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
         {"service": 889, "name": "يمن موبايل | رصيد مفتوح", "rate": 1.87, "category": "يمن موبايل"}
     ]
 
-# ==========================================
-# 🇾🇪 دالة إرسال طلب يمن موبايل المطابقة تماماً لواجهة الموقع
-# ==========================================
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
     cleaned_service_id = int(service_id)
@@ -270,9 +270,6 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
 
     return False, None, f"عذراً، رفض الموقع التنفيذ الآلي. السبب: {last_error}"
 
-# ==========================================
-# 🚀 دالة رشق السوشيال ميديا العامة
-# ==========================================
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
@@ -334,30 +331,34 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
 
 # ==========================================
-# 🤖 نظام العمليات الوهمية التلقائية في قناة اللوجز بأساليب وأنماط متغيرة
+# 🤖 نظام النشر التلقائي للعمليات الوهمية (كل دقيقة إلى دقيقتين بدقة مطابقة تماماً)
 # ==========================================
 async def auto_fake_activity_task(app):
     while True:
         try:
-            # الانتظار عشوائياً بين 45 إلى 90 ثانية لتبدو الحركة طبيعية تماماً
-            wait_time = random.randint(45, 90)
+            # الانتظار بين 60 إلى 120 ثانية (دقيقة إلى دقيقتين تماماً كما طلبت)
+            wait_time = random.randint(60, 120)
             await asyncio.sleep(wait_time)
+
+            # إذا تم إيقاف النشر من لوحة الأدمن، نتخطى النشر حتى يتم إعادة تفعيله
+            if not AUTO_POSTING_ENABLED:
+                continue
 
             bot_username = app.bot.username
             start_url = f"https://t.me/{bot_username}?start=fake_act"
             reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
 
-            templates_type = random.choice(["virtual_number", "rashq_social", "pubg_game", "yemen_mobile"])
+            templates_type = random.choice(["virtual_number", "rashq_social", "pubg_game", "whatsapp_react", "youtube_sub"])
 
             fake_user_id = random.randint(710000000, 999999999)
             fake_order_id = random.randint(1100000000, 1999999999)
 
             if templates_type == "virtual_number":
-                countries = [("اليمن", "+96778", "واتساب"), ("السعودية", "+96655", "تليجرام"), ("مصر", "+2010", "انستغرام"), ("تركيا", "+9053", "واتساب")]
+                countries = [("اليمن", "+96778", "واتساب"), ("السعودية", "+96655", "تليجرام"), ("كندا", "+1249", "واتساب"), ("تركيا", "+9053", "واتساب")]
                 c_name, c_prefix, c_app = random.choice(countries)
                 fake_phone = f"{c_prefix}{random.randint(1000000, 9999999)}"
-                fake_code = f"{random.randint(100, 999)}-{random.randint(100, 999)}"
-                price = round(random.uniform(0.50, 1.80), 2)
+                fake_code = f"{random.randint(100, 999)}{random.randint(100, 999)}"
+                price = round(random.uniform(0.50, 1.20), 2)
 
                 log_msg = (
                     "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
@@ -376,8 +377,7 @@ async def auto_fake_activity_task(app):
                 services_list = [
                     ("متابعين انستغرام فوري - بدون ضمان", "https://instagram.com/p/...", 1000, 0.78),
                     ("أعضاء تليجرام عرب نشطين", "https://t.me/DigitalHubOrders", 500, 2.00),
-                    ("متابعين تيك توك فوري", "https://tiktok.com/@user", 500, 1.50),
-                    ("مشاهدات فيديو يوتيوب", "https://youtube.com/watch?v=...", 2000, 0.40)
+                    ("متابعين تيك توك فوري", "https://tiktok.com/@user", 500, 1.50)
                 ]
                 s_name, s_link, s_qty, s_price = random.choice(services_list)
                 
@@ -396,41 +396,47 @@ async def auto_fake_activity_task(app):
             elif templates_type == "pubg_game":
                 pubg_items = [
                     ("PUBG Mobile - 60 UC", 1.14),
-                    ("PUBG Mobile - 325 UC", 5.94),
-                    ("PUBG Mobile - 660 UC", 11.88)
+                    ("PUBG Mobile - 325 UC", 5.94)
                 ]
                 g_name, g_price = random.choice(pubg_items)
-                fake_player_id = random.randint(5100000000, 5999999999)
 
                 log_msg = (
-                    "🎮 **تم شحن شدات ببجي موبايل بنجاح تام!** ⚡\n"
+                    "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 **آيدي العميل:** `{fake_user_id}`\n"
-                    f"📦 **الحزمة:** `{g_name}`\n"
-                    f"🆔 **آيدي اللاعب:** `{fake_player_id}`\n"
+                    f"👤 **آيدي الشخص:** `{fake_user_id}`\n"
+                    f"🔭 **الخدمة:** `{g_name}`\n"
                     f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
+                    f"📦 **الكمية:** `1`\n"
+                    f"🔗 **الرابط:** `{random.randint(500, 999)}...`\n"
                     f"💰 **المبلغ المخصوم:** `${g_price:.2f}`\n"
-                    f"⭐ **الحالة:** تم الشحن فوري وإرسالها للحساب 🚀"
+                    f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
+                )
+
+            elif templates_type == "whatsapp_react":
+                log_msg = (
+                    "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 **آيدي الشخص:** `{fake_user_id}`\n"
+                    f"🔭 **الخدمة:** `ردود فعل واتساب | مزيج عشوائي [👍❤️😂😲😥🙏]  | بداية فورية 🚀`\n"
+                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
+                    f"📦 **الكمية:** `1000`\n"
+                    f"🔗 **الرابط:** `https://whatsapp.com/channel/...`\n"
+                    f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
                 )
 
             else:
-                amounts = [500, 1000, 2000, 3000, 5000]
-                amt = random.choice(amounts)
-                cost = round((1.87 * amt) / 1000.0, 3)
-                fake_phone_ym = f"77{random.randint(1000000, 9999999)}"
-
                 log_msg = (
-                    "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح تام!** ✅\n"
+                    "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
                     "━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"👤 **آيدي العميل:** `{fake_user_id}`\n"
-                    f"📦 **الخدمة:** `يمن موبايل | رصيد مفتوح`\n"
-                    f"📱 **الرقم:** `{fake_phone_ym}`\n"
-                    f"💵 **المبلغ باليمني:** `{amt:,.0f} ريال`\n"
+                    f"🛍️ **الخدمة:** `مشتركين يوتيوب فوري بدون ضمان`\n"
+                    f"🔗 **الرابط/الآيدي:** `{random.randint(100, 999)}...`\n"
+                    f"📊 **الكمية:** `1000`\n"
                     f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
-                    f"💰 **المبلغ المخصوم:** `${cost:.3f}`"
+                    f"💰 **المبلغ المخصوم:** `$0.20`\n"
+                    f"⭐ **الحالة:** تم الإرسال للمنصة بنجاح 🚀"
                 )
 
-            # إرسال الرسالة إلى قناة اللوجز مباشرة
             await app.bot.send_message(
                 chat_id=LOG_CHANNEL_ID,
                 text=log_msg,
@@ -784,10 +790,43 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
+    global AUTO_POSTING_ENABLED
+
     try:
         await query.answer()
     except Exception:
         pass
+
+    if data == 'toggle_auto_posting':
+        AUTO_POSTING_ENABLED = not AUTO_POSTING_ENABLED
+        status_text = "🟢 تم تفعيل النشر التلقائي بنجاح!" if AUTO_POSTING_ENABLED else "🔴 تم إيقاف النشر التلقائي بنجاح!"
+        await query.answer(status_text, show_alert=True)
+        
+        # تحديث لوحة التحكم مباشرة
+        try:
+            if is_owner(user_id) or int(user_id) == int(ADMIN_ID):
+                stats = db_get_advanced_stats() or {}
+                panel_text = (
+                    "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
+                    f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
+                    f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n\n"
+                    "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
+                )
+                base_admin_kb = get_admin_keyboard().inline_keyboard
+                auto_btn_text = "⏹️ إيقاف النشر التلقائي" if AUTO_POSTING_ENABLED else "▶️ تشغيل النشر التلقائي"
+                admin_kb = base_admin_kb + [
+                    [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
+                    [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
+                    [InlineKeyboardButton(auto_btn_text, callback_data='toggle_auto_posting')]
+                ]
+                await query.edit_message_text(text=panel_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(admin_kb))
+            else:
+                await query.edit_message_reply_markup(reply_markup=get_subadmin_keyboard())
+        except Exception:
+            pass
+        return
 
     if data == 'check_subscription':
         if await check_user_subscription(user_id, context):
@@ -1815,7 +1854,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔭 **2️⃣ قسم الرشق وشحن الألعاب:**\n"
             "• اضغط على (🔭 قسم الرشق والألعاب)، واختر المنصة المطلوبة.\n\n"
             "💳 **3️⃣ شحن الرصيد التلقائي والآلي:**\n"
-            "• يمكنك شحن حسابك عبر محفظة **جيب (Jaib)** أو **بنك الكريمي** بسعر صرف ثابت (1$ = 550 ريال يمني)."
+            "• يمكنك شحن حسابك عبر محفظة **جيب (Jaib)**، **بنك الكريمي**، أو **محفظة جوالي** بسعر صرف ثابت (1$ = 550 ريال يمني)."
         )
         try:
             await query.edit_message_text(
@@ -1865,6 +1904,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         deposit_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💳 الشحن عبر محفظة جيب (Jaib)", callback_data='dep_jaib')],
             [InlineKeyboardButton("🏦 الشحن عبر بنك الكريمي (Al-Kuraimi)", callback_data='dep_kreemi')],
+            [InlineKeyboardButton("📱 الشحن عبر محفظة جوالي (Jowali)", callback_data='dep_jowali')],
             [InlineKeyboardButton("⭐ الشحن الفوري عبر نجوم تليجرام (Stars)", callback_data='dep_telegram_stars')],
             [InlineKeyboardButton("• عودة •", callback_data='main_menu')]
         ])
@@ -1921,6 +1961,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+    elif data == 'dep_jowali':
+        admin_state[user_id] = {'action': 'waiting_for_jowali_deposit'}
+        try:
+            await query.edit_message_text(
+                "📱 **تعليمات الشحن عبر محفظة جوالي:**\n\n"
+                f"1️⃣ قم بتحويل المبلغ بالريال اليمني إلى حسابنا في جوالي:\n"
+                f"   📌 رقم الحساب / الهاتف: `{JOWALI_ACCOUNT}`\n\n"
+                "2️⃣ **قم بإرسال صورة إيصال التحويل (Screenshot) مباشرة هنا في المحادثة.**",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("• عودة •", callback_data='deposit_menu')]]))
+        except Exception:
+            pass
+
     elif data == 'user_account':
         u_data = db_get_user(user_id)
         try:
@@ -1943,9 +1996,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 
                 base_admin_kb = get_admin_keyboard().inline_keyboard
+                auto_btn_text = "⏹️ إيقاف النشر التلقائي" if AUTO_POSTING_ENABLED else "▶️ تشغيل النشر التلقائي"
                 admin_kb = base_admin_kb + [
                     [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
-                    [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')]
+                    [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
+                    [InlineKeyboardButton(auto_btn_text, callback_data='toggle_auto_posting')]
                 ]
                 
                 await query.edit_message_text(
@@ -2126,13 +2181,19 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
 async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    if user_id in admin_state and admin_state[user_id].get('action') in ['waiting_for_jaib_deposit', 'waiting_for_kreemi_deposit']:
+    if user_id in admin_state and admin_state[user_id].get('action') in ['waiting_for_jaib_deposit', 'waiting_for_kreemi_deposit', 'waiting_for_jowali_deposit']:
         action_type = admin_state[user_id].get('action')
         admin_state.pop(user_id, None)
         
-        is_jaib = (action_type == 'waiting_for_jaib_deposit')
-        wallet_name = "محفظة جيب (Jaib)" if is_jaib else "بنك الكريمي (Al-Kuraimi)"
-        target_acc = JAIB_ACCOUNT if is_jaib else KREEMI_ACCOUNT
+        if action_type == 'waiting_for_jaib_deposit':
+            wallet_name = "محفظة جيب (Jaib)"
+            target_acc = JAIB_ACCOUNT
+        elif action_type == 'waiting_for_kreemi_deposit':
+            wallet_name = "بنك الكريمي (Al-Kuraimi)"
+            target_acc = KREEMI_ACCOUNT
+        else:
+            wallet_name = "محفظة جوالي (Jowali)"
+            target_acc = JOWALI_ACCOUNT
         
         processing_msg = await update.message.reply_text(
             f"⚡ **جاري فحص وتدقيق إيصال {wallet_name} آلياً واستخراج بيانات العملية...**\n⏳ يرجى الانتظار ثوانٍ معدودة...",
@@ -2582,7 +2643,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
 async def on_startup(application):
-    # إطلاق مهمة النشر التلقائي في الخلفية فور إقلاع البوت ودون انقطاع
     application.create_task(auto_fake_activity_task(application))
     print("🚀 تم تشغيل محرك النشر التلقائي الوهمي في الخلفية بنجاح!")
 
@@ -2598,10 +2658,9 @@ def main():
     application.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
-    # ربط دالة التشغيل التلقائي عبر post_init لتبدأ فور عمل البوت
     application.post_init = on_startup
 
-    print("🚀 Bot is running successfully with auto-fake activity engine...")
+    print("🚀 Bot is running successfully with auto-fake activity engine & control buttons...")
     application.run_polling()
 
 if __name__ == "__main__":
