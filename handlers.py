@@ -7,6 +7,7 @@ import cloudscraper
 import string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, PreCheckoutQueryHandler, CallbackQueryHandler
+from telegram.request import HTTPXRequest
 
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
@@ -1579,7 +1580,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         for _ in range(3):
             try:
-                await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+                await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
                 break
             except Exception:
                 await asyncio.sleep(1)
@@ -2743,7 +2744,16 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
 def main():
     from telegram.ext import Application
-    application = Application.builder().token(BOT_TOKEN).build()
+    
+    # ضبط مهلات الاتصال لضمان منع أخطاء Bad Gateway التلقائية
+    request = HTTPXRequest(
+        connect_timeout=30.0, 
+        read_timeout=30.0, 
+        write_timeout=30.0, 
+        pool_timeout=30.0
+    )
+    
+    application = Application.builder().token(BOT_TOKEN).request(request).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
@@ -2753,8 +2763,10 @@ def main():
     application.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
-    print("🚀 Bot is running successfully...")
-    application.run_polling()
+    print("🚀 Bot is running successfully with stable polling...")
+    
+    # تشغيل الـ Polling مع تجاوز التحديثات المعلقة وضمان الاستقرار
+    application.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
