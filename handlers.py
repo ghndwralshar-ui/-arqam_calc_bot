@@ -44,7 +44,6 @@ verification_cache = {}
 # متغيرات تحكم النشر التلقائي والمؤقت الزمني
 AUTO_POSTING_ENABLED = False
 NEXT_POST_TIMESTAMP = 0
-POSTING_TASK_REF = None
 
 EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
@@ -71,17 +70,15 @@ FORCED_SUB_MESSAGE = (
 )
 
 # ==========================================
-# 🛠️ قاعدة بيانات الخدمات الداخلية الشاملة (الأرقام والرشق والألعاب)
+# 🛠️ مولد العمليات الوهمية الدقيق بالحرف والنمط المطلوب
 # ==========================================
 def generate_exact_styled_operation():
-    """توليد عمليات عشوائية بالحرف والنمط الدقيق الذي طلبته تماماً للأرقام والخدمات"""
     operation_type = random.choice(["number", "rashq", "game"])
     
     fake_user_id = random.randint(710000000, 999999999)
     fake_order_id = random.randint(110, 9999)
     
     if operation_type == "number":
-        # قوالب وأقسام الأرقام الافتراضية
         countries_pool = [
             ("🇸🇦 السعودية", "+966", "5"),
             ("🇾🇪 اليمن", "+967", "7"),
@@ -108,7 +105,6 @@ def generate_exact_styled_operation():
             "⭐ الحالة: تم وصول الكود بنجاح 🚀"
         )
     elif operation_type == "game":
-        # خدمات شحن الألعاب (ببجي وفري فاير)
         games_list = [
             ("PUBG Mobile - 60 UC", "5" + str(random.randint(51000000, 59999999))),
             ("PUBG Mobile - 325 UC", "5" + str(random.randint(51000000, 59999999))),
@@ -129,7 +125,6 @@ def generate_exact_styled_operation():
             "⭐ الحالة: مكتمل ومُرسل للمنصة 🚀"
         )
     else:
-        # خدمات الرشق الاجتماعي (تليجرام، انستغرام، تيك توك)
         rashq_services = [
             "مشتركين تليجرام عرب - ضمان مدى الحياة",
             "متابعين انستغرام فوري بدون ضمان",
@@ -441,47 +436,45 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
 
 # ==========================================
-# 🤖 محرك النشر التلقائي للعمليات (كل دقيقتين تماماً بضغطة زر التشغيل)
+# 🤖 محرك النشر الآلي المستقل والثابت في الخلفية (كل دقيقتين بدقة)
 # ==========================================
 async def auto_fake_activity_task(app):
     global AUTO_POSTING_ENABLED, NEXT_POST_TIMESTAMP
     import time
     
+    print("✨ تم تشغيل مهمة النشر الآلي في الخلفية وجاهزة للعمل بنجاح.")
+    
     while True:
         try:
             if not AUTO_POSTING_ENABLED:
-                NEXT_POST_TIMESTAMP = 0
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)
                 continue
 
-            if NEXT_POST_TIMESTAMP <= time.time():
+            current_time = time.time()
+            if NEXT_POST_TIMESTAMP == 0 or current_time >= NEXT_POST_TIMESTAMP:
+                # ضبط وقت العملية القادمة بعد دقيقتين تماماً (120 ثانية)
                 NEXT_POST_TIMESTAMP = time.time() + 120
 
-            while AUTO_POSTING_ENABLED and time.time() < NEXT_POST_TIMESTAMP:
-                await asyncio.sleep(1)
+                bot_username = app.bot.username
+                start_url = f"https://t.me/{bot_username}?start=fake_act"
+                reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
 
-            if not AUTO_POSTING_ENABLED:
-                continue
+                # توليد النص بالحرف والنمط الدقيق تماماً
+                log_msg = generate_exact_styled_operation()
 
-            bot_username = app.bot.username
-            start_url = f"https://t.me/{bot_username}?start=fake_act"
-            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
+                await app.bot.send_message(
+                    chat_id=LOG_CHANNEL_ID,
+                    text=log_msg,
+                    parse_mode='Markdown',
+                    reply_markup=reply_markup
+                )
+                print("🚀 تم نشر العملية الوهمية بنجاح إلى القناة وتجديد العداد!")
 
-            # توليد العملية بالشكل والقالب الدقيق الذي طلبته
-            log_msg = generate_exact_styled_operation()
-
-            await app.bot.send_message(
-                chat_id=LOG_CHANNEL_ID,
-                text=log_msg,
-                parse_mode='Markdown',
-                reply_markup=reply_markup
-            )
-
-            NEXT_POST_TIMESTAMP = time.time() + 120
+            await asyncio.sleep(1)
 
         except Exception as e:
-            print(f"Error in auto_fake_activity_task: {e}")
-            await asyncio.sleep(10)
+            print(f"❌ خطأ في محرك النشر الآلي: {e}")
+            await asyncio.sleep(5)
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -2553,7 +2546,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 target_user = db_get_user(target_id)
                 new_bal = target_user.get('balance', 0.0) if target_user else 0.0
 
-                await update.message.reply_text(f"✅ **تم إضافة `${amount:.2f}` بنجاح للمستخدم `{target_id}`!**\n💰 رصيده الحالي الجديد: `${new_bal:.2f}`", parse_mode='Markdown')
+                await update.message.reply_text(f"✅ **تم إضافة `${amount:.2f}` بنجاح للمستخدم `{target_id}`!**\n💰 رصيده الحالي الجديد: `${new_bal:.2f}`", parse_Mode='Markdown')
                 try:
                     await context.bot.send_message(chat_id=target_id, text=f"🎉 **تمت إضافة رصيد لحسابك بواسطة الإدارة!**\n⭐ المبلغ المضاف: `${amount:.2f}`\n💰 رصيدك الحالي: `${new_bal:.2f}`", parse_mode='Markdown')
                 except Exception:
@@ -2619,9 +2612,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             return
 
 async def on_startup(application):
-    global POSTING_TASK_REF
-    POSTING_TASK_REF = application.create_task(auto_fake_activity_task(application))
-    print("🚀 تم تشغيل محرك النشر التلقائي للعمليات في الخلفية بنجاح تام!")
+    # بدء تشغيل محرك النشر التلقائي في الخلفية فور إقلاع البوت
+    asyncio.create_task(auto_fake_activity_task(application))
+    print("🚀 تم تشغيل محرك النشر الآلي المستقل في الخلفية بنجاح تام!")
 
 def main():
     from telegram.ext import Application
