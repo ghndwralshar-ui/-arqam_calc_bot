@@ -217,7 +217,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
     ]
 
 # ==========================================
-# 🇾🇪 دالة إرسال الطلب الآلي المتوافقة تماماً مع الـ API وتجاوز الـ Manual Order
+# 🇾🇪 دالة إرسال الطلب الآلي المتوافقة تماماً مع الـ API وتجاوز خطأ الكمية المطلوبة
 # ==========================================
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
@@ -234,58 +234,50 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'Referer': 'https://hmcard.net/'
     }
 
-    payload_variants = [
-        {
-            'key': str(HMCARD_API_KEY).strip(),
-            'action': 'add',
-            'service': cleaned_service_id,
-            'link': clean_phone,
-            'quantity': amount_val
-        },
-        {
-            'key': str(HMCARD_API_KEY).strip(),
-            'action': 'add',
-            'service': cleaned_service_id,
-            'link': clean_phone,
-            'amount': amount_val
-        }
-    ]
+    # تحديد الكمية بدقة لتجنب خطأ Order quantity field is required
+    qty_val = amount_val if cleaned_service_id == 889 else max(1, amount_val // 500)
+
+    payload = {
+        'key': str(HMCARD_API_KEY).strip(),
+        'action': 'add',
+        'service': cleaned_service_id,
+        'link': clean_phone,
+        'quantity': qty_val
+    }
 
     last_error = "خطأ غير معروف"
 
-    for payload in payload_variants:
-        for attempt in range(2):
-            try:
-                scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-                if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
+    for attempt in range(2):
+        try:
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
-                response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
-                raw_text = response.content.decode('utf-8', errors='ignore')
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
+            raw_text = response.content.decode('utf-8', errors='ignore')
 
-                if response.status_code == 200:
-                    try:
-                        clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
-                        resp_json = json.loads(clean_json)
-                    except Exception:
-                        resp_json = {}
-                    
-                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-                    
-                    if order_id:
-                        return True, str(order_id), "تم التنفيذ بنجاح"
-                    elif error_msg:
-                        last_error = error_msg
-                        if "manual order" in error_msg.lower():
-                            await asyncio.sleep(1.0)
-                            continue
-                        else:
-                            break
-            except Exception as e:
-                last_error = str(e)
-                await asyncio.sleep(0.5)
+            if response.status_code == 200:
+                try:
+                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                    resp_json = json.loads(clean_json)
+                except Exception:
+                    resp_json = {}
+                
+                order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                
+                if order_id:
+                    return True, str(order_id), "تم التنفيذ بنجاح"
+                elif error_msg:
+                    last_error = error_msg
+                    if "quantity" in error_msg.lower() or "manual order" in error_msg.lower():
+                        payload['quantity'] = 1
+                        continue
+                    else:
+                        break
+        except Exception as e:
+            last_error = str(e)
 
-    return False, None, f"عذراً، رفض الموقع التنفيذ الآلي. السبب من السيرفر: {last_error}"
+    return False, None, f"عذراً، رفض الموقع التنفيذ الآلي. السبب: {last_error}"
 
 # ==========================================
 # 🚀 دالة رشق السوشيال ميديا العامة
