@@ -41,8 +41,8 @@ user_order_data = {}
 active_numbers_cache = {}
 verification_cache = {}
 
-# متغيرات تحكم النشر التلقائي والمؤقت الزمني
-AUTO_POSTING_ENABLED = False
+# متغيرات تحكم النشر التلقائي الذاتي (مفعلة افتراضياً للعمل الدائم 24/7)
+AUTO_POSTING_ENABLED = True
 NEXT_POST_TIMESTAMP = 0
 
 EXCHANGE_RATE = 550.0
@@ -436,30 +436,26 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
 
 # ==========================================
-# 🤖 محرك النشر الآلي المستقل والثابت في الخلفية (كل دقيقتين بدقة)
+# 🤖 محرك النشر الآلي المستقل والثابت في الخلفية (كل دقيقتين بدقة تامة)
 # ==========================================
 async def auto_fake_activity_task(app):
     global AUTO_POSTING_ENABLED, NEXT_POST_TIMESTAMP
     import time
     
-    print("✨ تم تشغيل مهمة النشر الآلي في الخلفية وجاهزة للعمل بنجاح.")
+    print("✨ تم تشغيل محرك النشر الآلي الذاتي في الخلفية بنجاح تام.")
+    
+    # ضبط الوقت الأول للعملية بعد دقيقتين من الإقلاع
+    NEXT_POST_TIMESTAMP = time.time() + 120
     
     while True:
         try:
-            if not AUTO_POSTING_ENABLED:
-                await asyncio.sleep(1)
-                continue
-
             current_time = time.time()
-            if NEXT_POST_TIMESTAMP == 0 or current_time >= NEXT_POST_TIMESTAMP:
-                # ضبط وقت العملية القادمة بعد دقيقتين تماماً (120 ثانية)
-                NEXT_POST_TIMESTAMP = time.time() + 120
-
+            
+            if AUTO_POSTING_ENABLED and current_time >= NEXT_POST_TIMESTAMP:
                 bot_username = app.bot.username
                 start_url = f"https://t.me/{bot_username}?start=fake_act"
                 reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
 
-                # توليد النص بالحرف والنمط الدقيق تماماً
                 log_msg = generate_exact_styled_operation()
 
                 await app.bot.send_message(
@@ -468,7 +464,10 @@ async def auto_fake_activity_task(app):
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
-                print("🚀 تم نشر العملية الوهمية بنجاح إلى القناة وتجديد العداد!")
+                print("🚀 تم نشر العملية الوهمية بنجاح إلى القناة وتجديد العداد تلقائياً!")
+                
+                # إعادة ضبط العداد لدقيقتين قادمتين تماماً (120 ثانية)
+                NEXT_POST_TIMESTAMP = time.time() + 120
 
             await asyncio.sleep(1)
 
@@ -855,21 +854,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status_text = "🔴 تم إيقاف نشر العمليات التلقائي بنجاح!"
 
         await query.answer(status_text, show_alert=True)
-        
         try:
-            if is_owner(user_id) or int(user_id) == int(ADMIN_ID):
-                stats = db_get_advanced_stats() or {}
-                panel_text = (
-                    "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
-                    f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
-                    f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n\n"
-                    "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
-                )
-                await query.edit_message_text(text=panel_text, parse_mode='Markdown', reply_markup=get_subadmin_keyboard())
-            else:
-                await query.edit_message_reply_markup(reply_markup=get_subadmin_keyboard())
+            await query.edit_message_reply_markup(reply_markup=get_subadmin_keyboard())
         except Exception:
             pass
         return
@@ -1866,21 +1852,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception:
                 pass
-
-            service_name = service.get('name', 'خدمة رقمية')
-            error_log_msg = (
-                "⚠️ **تنبيه رادار: فشل تنفيذ طلب من المنصة!** ❌\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 آيدي العميل: `{user_id}`\n"
-                f"🛍️ الخدمة: `{service_name}`\n"
-                f"🔗 الرابط: `{mask_link(order['link'])}`\n"
-                f"📊 الكمية: `{qty:,}`\n"
-                f"🚨 سبب الرفض الدقيق: `{error_reason}`"
-            )
-            try:
-                asyncio.create_task(context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=error_log_msg, parse_mode='Markdown'))
-            except Exception:
-                pass
             return
 
     elif data == "cancel_order":
@@ -2546,7 +2517,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 target_user = db_get_user(target_id)
                 new_bal = target_user.get('balance', 0.0) if target_user else 0.0
 
-                await update.message.reply_text(f"✅ **تم إضافة `${amount:.2f}` بنجاح للمستخدم `{target_id}`!**\n💰 رصيده الحالي الجديد: `${new_bal:.2f}`", parse_Mode='Markdown')
+                await update.message.reply_text(f"✅ **تم إضافة `${amount:.2f}` بنجاح للمستخدم `{target_id}`!**\n💰 رصيده الحالي الجديد: `${new_bal:.2f}`", parse_mode='Markdown')
                 try:
                     await context.bot.send_message(chat_id=target_id, text=f"🎉 **تمت إضافة رصيد لحسابك بواسطة الإدارة!**\n⭐ المبلغ المضاف: `${amount:.2f}`\n💰 رصيدك الحالي: `${new_bal:.2f}`", parse_mode='Markdown')
                 except Exception:
@@ -2612,7 +2583,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             return
 
 async def on_startup(application):
-    # بدء تشغيل محرك النشر التلقائي في الخلفية فور إقلاع البوت
+    # بدء تشغيل محرك النشر التلقائي الذاتي في الخلفية فوراً
     asyncio.create_task(auto_fake_activity_task(application))
     print("🚀 تم تشغيل محرك النشر الآلي المستقل في الخلفية بنجاح تام!")
 
