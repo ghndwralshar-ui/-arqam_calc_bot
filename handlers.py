@@ -71,91 +71,90 @@ FORCED_SUB_MESSAGE = (
 )
 
 # ==========================================
-# 🛠️ دوال استخراج واستعلام خدمات البوت وأسعارها بدقة
+# 🛠️ قاعدة بيانات الخدمات الداخلية الشاملة (الأرقام والرشق والألعاب)
 # ==========================================
-def get_bot_internal_services_catalog():
-    return [
-        {"name": "تفعيل رقم واتساب (اليمن/كندا)", "category": "أرقام افتراضية", "min_qty": 1, "max_qty": 1, "price": 0.75, "type": "number"},
-        {"name": "مشتركين تليجرام عرب - ضمان مدى الحياة", "category": "رشق تليجرام", "min_qty": 100, "max_qty": 50000, "price": 1.50, "type": "rashq"},
-        {"name": "متابعين انستغرام فوري بدون ضمان", "category": "رشق انستغرام", "min_qty": 50, "max_qty": 100000, "price": 0.78, "type": "rashq"},
-        {"name": "متابعين تيك توك فوري - تعويض 30 يوم", "category": "رشق تيك توك", "min_qty": 100, "max_qty": 50000, "price": 3.38, "type": "rashq"},
-        {"name": "مشتركين يوتيوب فوري بدون ضمان", "category": "رشق يوتيوب", "min_qty": 50, "max_qty": 10000, "price": 0.20, "type": "rashq"},
-        {"name": "PUBG Mobile - 60 UC", "category": "شحن شدات ببجي", "min_qty": 1, "max_qty": 1, "price": 1.14, "type": "game"},
-        {"name": "PUBG Mobile - 325 UC", "category": "شحن شدات ببجي", "min_qty": 1, "max_qty": 1, "price": 5.94, "type": "game"},
-        {"name": "يمن موبايل | تسديد رصيد وباقات فورية", "category": "يمن موبايل", "min_qty": 500, "max_qty": 20000, "price": 1.87, "type": "yemen"}
-    ]
-
-def generate_random_service_operation():
-    services = get_bot_internal_services_catalog()
-    srv = random.choice(services)
+def generate_exact_styled_operation():
+    """توليد عمليات عشوائية بالحرف والنمط الدقيق الذي طلبته تماماً للأرقام والخدمات"""
+    operation_type = random.choice(["number", "rashq", "game"])
     
     fake_user_id = random.randint(710000000, 999999999)
-    fake_order_id = random.randint(1100000000, 1999999999)
+    fake_order_id = random.randint(110, 9999)
     
-    if srv["type"] == "number":
-        countries = [("اليمن", "+96778"), ("كندا", "+1249"), ("السعودية", "+96655"), ("تركيا", "+9053")]
-        c_name, c_prefix = random.choice(countries)
-        fake_phone = f"{c_prefix}{random.randint(1000000, 9999999)}"
-        fake_code = f"{random.randint(100, 999)}{random.randint(100, 999)}"
+    if operation_type == "number":
+        # قوالب وأقسام الأرقام الافتراضية
+        countries_pool = [
+            ("🇸🇦 السعودية", "+966", "5"),
+            ("🇾🇪 اليمن", "+967", "7"),
+            ("🇺🇸 أمريكا", "+1", "2"),
+            ("🇹🇷 تركيا", "+90", "5"),
+            ("🇨🇦 كندا", "+1", "4"),
+            ("🇪🇬 مصر", "+20", "1")
+        ]
+        c_name, c_dial, c_start = random.choice(countries_pool)
+        fake_phone = f"{c_dial}{c_start}{random.randint(10000000, 99999999)}"
+        fake_code = f"{random.randint(100, 999)}-{random.randint(100, 999)}"
+        price_val = round(random.uniform(0.30, 1.50), 2)
         
         text = (
             "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             f"👤 آيدي العميل: `{fake_user_id}`\n"
-            f"📦 القسم: `{srv['category']}`\n"
+            f"📦 القسم: أرقام واتساب وتليجرام (`تفعيل فوري`)\n"
             f"🌍 الدولة: {c_name}\n"
-            f"📞 الرقم: +`{fake_phone}`\n"
-            f"🔑 الكود الواصل: `{fake_code}`\n"
-            f"💰 المبلغ المخصوم: `${srv['price']:.2f}`\n"
+            f"📞 الرقم: `{fake_phone}`\n"
+            f"🔑 الكود الواصل : `{fake_code}`\n"
+            f"💰 المبلغ المخصوم: `${price_val}`\n"
             f"🆔 رقم الطلب: `{fake_order_id}`\n"
             "⭐ الحالة: تم وصول الكود بنجاح 🚀"
         )
-    elif srv["type"] == "game":
-        player_id = random.randint(5100000000, 5999999999)
-        text = (
-            "🎮 **تم قبول وتنفيذ شحن لعبة جديد بنجاح!** ✅\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 آيدي العميل: `{fake_user_id}`\n"
-            f"🔭 الخدمة: `{srv['name']}`\n"
-            f"🆔 آيدي اللاعب (ID): `{player_id}`\n"
-            f"💸 التكلفة للكمية: `${srv['price']:.2f}`\n"
-            f"🆔 رقم الطلب: `{fake_order_id}`\n"
-            "⭐ الحالة: مكتمل ومُرسل للمنصة 🚀"
-        )
-    elif srv["type"] == "yemen":
-        phone = f"77{random.randint(100000, 999999)}"
-        amount_yer = random.choice([500, 1000, 2000, 3000])
-        total_cost = round((srv['price'] * amount_yer) / 1000.0, 2)
-        text = (
-            "🇾🇪 **تم تنفيذ طلب تسديد يمن موبايل بنجاح!** ✅\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 آيدي العميل: `{fake_user_id}`\n"
-            f"📡 الشبكة: يمن موبايل رصيد 🟢\n"
-            f"📱 الرقم المسدد: `{phone}`\n"
-            f"💵 المبلغ المشتري: `{amount_yer:,} ريال`\n"
-            f"💰 التكلفة المحسوبة: `${total_cost:.2f}`\n"
-            f"🆔 رقم الطلب: `{fake_order_id}`\n"
-            "⭐ الحالة: تم التسديد بنجاح 🚀"
-        )
-    else:
-        qty = random.choice([100, 250, 500, 1000, 2000])
-        total_price = round((srv['price'] * qty) / 1000.0, 2)
-        sample_links = [
-            "https://t.me/DigitalHubOrders",
-            "https://instagram.com/p/...",
-            "https://tiktok.com/@...",
-            "https://youtube.com/watch?v=..."
+    elif operation_type == "game":
+        # خدمات شحن الألعاب (ببجي وفري فاير)
+        games_list = [
+            ("PUBG Mobile - 60 UC", "5" + str(random.randint(51000000, 59999999))),
+            ("PUBG Mobile - 325 UC", "5" + str(random.randint(51000000, 59999999))),
+            ("Freefire Global - 341 Diamonds", "2" + str(random.randint(11000000, 99999999))),
+            ("يمن موبايل | تسديد رصيد فوري", "77" + str(random.randint(100000, 999999)))
         ]
-        link = random.choice(sample_links)
+        srv_name, target_id = random.choice(games_list)
+        qty_val = random.choice([1, 60, 110, 325, 1000])
+        
         text = (
             "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 آيدي العميل: `{fake_user_id}`\n"
-            f"🛍️ الخدمة: `{srv['name']}`\n"
-            f"🔗 الرابط المستهدف: `{link}`\n"
-            f"📊 الكمية المطلوبة: `{qty:,}`\n"
-            f"💰 السعر الإجمالي للكمية: `${total_price:.2f}`\n"
+            f"👤 آيدي الشخص: `{fake_user_id}`\n"
+            f"🔭 الخدمة: `{srv_name}`\n"
             f"🆔 رقم الطلب: `{fake_order_id}`\n"
+            f"📦 الكمية: `{qty_val:,}`\n"
+            f"🔗 الرابط او الأيدي في حال اخترت ببجي او فري فاير : `{target_id}`\n"
+            "⭐ الحالة: مكتمل ومُرسل للمنصة 🚀"
+        )
+    else:
+        # خدمات الرشق الاجتماعي (تليجرام، انستغرام، تيك توك)
+        rashq_services = [
+            "مشتركين تليجرام عرب - ضمان مدى الحياة",
+            "متابعين انستغرام فوري بدون ضمان",
+            "متابعين تيك توك فوري - تعويض 30 يوم",
+            "مشاهدات منشورات تليجرام سريعة",
+            "إعجابات وتفاعلات فيسبوك"
+        ]
+        srv_name = random.choice(rashq_services)
+        qty_val = random.choice([100, 250, 500, 1000, 2500, 5000])
+        sample_links = [
+            "https://t.me/DigitalHubOrders",
+            "https://instagram.com/p/...",
+            "https://tiktok.com/@user...",
+            "https://t.me/channel/..."
+        ]
+        target_link = random.choice(sample_links)
+        
+        text = (
+            "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 آيدي الشخص: `{fake_user_id}`\n"
+            f"🔭 الخدمة: `{srv_name}`\n"
+            f"🆔 رقم الطلب: `{fake_order_id}`\n"
+            f"📦 الكمية: `{qty_val:,}`\n"
+            f"🔗 الرابط او الأيدي في حال اخترت ببجي او فري فاير : `{target_link}`\n"
             "⭐ الحالة: مكتمل ومُرسل للمنصة 🚀"
         )
     return text
@@ -455,11 +454,9 @@ async def auto_fake_activity_task(app):
                 await asyncio.sleep(2)
                 continue
 
-            # إذا لم يتم ضبط العداد من قبل، نضبطه بعد دقيقتين
             if NEXT_POST_TIMESTAMP <= time.time():
                 NEXT_POST_TIMESTAMP = time.time() + 120
 
-            # انتظار الوقت المتبقي ثانية بثانية لضمان الدقة
             while AUTO_POSTING_ENABLED and time.time() < NEXT_POST_TIMESTAMP:
                 await asyncio.sleep(1)
 
@@ -470,7 +467,8 @@ async def auto_fake_activity_task(app):
             start_url = f"https://t.me/{bot_username}?start=fake_act"
             reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
 
-            log_msg = generate_random_service_operation()
+            # توليد العملية بالشكل والقالب الدقيق الذي طلبته
+            log_msg = generate_exact_styled_operation()
 
             await app.bot.send_message(
                 chat_id=LOG_CHANNEL_ID,
@@ -479,7 +477,6 @@ async def auto_fake_activity_task(app):
                 reply_markup=reply_markup
             )
 
-            # إعادة ضبط موعد العملية القادمة بعد دقيقتين تماماً (120 ثانية)
             NEXT_POST_TIMESTAMP = time.time() + 120
 
         except Exception as e:
@@ -655,13 +652,13 @@ async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         log_msg = (
                             "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
                             "━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"👤 آيدي العميل:`{u_id}`\n"
+                            f"👤 آيدي العميل: `{u_id}`\n"
                             f"📦 القسم: `{sec_ar}`\n"
                             f"🌍 الدولة: {c_ar}\n"
                             f"📞 الرقم: +`{phone_num}`\n"
                             f"🔑 الكود الواصل : `{sms_code}`\n"
                             f"💰 المبلغ المخصوم: `${price_num:.2f}`\n"
-                            f"🆔 رقم الطلب:`{order_id}`\n"
+                            f"🆔 رقم الطلب: `{order_id}`\n"
                             "⭐ الحالة: تم وصول الكود بنجاح 🚀"
                         )
                         await send_log_to_channel(context, log_msg, "buy_virtual_number")
@@ -723,13 +720,13 @@ async def watch_order_sms_auto(context: ContextTypes.DEFAULT_TYPE, chat_id: int,
                             log_msg = (
                                 "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                f"👤 آيدي العميل:`{user_id}`\n"
+                                f"👤 آيدي العميل: `{user_id}`\n"
                                 f"📦 القسم: `{section_name}`\n"
                                 f"🌍 الدولة: {country_name}\n"
                                 f"📞 الرقم: +`{phone}`\n"
                                 f"🔑 الكود الواصل : `{sms_code}`\n"
                                 f"💰 المبلغ المخصوم: `${price:.2f}`\n"
-                                f"🆔 رقم الطلب:`{order_id}`\n"
+                                f"🆔 رقم الطلب: `{order_id}`\n"
                                 "⭐ الحالة: تم وصول الكود بنجاح 🚀"
                             )
                             await send_log_to_channel(context, log_msg, "buy_virtual_number")
@@ -1084,11 +1081,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log_text = (
                 "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح تام!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 آيدي العميل:`{u_id}`\n"
+                f"👤 آيدي العميل: `{u_id}`\n"
                 f"📦 الخدمة: `{service_name}`\n"
                 f"📱 الرقم: `{phone}`\n"
                 f"💵 المبلغ باليمني: `{amount_yer:,.0f} ريال`\n"
-                f"🆔 رقم الطلب:`{hm_order_id}`\n"
+                f"🆔 رقم الطلب: `{hm_order_id}`\n"
                 f"💰 المبلغ المخصوم: `${cost:.4f}`"
             )
             await send_log_to_channel(context, log_text, 'yemen_mobile_menu')
@@ -1858,11 +1855,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log_msg = (
                 "🔥 **تم تنفيذ طلب رشق جديد بنجاح تام!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 آيدي العميل:`{user_id}`\n"
+                f"👤 آيدي العميل: `{user_id}`\n"
                 f"🛍️ الخدمة: `{service_name}`\n"
                 f"🔗 الرابط: `{mask_link(order['link'])}`\n"
                 f"📊 الكمية: `{qty:,}`\n"
-                f"🆔 رقم الطلب:`{order_id}`\n"
+                f"🆔 رقم الطلب: `{order_id}`\n"
                 f"💰 المبلغ المخصوم: `${final_cost:.2f}`"
             )
             await send_log_to_channel(context, log_msg, cb_param)
@@ -1881,7 +1878,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             error_log_msg = (
                 "⚠️ **تنبيه رادار: فشل تنفيذ طلب من المنصة!** ❌\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 آيدي العميل:`{user_id}`\n"
+                f"👤 آيدي العميل: `{user_id}`\n"
                 f"🛍️ الخدمة: `{service_name}`\n"
                 f"🔗 الرابط: `{mask_link(order['link'])}`\n"
                 f"📊 الكمية: `{qty:,}`\n"
@@ -2329,9 +2326,9 @@ async def handle_photo_receipt(update: Update, context: ContextTypes.DEFAULT_TYP
 
             log_msg = (
                 "📥 **عملية شحن رصيد ناجحة وموثقة عبر الإيصال!** ✅\n"
-                f"👤 آيدي العميل:`{user_id}`\n"
+                f"👤 آيدي العميل: `{user_id}`\n"
                 f"💳 المحفظة: {wallet_name}\n"
-                f"🆔 رقم المرجع:`{tx_id}`\n"
+                f"🆔 رقم المرجع: `{tx_id}`\n"
                 f"⭐ المبلغ المضاف: `${amount_usd:.2f}`"
             )
             await send_log_to_channel(context, log_msg, "deposit_menu")
