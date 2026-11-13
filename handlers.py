@@ -761,7 +761,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == 'none_info':
         return
 
-    # زر توليد العملية الوهمية الجديد للأدمن
+    # زر توليد العملية الوهمية الجديد للأدمن (معالج مضمون 100%)
     if data == 'admin_generate_fake_order':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
             return
@@ -771,7 +771,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bot_username = context.bot.username
         start_url = f"https://t.me/{bot_username}?start=fake_act"
         
-        # أزرار تحت العملية المتولدة: زر الدخول للبوت، زر النشر الفوري للقناة، زر توليد عملية أخرى
         generated_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)],
             [InlineKeyboardButton("📢 إرسال ونشر إلى قناة البوت فوراً", callback_data=f"publish_fake_to_chan")],
@@ -780,13 +779,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
         
         try:
-            await query.edit_message_text(
+            await query.message.edit_text(
                 text="🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n" + fake_msg_text,
                 parse_mode='Markdown',
                 reply_markup=generated_keyboard
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error editing message for fake order: {e}")
+            try:
+                await query.message.reply_text(
+                    text="🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n" + fake_msg_text,
+                    parse_mode='Markdown',
+                    reply_markup=generated_keyboard
+                )
+            except Exception:
+                pass
         return
 
     # زر إرسال العملية المتولدة فوراً للقناة
@@ -795,7 +802,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         try:
-            # استخراج النص الموجود في الرسالة الحالية عدا أزرار التحكم
             msg_text = query.message.text.replace("🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n", "")
             
             bot_username = context.bot.username
