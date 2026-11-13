@@ -74,7 +74,6 @@ FORCED_SUB_MESSAGE = (
 # 🛠️ دوال استخراج واستعلام خدمات البوت وأسعارها بدقة
 # ==========================================
 def get_bot_internal_services_catalog():
-    """استخراج قائمة خدمات البوت وأسعارها الحقيقية المتوافقة مع كميات الرشق والأرقام"""
     return [
         {"name": "تفعيل رقم واتساب (اليمن/كندا)", "category": "أرقام افتراضية", "min_qty": 1, "max_qty": 1, "price": 0.75, "type": "number"},
         {"name": "مشتركين تليجرام عرب - ضمان مدى الحياة", "category": "رشق تليجرام", "min_qty": 100, "max_qty": 50000, "price": 1.50, "type": "rashq"},
@@ -87,7 +86,6 @@ def get_bot_internal_services_catalog():
     ]
 
 def generate_random_service_operation():
-    """توليد عملية وهمية وحقيقية عشوائية من خدمات البوت مع روابط وكميات صحيحة وأسعار دقيقة للكمية"""
     services = get_bot_internal_services_catalog()
     srv = random.choice(services)
     
@@ -183,7 +181,7 @@ def get_subadmin_keyboard():
 
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(f"حالة النظام: {status_str}", callback_data='none_info')],
-        [InlineKeyboardButton(time_left_str, callback_data='none_info')],
+        [InlineKeyboardButton(time_left_str, callback_data='refresh_admin_panel')],
         [InlineKeyboardButton(btn_text, callback_data='toggle_auto_posting')],
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
@@ -457,13 +455,12 @@ async def auto_fake_activity_task(app):
                 await asyncio.sleep(2)
                 continue
 
-            # ضبط الموعد القادم بعد دقيقتين تماماً (120 ثانية)
-            NEXT_POST_TIMESTAMP = time.time() + 120
-            
-            # الانتظار 120 ثانية (دقيقتين تماماً)
-            for _ in range(120):
-                if not AUTO_POSTING_ENABLED:
-                    break
+            # إذا لم يتم ضبط العداد من قبل، نضبطه بعد دقيقتين
+            if NEXT_POST_TIMESTAMP <= time.time():
+                NEXT_POST_TIMESTAMP = time.time() + 120
+
+            # انتظار الوقت المتبقي ثانية بثانية لضمان الدقة
+            while AUTO_POSTING_ENABLED and time.time() < NEXT_POST_TIMESTAMP:
                 await asyncio.sleep(1)
 
             if not AUTO_POSTING_ENABLED:
@@ -473,7 +470,6 @@ async def auto_fake_activity_task(app):
             start_url = f"https://t.me/{bot_username}?start=fake_act"
             reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
 
-            # توليد عملية حقيقية من خدمات البوت والأسعار
             log_msg = generate_random_service_operation()
 
             await app.bot.send_message(
@@ -482,6 +478,9 @@ async def auto_fake_activity_task(app):
                 parse_mode='Markdown',
                 reply_markup=reply_markup
             )
+
+            # إعادة ضبط موعد العملية القادمة بعد دقيقتين تماماً (120 ثانية)
+            NEXT_POST_TIMESTAMP = time.time() + 120
 
         except Exception as e:
             print(f"Error in auto_fake_activity_task: {e}")
@@ -829,7 +828,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    global AUTO_POSTING_ENABLED
+    global AUTO_POSTING_ENABLED, NEXT_POST_TIMESTAMP
 
     try:
         await query.answer()
@@ -839,9 +838,32 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == 'none_info':
         return
 
+    if data == 'refresh_admin_panel':
+        try:
+            stats = db_get_advanced_stats() or {}
+            panel_text = (
+                "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
+                f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
+                f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n\n"
+                "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
+            )
+            await query.edit_message_text(text=panel_text, parse_mode='Markdown', reply_markup=get_subadmin_keyboard())
+        except Exception:
+            pass
+        return
+
     if data == 'toggle_auto_posting':
         AUTO_POSTING_ENABLED = not AUTO_POSTING_ENABLED
-        status_text = "🟢 تم بدء تشغيل ونشر العمليات تلقائياً بنجاح!" if AUTO_POSTING_ENABLED else "🔴 تم إيقاف نشر العمليات التلقائي بنجاح!"
+        if AUTO_POSTING_ENABLED:
+            import time
+            NEXT_POST_TIMESTAMP = time.time() + 120
+            status_text = "🟢 تم بدء تشغيل ونشر العمليات تلقائياً بنجاح!"
+        else:
+            NEXT_POST_TIMESTAMP = 0
+            status_text = "🔴 تم إيقاف نشر العمليات التلقائي بنجاح!"
+
         await query.answer(status_text, show_alert=True)
         
         try:
@@ -2599,9 +2621,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text(f"❌ خطأ أثناء إنشاء الكود: {e}")
             return
 
-# ==========================================
-# 🚀 دالة الإقلاع لتشغيل محرك النشر التلقائي في الخلفية فوراً
-# ==========================================
 async def on_startup(application):
     global POSTING_TASK_REF
     POSTING_TASK_REF = application.create_task(auto_fake_activity_task(application))
