@@ -68,73 +68,63 @@ FORCED_SUB_MESSAGE = (
 
 def generate_exact_styled_operation():
     operation_type = random.choice(["number", "rashq", "game"])
-    
     fake_user_id = random.randint(710000000, 999999999)
-    fake_order_id = random.randint(110, 9999)
+    fake_order_id = random.randint(1100, 999999)
     
     if operation_type == "number":
         countries_pool = [
-            ("🇸🇦 السعودية", "+966", "5"),
-            ("🇾🇪 اليمن", "+967", "7"),
-            ("🇺🇸 أمريكا", "+1", "2"),
-            ("🇹🇷 تركيا", "+90", "5"),
-            ("🇨🇦 كندا", "+1", "4"),
-            ("🇪🇬 مصر", "+20", "1")
+            ("السعودية", "+966", "5", "واتساب"),
+            ("اليمن", "+967", "7", "تليجرام"),
+            ("أمريكا", "+1", "2", "واتساب"),
+            ("تركيا", "+90", "5", "إيمو"),
+            ("مصر", "+20", "1", "واتساب")
         ]
-        c_name, c_dial, c_start = random.choice(countries_pool)
-        fake_phone = f"{c_dial}{c_start}{random.randint(10000000, 99999999)}"
-        fake_code = f"{random.randint(100, 999)}-{random.randint(100, 999)}"
-        price_val = round(random.uniform(0.30, 1.50), 2)
+        c_name, c_dial, c_start, app_name = random.choice(countries_pool)
+        fake_phone = f"+{c_dial}{c_start}{random.randint(10000000, 99999999)}"
+        fake_code = f"{random.randint(100, 999)}{random.randint(100, 999)}"
+        price_val = round(random.uniform(0.50, 1.80), 2)
         
         text = (
             "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 آيدي العميل: `{fake_user_id}`\n"
-            f"📦 القسم: أرقام واتساب وتليجرام (`تفعيل فوري`)\n"
+            f"👤 آيدي العميل:`{fake_user_id}`\n"
+            f"📦 القسم: {app_name}\n"
             f"🌍 الدولة: {c_name}\n"
             f"📞 الرقم: `{fake_phone}`\n"
             f"🔑 الكود الواصل : `{fake_code}`\n"
             f"💰 المبلغ المخصوم: `${price_val}`\n"
-            f"🆔 رقم الطلب: `{fake_order_id}`\n"
+            f"🆔 رقم الطلب:`{fake_order_id}`\n"
             "⭐ الحالة: تم وصول الكود بنجاح 🚀"
         )
     elif operation_type == "game":
         games_list = [
-            ("PUBG Mobile - 60 UC", "5" + str(random.randint(51000000, 59999999))),
-            ("PUBG Mobile - 325 UC", "5" + str(random.randint(51000000, 59999999))),
-            ("Freefire Global - 341 Diamonds", "2" + str(random.randint(11000000, 99999999))),
-            ("يمن موبايل | تسديد رصيد فوري", "77" + str(random.randint(100000, 999999)))
+            ("PUBG Mobile - 60 UC", "5" + str(random.randint(51000000, 59999999)), round(random.uniform(1.10, 1.30), 2)),
+            ("PUBG Mobile - 325 UC", "5" + str(random.randint(51000000, 59999999)), round(random.uniform(5.80, 6.20), 2)),
+            ("Freefire Global - 341 Diamonds", "2" + str(random.randint(11000000, 99999999)), round(random.uniform(2.50, 2.90), 2)),
+            ("يمن موبايل | رصيد فوري", "77" + str(random.randint(1000000, 9999999)), round(random.uniform(1.00, 3.50), 2))
         ]
-        srv_name, target_id = random.choice(games_list)
-        qty_val = random.choice([1, 60, 110, 325, 1000])
+        srv_name, target_id, price_val = random.choice(games_list)
         
         text = (
-            "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
+            "🔥 **تم قبول وتنفيذ طلب شحن جديد بنجاح!** ✅\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             f"👤 آيدي الشخص: `{fake_user_id}`\n"
             f"🔭 الخدمة: `{srv_name}`\n"
             f"🆔 رقم الطلب: `{fake_order_id}`\n"
-            f"📦 الكمية: `{qty_val:,}`\n"
-            f"🔗 الرابط او الأيدي في حال اخترت ببجي او فري فاير : `{target_id}`\n"
+            f"🔗 الأيدي أو الرقم: `{target_id}`\n"
+            f"💰 المبلغ المخصوم: `${price_val}`\n"
             "⭐ الحالة: مكتمل ومُرسل للمنصة 🚀"
         )
     else:
         rashq_services = [
-            "مشتركين تليجرام عرب - ضمان مدى الحياة",
-            "متابعين انستغرام فوري بدون ضمان",
-            "متابعين تيك توك فوري - تعويض 30 يوم",
-            "مشاهدات منشورات تليجرام سريعة",
-            "إعجابات وتفاعلات فيسبوك"
+            ("متابعين انستغرام فوري بدون ضمان", "https://instagram.com/p/...", 1000),
+            ("مشتركين تليجرام عرب - ضمان مدى الحياة", "https://t.me/DigitalHubOrders", 500),
+            ("متابعين تيك توك فوري - تعويض 30 يوم", "https://tiktok.com/@user_active", 2000),
+            ("مشاهدات منشورات تليجرام سريعة", "https://t.me/channel/123", 5000),
+            ("إعجابات وتفاعلات فيسبوك", "https://facebook.com/story/...", 1000)
         ]
-        srv_name = random.choice(rashq_services)
-        qty_val = random.choice([100, 250, 500, 1000, 2500, 5000])
-        sample_links = [
-            "https://t.me/DigitalHubOrders",
-            "https://instagram.com/p/...",
-            "https://tiktok.com/@user...",
-            "https://t.me/channel/..."
-        ]
-        target_link = random.choice(sample_links)
+        srv_name, target_link, qty_val = random.choice(rashq_services)
+        price_val = round(random.uniform(0.40, 2.50), 2)
         
         text = (
             "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
@@ -143,14 +133,15 @@ def generate_exact_styled_operation():
             f"🔭 الخدمة: `{srv_name}`\n"
             f"🆔 رقم الطلب: `{fake_order_id}`\n"
             f"📦 الكمية: `{qty_val:,}`\n"
-            f"🔗 الرابط او الأيدي في حال اخترت ببجي او فري فاير : `{target_link}`\n"
+            f"🔗 الرابط: `{target_link}`\n"
+            f"💰 المبلغ المخصوم: `${price_val}`\n"
             "⭐ الحالة: مكتمل ومُرسل للمنصة 🚀"
         )
     return text
 
 def get_subadmin_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎲 توليد عملية وهمية (تجريبية)", callback_data='admin_generate_fake_order')],
+        [InlineKeyboardButton("🎲 توليد ونشر عملية جديدة فوراً", callback_data='admin_generate_fake_order')],
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
         [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
@@ -777,43 +768,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         generated_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)],
-            [InlineKeyboardButton("📢 إرسال ونشر إلى قناة البوت فوراً", callback_data=f"publish_fake_to_chan")],
             [InlineKeyboardButton("🔄 توليد عملية أخرى", callback_data='admin_generate_fake_order')],
             [InlineKeyboardButton("🔙 عودة للوحة الأدمن", callback_data='admin_panel')]
         ])
         
+        # نشر العملية مباشرة إلى قناة البوت فور توليدها دون الحاجة لضغط زر إضافي
+        try:
+            await context.bot.send_message(
+                chat_id=LOG_CHANNEL_ID,
+                text=fake_msg_text,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
+            )
+        except Exception as e:
+            print(f"Error publishing generated order to channel: {e}")
+
         for _ in range(3):
             try:
                 await query.message.edit_text(
-                    text="🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n" + fake_msg_text,
+                    text=fake_msg_text + "\n\n*(✅ تم توليد ونشر هذه العملية بنجاح إلى قناة البوت فوراً)*",
                     parse_mode='Markdown',
                     reply_markup=generated_keyboard
                 )
                 break
             except Exception:
                 await asyncio.sleep(1)
-        return
-
-    if data == 'publish_fake_to_chan':
-        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
-            return
-        
-        try:
-            msg_text = query.message.text.replace("🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n", "")
-            
-            bot_username = context.bot.username
-            start_url = f"https://t.me/{bot_username}?start=fake_act"
-            channel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
-            
-            await context.bot.send_message(
-                chat_id=LOG_CHANNEL_ID,
-                text=msg_text,
-                parse_mode='Markdown',
-                reply_markup=channel_kb
-            )
-            await query.answer("✅ تم نشر العملية بنجاح إلى قناة البوت فوراً!", show_alert=True)
-        except Exception as e:
-            await query.answer(f"❌ خطأ أثناء النشر للقناة: {e}", show_alert=True)
         return
 
     if data == 'check_subscription':
@@ -2745,7 +2724,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 def main():
     from telegram.ext import Application
     
-    # ضبط مهلات الاتصال لضمان منع أخطاء Bad Gateway التلقائية
     request = HTTPXRequest(
         connect_timeout=30.0, 
         read_timeout=30.0, 
@@ -2765,7 +2743,6 @@ def main():
 
     print("🚀 Bot is running successfully with stable polling...")
     
-    # تشغيل الـ Polling مع تجاوز التحديثات المعلقة وضمان الاستقرار
     application.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
