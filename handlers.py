@@ -234,7 +234,6 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'Referer': 'https://hmcard.net/'
     }
 
-    # مطابقة تامة لواجهة الموقع: الـ link هو رقم الهاتف، والـ quantity هو المبلغ بالريال اليمني تماماً
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -333,6 +332,116 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         await asyncio.sleep(0.3)
 
     return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
+
+# ==========================================
+# 🤖 نظام العمليات الوهمية التلقائية في قناة اللوجز بنصف أساليب متغيرة
+# ==========================================
+async def auto_fake_activity_task(context: ContextTypes.DEFAULT_TYPE):
+    while True:
+        try:
+            # الانتظار عشوائياً بين 50 إلى 110 ثانية لتبدو الحركة طبيعية تماماً
+            wait_time = random.randint(50, 110)
+            await asyncio.sleep(wait_time)
+
+            bot_username = context.bot.username
+            start_url = f"https://t.me/{bot_username}?start=fake_act"
+            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
+
+            # قائمة متنوعة للأنماط والأساليب المختلفة
+            templates_type = random.choice(["virtual_number", "rashq_social", "pubg_game", "yemen_mobile"])
+
+            fake_user_id = random.randint(710000000, 999999999)
+            fake_order_id = random.randint(1100000000, 1999999999)
+
+            if templates_type == "virtual_number":
+                countries = [("اليمن", "+96778", "واتساب"), ("السعودية", "+96655", "تليجرام"), ("مصر", "+2010", "انستغرام"), ("تركيا", "+9053", "واتساب")]
+                c_name, c_prefix, c_app = random.choice(countries)
+                fake_phone = f"{c_prefix}{random.randint(1000000, 9999999)}"
+                fake_code = f"{random.randint(100, 999)}-{random.randint(100, 999)}"
+                price = round(random.uniform(0.50, 1.80), 2)
+
+                log_msg = (
+                    "📱 **تمت اكتمال خدمة تفعيل رقم افتراضي!** ✅\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 **آيدي العميل:** `{fake_user_id}`\n"
+                    f"📦 **القسم:** `{c_app}`\n"
+                    f"🌍 **الدولة:** {c_name}\n"
+                    f"📞 **الرقم:** `{fake_phone}`\n"
+                    f"🔑 **الكود الواصل:** `{fake_code}`\n"
+                    f"💰 **المبلغ المخصوم:** `${price:.2f}`\n"
+                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
+                    f"⭐ **الحالة:** تم وصول الكود بنجاح 🚀"
+                )
+
+            elif templates_type == "rashq_social":
+                services_list = [
+                    ("متابعين انستغرام فوري - بدون ضمان", "https://instagram.com/p/...", 1000, 0.78),
+                    ("أعضاء تليجرام عرب نشطين", "https://t.me/DigitalHubOrders", 500, 2.00),
+                    ("متابعين تيك توك فوري", "https://tiktok.com/@user", 500, 1.50),
+                    ("مشاهدات فيديو يوتيوب", "https://youtube.com/watch?v=...", 2000, 0.40)
+                ]
+                s_name, s_link, s_qty, s_price = random.choice(services_list)
+                
+                log_msg = (
+                    "🔥 **تم قبول وتنفيذ طلب رشق جديد بنجاح!** ✅\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 **آيدي الشخص:** `{fake_user_id}`\n"
+                    f"🔭 **الخدمة:** `{s_name}`\n"
+                    f"🔗 **الرابط:** `{mask_link(s_link)}`\n"
+                    f"📊 **الكمية:** `{s_qty:,}`\n"
+                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
+                    f"💰 **المبلغ المخصوم:** `${s_price:.2f}`\n"
+                    f"⭐ **الحالة:** مكتمل ومُرسل للمنصة 🚀"
+                )
+
+            elif templates_type == "pubg_game":
+                pubg_items = [
+                    ("PUBG Mobile - 60 UC", 1.14),
+                    ("PUBG Mobile - 325 UC", 5.94),
+                    ("PUBG Mobile - 660 UC", 11.88)
+                ]
+                g_name, g_price = random.choice(pubg_items)
+                fake_player_id = random.randint(5100000000, 5999999999)
+
+                log_msg = (
+                    "🎮 **تم شحن شدات ببجي موبايل بنجاح تام!** ⚡\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 **آيدي العميل:** `{fake_user_id}`\n"
+                    f"📦 **الحزمة:** `{g_name}`\n"
+                    f"🆔 **آيدي اللاعب:** `{fake_player_id}`\n"
+                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
+                    f"💰 **المبلغ المخصوم:** `${g_price:.2f}`\n"
+                    f"⭐ **الحالة:** تم الشحن فوري وإرسالها للحساب 🚀"
+                )
+
+            else:
+                amounts = [500, 1000, 2000, 3000, 5000]
+                amt = random.choice(amounts)
+                cost = round((1.87 * amt) / 1000.0, 3)
+                fake_phone_ym = f"77{random.randint(1000000, 9999999)}"
+
+                log_msg = (
+                    "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح تام!** ✅\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 **آيدي العميل:** `{fake_user_id}`\n"
+                    f"📦 **الخدمة:** `يمن موبايل | رصيد مفتوح`\n"
+                    f"📱 **الرقم:** `{fake_phone_ym}`\n"
+                    f"💵 **المبلغ باليمني:** `{amt:,.0f} ريال`\n"
+                    f"🆔 **رقم الطلب:** `{fake_order_id}`\n"
+                    f"💰 **المبلغ المخصوم:** `${cost:.3f}`"
+                )
+
+            # إرسال الرسالة لقناة اللوجز الرسمية
+            await context.bot.send_message(
+                chat_id=LOG_CHANNEL_ID,
+                text=log_msg,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+
+        except Exception as e:
+            print(f"Error in fake activity background task: {e}")
+            await asyncio.sleep(60)
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -2472,3 +2581,24 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         ])
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
         return
+
+def main():
+    from telegram.ext import Application, CallbackQueryHandler
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(MessageHandler(filters.CONTACT, handle_contact_message))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo_receipt))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
+    application.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+
+    # تشغيل مهمة العمليات الوهمية التلقائية في الخلفية مع انطلاق البوت
+    application.job_queue.run_once(lambda ctx: ctx.application.create_task(auto_fake_activity_task(ctx)), when=5)
+
+    print("🚀 Bot is running successfully with auto-fake activity engine...")
+    application.run_polling()
+
+if __name__ == "__main__":
+    main()
