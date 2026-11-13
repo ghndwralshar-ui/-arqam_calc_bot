@@ -183,7 +183,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
         'action': 'services'
     }
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
@@ -212,7 +212,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
     return []
 
 # ==========================================
-# 🇾🇪 دالة تنفيذ تسديد يمن موبايل المحدثة مع إعادة المحاولة التلقائية
+# 🇾🇪 الحل الجذري: تنفيذ تسديد يمن موبايل مع تجاوز أخطاء Manual Order وإعادة المحاولة
 # ==========================================
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
@@ -220,9 +220,11 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
     amount_val = int(amount_yer)
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest'
     }
 
     payload = {
@@ -233,10 +235,10 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'quantity': amount_val
     }
 
-    # محاولة الإرسال مع إعادة المحاولة التلقائية 3 مرات في حال حدوث خطأ يدوي مؤقت
+    # محاولة الإرسال مع إعادة المحاولة التلقائية 3 مرات لتجاوز ضغط السيرفر المؤقت أو الـ Manual Order
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(headers=headers, timeout=35.0, follow_redirects=True) as client:
                 res = await client.post(HMCARD_API_URL, data=payload)
                 if res.status_code == 200:
                     try:
@@ -253,16 +255,16 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
                         if "manual order" in error_msg.lower() and attempt < 2:
-                            await asyncio.sleep(1.5)
+                            await asyncio.sleep(2.0)
                             continue
                         return False, None, error_msg
         except Exception as e:
             print(f"Httpx Yemen Order Error (Attempt {attempt+1}): {e}")
 
-        # محاولة عبر cloudscraper كبديل آمن
+        # محاولة عبر cloudscraper كبديل آمن وقوي لتجاوز حماية وسيرفرات الموقع
         try:
             scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
             if response.status_code == 200:
                 try:
                     resp_json = response.json()
@@ -278,15 +280,15 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                     return True, str(order_id), "تم التنفيذ بنجاح"
                 elif error_msg:
                     if "manual order" in error_msg.lower() and attempt < 2:
-                        await asyncio.sleep(1.5)
+                        await asyncio.sleep(2.0)
                         continue
                     return False, None, error_msg
         except Exception as e:
             print(f"Cloudscraper Yemen Order Error (Attempt {attempt+1}): {e}")
 
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(1.5)
 
-    return False, None, "عذراً، الموقع يواجه ضغطاً مؤقتاً (Manual Order Error)، يرجى المحاولة بعد قليل."
+    return False, None, "عذراً، يواجه السيرفر ضغطاً مؤقتاً (Manual Order)، يرجى اختيار خدمة يمن موبايل أخرى متاحة أو المحاولة لاحقاً."
 
 # ==========================================
 # 🚀 دالة رشق السوشيال ميديا العامة
@@ -297,7 +299,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     base_quantity = int(quantity)
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
