@@ -6,7 +6,7 @@ import httpx
 import cloudscraper
 import string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
-from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, PreCheckoutQueryHandler, CallbackQueryHandler
 
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
@@ -334,20 +334,19 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
 
 # ==========================================
-# 🤖 نظام العمليات الوهمية التلقائية في قناة اللوجز بنصف أساليب متغيرة
+# 🤖 نظام العمليات الوهمية التلقائية في قناة اللوجز بأساليب وأنماط متغيرة
 # ==========================================
-async def auto_fake_activity_task(context: ContextTypes.DEFAULT_TYPE):
+async def auto_fake_activity_task(app):
     while True:
         try:
-            # الانتظار عشوائياً بين 50 إلى 110 ثانية لتبدو الحركة طبيعية تماماً
-            wait_time = random.randint(50, 110)
+            # الانتظار عشوائياً بين 45 إلى 90 ثانية لتبدو الحركة طبيعية تماماً
+            wait_time = random.randint(45, 90)
             await asyncio.sleep(wait_time)
 
-            bot_username = context.bot.username
+            bot_username = app.bot.username
             start_url = f"https://t.me/{bot_username}?start=fake_act"
             reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
 
-            # قائمة متنوعة للأنماط والأساليب المختلفة
             templates_type = random.choice(["virtual_number", "rashq_social", "pubg_game", "yemen_mobile"])
 
             fake_user_id = random.randint(710000000, 999999999)
@@ -431,8 +430,8 @@ async def auto_fake_activity_task(context: ContextTypes.DEFAULT_TYPE):
                     f"💰 **المبلغ المخصوم:** `${cost:.3f}`"
                 )
 
-            # إرسال الرسالة لقناة اللوجز الرسمية
-            await context.bot.send_message(
+            # إرسال الرسالة إلى قناة اللوجز مباشرة
+            await app.bot.send_message(
                 chat_id=LOG_CHANNEL_ID,
                 text=log_msg,
                 parse_mode='Markdown',
@@ -440,8 +439,8 @@ async def auto_fake_activity_task(context: ContextTypes.DEFAULT_TYPE):
             )
 
         except Exception as e:
-            print(f"Error in fake activity background task: {e}")
-            await asyncio.sleep(60)
+            print(f"Error in fake activity task: {e}")
+            await asyncio.sleep(30)
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -2582,8 +2581,13 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
         return
 
+async def on_startup(application):
+    # إطلاق مهمة النشر التلقائي في الخلفية فور إقلاع البوت ودون انقطاع
+    application.create_task(auto_fake_activity_task(application))
+    print("🚀 تم تشغيل محرك النشر التلقائي الوهمي في الخلفية بنجاح!")
+
 def main():
-    from telegram.ext import Application, CallbackQueryHandler
+    from telegram.ext import Application
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -2594,8 +2598,8 @@ def main():
     application.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
-    # تشغيل مهمة العمليات الوهمية التلقائية في الخلفية مع انطلاق البوت
-    application.job_queue.run_once(lambda ctx: ctx.application.create_task(auto_fake_activity_task(ctx)), when=5)
+    # ربط دالة التشغيل التلقائي عبر post_init لتبدأ فور عمل البوت
+    application.post_init = on_startup
 
     print("🚀 Bot is running successfully with auto-fake activity engine...")
     application.run_polling()
