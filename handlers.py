@@ -175,44 +175,21 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
 # ==========================================
-# 🇾🇪 دالة جلب خدمات يمن موبايل بدقة من HMCARD
+# 🇾🇪 دالة جلب خدمات يمن موبايل المحدثة رسمياً من الآيديات الجديدة
 # ==========================================
 async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
-    payload = {
-        'key': str(HMCARD_API_KEY).strip(),
-        'action': 'services'
-    }
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-    }
-    
-    keywords_to_try = [category_keyword, "يمن موبايل", "yemen mobile", "يمن", "yemen", "رصيد", "باقات", "تسديد"]
-    
-    async with httpx.AsyncClient(headers=headers, timeout=25.0, follow_redirects=True) as client:
-        try:
-            res = await client.post(HMCARD_API_URL, data=payload)
-            if res.status_code == 200:
-                data = res.json()
-                if isinstance(data, list) and len(data) > 0:
-                    for kw in keywords_to_try:
-                        filtered = []
-                        for s in data:
-                            s_name = str(s.get('name', '')).lower()
-                            s_cat = str(s.get('category', '')).lower()
-                            if kw.lower() in s_name or kw.lower() in s_cat:
-                                filtered.append(s)
-                        if filtered:
-                            return filtered
-                    return data[:30] 
-        except Exception as e:
-            print(f"Error in dynamic fetch fallback: {e}")
-            
-    return []
+    official_yemen_services = [
+        {"service": 889, "name": "يمن موبايل | رصيد مفتوح", "rate": 1.87, "category": "يمن موبايل"},
+        {"service": 816, "name": "يمن موبايل | رصيد أساسي 500 ريال", "rate": 1.13, "category": "يمن موبايل"},
+        {"service": 817, "name": "يمن موبايل | رصيد أساسي 1,000 ريال", "rate": 2.27, "category": "يمن موبايل"},
+        {"service": 818, "name": "يمن موبايل | رصيد أساسي 2,000 ريال", "rate": 4.53, "category": "يمن موبايل"},
+        {"service": 819, "name": "يمن موبايل | رصيد أساسي 3,000 ريال", "rate": 6.80, "category": "يمن موبايل"},
+        {"service": 820, "name": "يمن موبايل | رصيد أساسي 5,000 ريال", "rate": 11.33, "category": "يمن موبايل"}
+    ]
+    return official_yemen_services
 
 # ==========================================
-# 🇾🇪 الحل الجذري: تنفيذ تسديد يمن موبايل مع تجاوز أخطاء Manual Order وإعادة المحاولة
+# 🇾🇪 دالة إرسال الطلب لمنع خطأ الـ Manual Order وتوافق الآيديات
 # ==========================================
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
@@ -224,54 +201,38 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest'
+        'X-Requested-With': 'XMLHttpRequest',
+        'Origin': 'https://hmcard.net',
+        'Referer': 'https://hmcard.net/'
     }
+
+    # إذا كانت خدمة رصيد مفتوح (889)، الكمية هي المبلغ بالريال. إذا كانت خدمة أساسية، الكمية تكون 1[span_1](start_span)[span_1](end_span)
+    quantity_param = amount_val if cleaned_service_id == 889 else 1
 
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
         'service': cleaned_service_id,
         'link': clean_phone,
-        'quantity': amount_val
+        'quantity': quantity_param
     }
 
-    # محاولة الإرسال مع إعادة المحاولة التلقائية 3 مرات لتجاوز ضغط السيرفر المؤقت أو الـ Manual Order
+    last_error = "خطأ غير معروف في السيرفر"
+
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(headers=headers, timeout=35.0, follow_redirects=True) as client:
-                res = await client.post(HMCARD_API_URL, data=payload)
-                if res.status_code == 200:
-                    try:
-                        resp_json = res.json()
-                    except Exception:
-                        raw_text = res.text
-                        clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
-                        resp_json = json.loads(clean_json)
-                    
-                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-                    
-                    if order_id:
-                        return True, str(order_id), "تم التنفيذ بنجاح"
-                    elif error_msg:
-                        if "manual order" in error_msg.lower() and attempt < 2:
-                            await asyncio.sleep(2.0)
-                            continue
-                        return False, None, error_msg
-        except Exception as e:
-            print(f"Httpx Yemen Order Error (Attempt {attempt+1}): {e}")
-
-        # محاولة عبر cloudscraper كبديل آمن وقوي لتجاوز حماية وسيرفرات الموقع
-        try:
             scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
+
             response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=35)
+            raw_text = response.content.decode('utf-8', errors='ignore')
+
             if response.status_code == 200:
                 try:
-                    resp_json = response.json()
-                except Exception:
-                    raw_resp = response.content.decode('utf-8', errors='ignore')
-                    clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
                     resp_json = json.loads(clean_json)
+                except Exception:
+                    resp_json = {}
                 
                 order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                 error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
@@ -279,16 +240,17 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                 if order_id:
                     return True, str(order_id), "تم التنفيذ بنجاح"
                 elif error_msg:
-                    if "manual order" in error_msg.lower() and attempt < 2:
-                        await asyncio.sleep(2.0)
+                    last_error = error_msg
+                    if "manual order" in error_msg.lower():
+                        await asyncio.sleep(1.5)
                         continue
-                    return False, None, error_msg
+                    else:
+                        break
         except Exception as e:
-            print(f"Cloudscraper Yemen Order Error (Attempt {attempt+1}): {e}")
+            last_error = str(e)
+            await asyncio.sleep(1.0)
 
-        await asyncio.sleep(1.5)
-
-    return False, None, "عذراً، يواجه السيرفر ضغطاً مؤقتاً (Manual Order)، يرجى اختيار خدمة يمن موبايل أخرى متاحة أو المحاولة لاحقاً."
+    return False, None, f"عذراً، رفض الموقع تنفيذ الطلب الآلي. السبب: {last_error}"
 
 # ==========================================
 # 🚀 دالة رشق السوشيال ميديا العامة
@@ -751,8 +713,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'yemen_mobile_menu':
         u_data = db_get_user(user_id)
-        await query.answer("⏳ جاري جلب خدمات يمن موبايل المحدثة من الموقع...", show_alert=False)
-        
         services = await fetch_hmcard_services_by_category("يمن موبايل")
         
         buttons = []
@@ -763,8 +723,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 s_rate = s.get('rate')
                 btn_text = f"📱 {s_name} (${s_rate})"
                 buttons.append([InlineKeyboardButton(btn_text, callback_data=f"ym_srv_{s_id}")])
-        else:
-            buttons.append([InlineKeyboardButton("⚠️ لا توجد خدمات متاحة حالياً", callback_data='yemen_mobile_menu')])
             
         buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
         
@@ -1357,7 +1315,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'fs_tg_post_fmt':
         admin_state[user_id] = {'action': 'fs_tg_post_fmt_action'}
         try:
-            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسيقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
+            await query.edit_message_text("🔤 **تنسيق منشورات تليجرام:**\nأرسل نص المنشور لإضافة التنسیقات الاحترافية المعتمدة لقناتك:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عـودة", callback_data='free_services_menu')]]))
         except Exception:
             pass
 
