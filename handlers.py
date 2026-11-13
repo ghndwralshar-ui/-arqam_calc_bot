@@ -41,10 +41,6 @@ user_order_data = {}
 active_numbers_cache = {}
 verification_cache = {}
 
-# متغيرات تحكم النشر التلقائي الذاتي (مفعلة افتراضياً للعمل الدائم 24/7)
-AUTO_POSTING_ENABLED = True
-NEXT_POST_TIMESTAMP = 0
-
 EXCHANGE_RATE = 550.0
 JAIB_ACCOUNT = "772074924"
 KREEMI_ACCOUNT = "3105004949"
@@ -155,28 +151,8 @@ def generate_exact_styled_operation():
     return text
 
 def get_subadmin_keyboard():
-    global AUTO_POSTING_ENABLED, NEXT_POST_TIMESTAMP
-    import time
-    
-    status_str = "🟢 يعمل الآن (24/7)" if AUTO_POSTING_ENABLED else "🔴 متوقف حالياً"
-    btn_text = "⏹️ إيقاف النشر التلقائي" if AUTO_POSTING_ENABLED else "▶️ بدء تشغيل النشر التلقائي"
-    
-    time_left_str = "غير محدد"
-    if AUTO_POSTING_ENABLED and NEXT_POST_TIMESTAMP > 0:
-        remaining = int(NEXT_POST_TIMESTAMP - time.time())
-        if remaining > 0:
-            mins = remaining // 60
-            secs = remaining % 60
-            time_left_str = f"⏳ باقي للعملية القادمة: {mins:02d}:{secs:02d}"
-        else:
-            time_left_str = "⏳ جاري إرسال العملية الآن..."
-    else:
-        time_left_str = "⏳ النشر متوقف مؤقتاً"
-
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"حالة النظام: {status_str}", callback_data='none_info')],
-        [InlineKeyboardButton(time_left_str, callback_data='refresh_admin_panel')],
-        [InlineKeyboardButton(btn_text, callback_data='toggle_auto_posting')],
+        [InlineKeyboardButton("🎲 توليد عملية وهمية (تجريبية)", callback_data='admin_generate_fake_order')],
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
         [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
@@ -434,46 +410,6 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         await asyncio.sleep(0.3)
 
     return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
-
-# ==========================================
-# 🤖 محرك النشر الآلي المستقل والثابت في الخلفية (كل دقيقتين بدقة تامة)
-# ==========================================
-async def auto_fake_activity_task(app):
-    global AUTO_POSTING_ENABLED, NEXT_POST_TIMESTAMP
-    import time
-    
-    print("✨ تم تشغيل محرك النشر الآلي الذاتي في الخلفية بنجاح تام.")
-    
-    # ضبط الوقت الأول للعملية بعد دقيقتين من الإقلاع
-    NEXT_POST_TIMESTAMP = time.time() + 120
-    
-    while True:
-        try:
-            current_time = time.time()
-            
-            if AUTO_POSTING_ENABLED and current_time >= NEXT_POST_TIMESTAMP:
-                bot_username = app.bot.username
-                start_url = f"https://t.me/{bot_username}?start=fake_act"
-                reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
-
-                log_msg = generate_exact_styled_operation()
-
-                await app.bot.send_message(
-                    chat_id=LOG_CHANNEL_ID,
-                    text=log_msg,
-                    parse_mode='Markdown',
-                    reply_markup=reply_markup
-                )
-                print("🚀 تم نشر العملية الوهمية بنجاح إلى القناة وتجديد العداد تلقائياً!")
-                
-                # إعادة ضبط العداد لدقيقتين قادمتين تماماً (120 ثانية)
-                NEXT_POST_TIMESTAMP = time.time() + 120
-
-            await asyncio.sleep(1)
-
-        except Exception as e:
-            print(f"❌ خطأ في محرك النشر الآلي: {e}")
-            await asyncio.sleep(5)
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -817,8 +753,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    global AUTO_POSTING_ENABLED, NEXT_POST_TIMESTAMP
-
     try:
         await query.answer()
     except Exception:
@@ -827,37 +761,56 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == 'none_info':
         return
 
-    if data == 'refresh_admin_panel':
+    # زر توليد العملية الوهمية الجديد للأدمن
+    if data == 'admin_generate_fake_order':
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
+            return
+        
+        fake_msg_text = generate_exact_styled_operation()
+        
+        bot_username = context.bot.username
+        start_url = f"https://t.me/{bot_username}?start=fake_act"
+        
+        # أزرار تحت العملية المتولدة: زر الدخول للبوت، زر النشر الفوري للقناة، زر توليد عملية أخرى
+        generated_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)],
+            [InlineKeyboardButton("📢 إرسال ونشر إلى قناة البوت فوراً", callback_data=f"publish_fake_to_chan")],
+            [InlineKeyboardButton("🔄 توليد عملية أخرى", callback_data='admin_generate_fake_order')],
+            [InlineKeyboardButton("🔙 عودة للوحة الأدمن", callback_data='admin_panel')]
+        ])
+        
         try:
-            stats = db_get_advanced_stats() or {}
-            panel_text = (
-                "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
-                f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
-                f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n\n"
-                "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
+            await query.edit_message_text(
+                text="🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n" + fake_msg_text,
+                parse_mode='Markdown',
+                reply_markup=generated_keyboard
             )
-            await query.edit_message_text(text=panel_text, parse_mode='Markdown', reply_markup=get_subadmin_keyboard())
         except Exception:
             pass
         return
 
-    if data == 'toggle_auto_posting':
-        AUTO_POSTING_ENABLED = not AUTO_POSTING_ENABLED
-        if AUTO_POSTING_ENABLED:
-            import time
-            NEXT_POST_TIMESTAMP = time.time() + 120
-            status_text = "🟢 تم بدء تشغيل ونشر العمليات تلقائياً بنجاح!"
-        else:
-            NEXT_POST_TIMESTAMP = 0
-            status_text = "🔴 تم إيقاف نشر العمليات التلقائي بنجاح!"
-
-        await query.answer(status_text, show_alert=True)
+    # زر إرسال العملية المتولدة فوراً للقناة
+    if data == 'publish_fake_to_chan':
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
+            return
+        
         try:
-            await query.edit_message_reply_markup(reply_markup=get_subadmin_keyboard())
-        except Exception:
-            pass
+            # استخراج النص الموجود في الرسالة الحالية عدا أزرار التحكم
+            msg_text = query.message.text.replace("🎲 **تم توليد عملية وهمية جديدة تجريبية بنجاح:**\n\n", "")
+            
+            bot_username = context.bot.username
+            start_url = f"https://t.me/{bot_username}?start=fake_act"
+            channel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
+            
+            await context.bot.send_message(
+                chat_id=LOG_CHANNEL_ID,
+                text=msg_text,
+                parse_mode='Markdown',
+                reply_markup=channel_kb
+            )
+            await query.answer("✅ تم نشر العملية بنجاح إلى قناة البوت فوراً!", show_alert=True)
+        except Exception as e:
+            await query.answer(f"❌ خطأ أثناء النشر للقناة: {e}", show_alert=True)
         return
 
     if data == 'check_subscription':
@@ -1711,7 +1664,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "wa_r_1": 712, "wa_r_2": 713, "wa_r_3": 714, "wa_r_4": 715, "wa_r_5": 716, "wa_r_6": 717,
             "tg_t_653": 653, "tg_t_654": 654, "tg_t_659": 659, "tg_t_660": 660, "tg_t_661": 661, "tg_t_662": 662,
             "tg_t_613": 613, "tg_t_614": 614, "tg_t_646": 646, "tg_t_893": 893, "tg_t_894": 894, "tg_t_895": 895,
-            "tg_v_628": 628, "tg_v_668": 668, "tg_v_669": 669, "tg_v_670": 670, "tg_v_671": 671,
+            "tg_v_628": 628, "tg_v_668": 668, "tg_v_669": 669, "tg_v_670": 670, "tg_v_671": 1.22,
             "tg_a_702": 702, "tg_a_703": 703, "tg_a_704": 704, "tg_a_705": 705, "tg_a_706": 706, "tg_a_707": 707, "tg_a_708": 708, "tg_a_709": 709, "tg_a_710": 710, "tg_a_711": 711,
             "tg_r_620": 620, "tg_r_621": 621, "tg_r_622": 622, "tg_r_623": 623, "tg_r_624": 624, "tg_r_625": 625, "tg_r_626": 626, "tg_r_690": 690,
             "tg_p_665": 665, "tg_p_666": 666,
@@ -2582,11 +2535,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 await update.message.reply_text(f"❌ خطأ أثناء إنشاء الكود: {e}")
             return
 
-async def on_startup(application):
-    # بدء تشغيل محرك النشر التلقائي الذاتي في الخلفية فوراً
-    asyncio.create_task(auto_fake_activity_task(application))
-    print("🚀 تم تشغيل محرك النشر الآلي المستقل في الخلفية بنجاح تام!")
-
 def main():
     from telegram.ext import Application
     application = Application.builder().token(BOT_TOKEN).build()
@@ -2598,8 +2546,6 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_messages))
     application.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
-    
-    application.post_init = on_startup
 
     print("🚀 Bot is running successfully...")
     application.run_polling()
