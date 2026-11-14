@@ -536,6 +536,9 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     except Exception:
         pass
 
+# ==========================================
+# دالة إرسال التنبيهات المحدثة (للقناة + المالك والمشرفين)
+# ==========================================
 async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str, service_param: str):
     bot_username = context.bot.username
     start_url = f"https://t.me/{bot_username}?start={service_param}"
@@ -546,6 +549,7 @@ async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str,
         ]
     ])
     
+    # 1. إرسال إلى قناة الطلبات العامة
     try:
         await context.bot.send_message(
             chat_id=LOG_CHANNEL_ID,
@@ -555,6 +559,29 @@ async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str,
         )
     except Exception as log_err:
         print(f"❌ خطأ إرسال لوج لقناة الطلبات: {log_err}")
+
+    # 2. الميزة الجديدة: إرسال نسخة تقرير العملية الناجحة للمالك والمشرفين المساعدين فوراً
+    admin_targets = [int(ADMIN_ID), int(OWNER_ID)]
+    try:
+        sub_admins = get_all_sub_admins()
+        if sub_admins:
+            for sa in sub_admins:
+                if int(sa) not in admin_targets:
+                    admin_targets.append(int(sa))
+    except Exception:
+        pass
+
+    for admin_id in set(admin_targets):
+        try:
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=f"🔔 **[تنبيه عملية حقيقية ناجحة]** 🚀\n\n{log_text}",
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+        except Exception as admin_err:
+            print(f"❌ خطأ إرسال تنبيه العملية للمشرف {admin_id}: {admin_err}")
+
 
 async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
