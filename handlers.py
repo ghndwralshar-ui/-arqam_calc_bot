@@ -89,7 +89,7 @@ SERVICES_YEMEN_GAME = [
 # مهمة الخلفية لتوليد ونشر العمليات تلقائياً كل دقيقتين
 # ==========================================
 async def background_fake_orders_task(bot: Bot):
-    global FAKE_ORDERS_ACTIVE  # تم نقلها لأول سطر تماماً لتجنب الـ SyntaxError
+    global FAKE_ORDERS_ACTIVE  # تم وضعه في أول سطر تماماً قبل أي كود
     while True:
         if FAKE_ORDERS_ACTIVE:
             try:
@@ -141,13 +141,11 @@ async def background_fake_orders_task(bot: Bot):
                         f"💰 المبلغ المخصوم: ${price}"
                     )
 
-                # إرسال العملية إلى القناة تلقائياً
                 await bot.send_message(chat_id=CHANNEL_USERNAME, text=text)
 
             except Exception as e:
                 print(f"خطأ في إرسال العملية الوهمية: {e}")
 
-        # الانتظار لمدة دقيقتين (120 ثانية) بدقة
         await asyncio.sleep(120)
 
 
@@ -536,9 +534,6 @@ async def show_available_countries_menu(update: Update, context: ContextTypes.DE
     except Exception:
         pass
 
-# ==========================================
-# دالة إرسال التنبيهات المحدثة (للقناة + المالك والمشرفين)
-# ==========================================
 async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str, service_param: str):
     bot_username = context.bot.username
     start_url = f"https://t.me/{bot_username}?start={service_param}"
@@ -549,7 +544,6 @@ async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str,
         ]
     ])
     
-    # 1. إرسال إلى قناة الطلبات العامة
     try:
         await context.bot.send_message(
             chat_id=LOG_CHANNEL_ID,
@@ -560,7 +554,6 @@ async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str,
     except Exception as log_err:
         print(f"❌ خطأ إرسال لوج لقناة الطلبات: {log_err}")
 
-    # 2. الميزة الجديدة: إرسال نسخة تقرير العملية الناجحة للمالك والمشرفين المساعدين فوراً
     admin_targets = [int(ADMIN_ID), int(OWNER_ID)]
     try:
         sub_admins = get_all_sub_admins()
