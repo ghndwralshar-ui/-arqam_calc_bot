@@ -89,7 +89,7 @@ SERVICES_YEMEN_GAME = [
 # مهمة الخلفية لتوليد ونشر العمليات تلقائياً كل دقيقتين
 # ==========================================
 async def background_fake_orders_task(bot: Bot):
-    global FAKE_ORDERS_ACTIVE  # تم وضعه في أول سطر تماماً قبل أي كود
+    global FAKE_ORDERS_ACTIVE  # تم وضعه في أول سطر تماماً قبل استخدام أي متغير عام
     while True:
         if FAKE_ORDERS_ACTIVE:
             try:
