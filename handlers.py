@@ -1,4 +1,4 @@
-import asyncio
+Import asyncio
 import re
 import json
 import random
@@ -174,9 +174,6 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
-# ==========================================
-# 🇾🇪 دالة جلب خدمات يمن موبايل بدقة من HMCARD
-# ==========================================
 async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
@@ -187,9 +184,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
-    
     keywords_to_try = [category_keyword, "يمن موبايل", "yemen mobile", "يمن", "yemen", "رصيد", "باقات", "تسديد"]
-    
     async with httpx.AsyncClient(headers=headers, timeout=25.0, follow_redirects=True) as client:
         try:
             res = await client.post(HMCARD_API_URL, data=payload)
@@ -208,29 +203,19 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "يمن مو
                     return data[:30] 
         except Exception as e:
             print(f"Error in dynamic fetch fallback: {e}")
-            
     return []
 
-# ==========================================
-# 🇾🇪 التحديث الجديد والمطور: دالة تنفيذ تسديد يمن موبايل
-# ==========================================
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
     clean_phone = str(phone).strip()
     cleaned_service_id = int(service_id)
     amount_val = int(amount_yer)
 
     headers = {
-        'Host': HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://' + (HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net'),
-        'Referer': HMCARD_API_URL
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    # تم ضبط الحقول تماماً كما تظهر في واجهة الموقع (رقم الهاتف في link، والمبلغ بالريال في quantity)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -239,14 +224,41 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'quantity': amount_val
     }
 
-    # محاولة التنفيذ عبر httpx المباشر
-    try:
-        async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
-            res = await client.post(HMCARD_API_URL, data=payload)
-            raw_text = res.text
-            if res.status_code == 200:
-                clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
-                resp_json = json.loads(clean_json)
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
+                res = await client.post(HMCARD_API_URL, data=payload)
+                if res.status_code == 200:
+                    try:
+                        resp_json = res.json()
+                    except Exception:
+                        raw_text = res.text
+                        clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                        resp_json = json.loads(clean_json)
+                    
+                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                    
+                    if order_id:
+                        return True, str(order_id), "تم التنفيذ بنجاح"
+                    elif error_msg:
+                        if "manual order" in error_msg.lower() and attempt < 2:
+                            await asyncio.sleep(1.5)
+                            continue
+                        return False, None, error_msg
+        except Exception as e:
+            print(f"Httpx Yemen Order Error (Attempt {attempt+1}): {e}")
+
+        try:
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+            if response.status_code == 200:
+                try:
+                    resp_json = response.json()
+                except Exception:
+                    raw_resp = response.content.decode('utf-8', errors='ignore')
+                    clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                    resp_json = json.loads(clean_json)
                 
                 order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                 error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
@@ -254,49 +266,26 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                 if order_id:
                     return True, str(order_id), "تم التنفيذ بنجاح"
                 elif error_msg:
+                    if "manual order" in error_msg.lower() and attempt < 2:
+                        await asyncio.sleep(1.5)
+                        continue
                     return False, None, error_msg
-    except Exception as e:
-        print(f"Httpx Yemen Order Error: {e}")
+        except Exception as e:
+            print(f"Cloudscraper Yemen Order Error (Attempt {attempt+1}): {e}")
 
-    # محاولة احتياطية عبر cloudscraper لتجاوز حماية السيرفر
-    try:
-        scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-        response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
-        raw_resp = response.content.decode('utf-8', errors='ignore')
+        await asyncio.sleep(1.0)
 
-        if response.status_code == 200:
-            clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
-            resp_json = json.loads(clean_json)
-            
-            order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-            error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-            
-            if order_id:
-                return True, str(order_id), "تم التنفيذ بنجاح"
-            elif error_msg:
-                return False, None, error_msg
-    except Exception as e:
-        print(f"Cloudscraper Yemen Order Error: {e}")
+    return False, None, "عذراً، الموقع يواجه ضغطاً مؤقتاً (Manual Order Error)، يرجى المحاولة بعد قليل."
 
-    return False, None, "عذراً، فشل الاتصال بالسيرفر أو أن صيغة الرد غير متوافقة."
-
-# ==========================================
-# 🚀 دالة رشق السوشيال ميديا العامة
-# ==========================================
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
     base_quantity = int(quantity)
 
     headers = {
-        'Host': HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://' + (HMCARD_API_URL.split('/')[2] if '://' in HMCARD_API_URL else 'hmcard.net'),
-        'Referer': HMCARD_API_URL
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
     strategies = [
@@ -314,9 +303,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             'action': 'add',
             'service': cleaned_service_id,
             'link': clean_link,
-            'quantity': current_quantity,
-            'runs': 1,
-            'interval': 0
+            'quantity': current_quantity
         }
 
         try:
@@ -337,7 +324,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     if order_id:
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
-                        if "غير متاح" in error_msg.lower():
+                        if "غير متاح" in error_msg.lower() or "manual order" in error_msg.lower():
                             continue
                         elif any(k in error_msg.lower() for k in ["minimum", "balance"]):
                             return False, None, error_msg
@@ -1217,7 +1204,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "sec_whatsapp":
         try:
-            await query.edit_message_text("🟢 خدمات واتساب (رشق):\nاختر الخدمة المطلوبة:", reply_markup=whatsapp_services_keyboard())
+            await query.edit_message_text("🟢 خدمات واتساب (رشق):\nاختر القسم المطلوب:", reply_markup=whatsapp_services_keyboard())
+        except Exception:
+            pass
+
+    elif data == "wa_subscribers":
+        try:
+            await query.edit_message_text("👥 أعضاء ومتابعي قناة واتساب:\nاختر الباقة المناسبة:", reply_markup=channel_subscribers_keyboard())
+        except Exception:
+            pass
+
+    elif data == "wa_reactions":
+        try:
+            await query.edit_message_text("💬 تفاعلات وإيموجي منشورات واتساب:\nاختر التفاعل المطلوب:", reply_markup=emoji_reactions_keyboard())
+        except Exception:
+            pass
+
+    elif data == "wa_auto_reactions":
+        try:
+            await query.edit_message_text("⚡ تفاعلات بروفايل تلقائية للمنشورات الجديدة:\nاختر الباقة المطلوبة:", reply_markup=auto_reactions_keyboard())
+        except Exception:
+            pass
+
+    elif data == "wa_polls":
+        try:
+            await query.edit_message_text("📊 تصويتات استطلاع رأي واتساب:\nاختر الخيار المطلوب:", reply_markup=polls_keyboard())
         except Exception:
             pass
 
@@ -1536,16 +1547,42 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    elif data.startswith("sub_"):
-        service_ids = {"sub_no_guarantee": 729, "sub_30d": 730, "sub_60d": 731, "sub_90d": 732, "sub_global": 805, "sub_arabic": 806}
-        prices = {"sub_no_guarantee": 0.39, "sub_30d": 0.70, "sub_60d": 0.80, "sub_90d": 0.80, "sub_global": 0.90, "sub_arabic": 1.0}
-        names = {"sub_no_guarantee": "بروفايل واتساب - أعضاء بدون ضمان", "sub_30d": "بروفايل واتساب - ضمان 30 يوم", "sub_60d": "بروفايل واتساب - ضمان 60 يوم", "sub_90d": "بروفايل واتساب - ضمان 90 يوم", "sub_global": "بروفايل واتساب - عالمي", "sub_arabic": "بروفايل واتساب - عربي"}
-        user_selected_service[user_id] = {"service_id": service_ids.get(data, 730), "name": names.get(data, "واتساب"), "price": prices.get(data, 1.0), "min": 10, "max": 100000000, "type": "channel"}
+    elif data.startswith("wa_f_"):
+        wa_map = {
+            "wa_f_729": (729, "أعضاء قناة واتساب - بدون ضمان", 0.78),
+            "wa_f_730": (730, "أعضاء قناة واتساب - ضمان 30 يوم", 0.89),
+            "wa_f_731": (731, "أعضاء قناة واتساب - ضمان 60 يوم", 0.97),
+            "wa_f_732": (732, "أعضاء قناة واتساب - ضمان 90 يوم", 1.05),
+            "wa_f_805": (805, "أعضاء قناة واتساب [عالمي]", 1.84),
+            "wa_f_806": (806, "أعضاء قناة واتساب [عربي 🇸🇾🇾🇪]", 11.14),
+            "wa_f_733": (733, "ردود فعل واتساب - مزيج عشوائي", 0.20),
+            "wa_f_814": (814, "ردود فعل واتساب - 👍 إعجاب", 0.20),
+            "wa_f_815": (815, "ردود فعل واتساب - ❤️ حب", 0.20),
+            "wa_f_736": (736, "ردود فعل واتساب - 😆 ضحك", 0.20),
+            "wa_f_737": (737, "ردود فعل واتساب - 😮 دهشة", 0.20),
+            "wa_f_738": (738, "ردود فعل واتساب - 😢 حزن", 0.20),
+            "wa_f_739": (739, "ردود فعل واتساب - 🙏 دعاء", 0.20),
+            "wa_f_712": (712, "ردود الفعل التلقائية (10 منشورات - مزيج)", 15.44),
+            "wa_f_720": (720, "ردود الفعل التلقائية على قناة واتساب (10 - ❤️)", 15.44),
+            "wa_f_721": (721, "ردود الفعل التلقائية على قناة واتساب (25 - ❤️)", 30.88),
+            "wa_f_722": (722, "ردود الفعل التلقائية على قناة واتساب (50 - ❤️)", 61.74),
+            "wa_f_723": (723, "ردود الفعل التلقائية على قناة واتساب (100 - ❤️)", 123.50),
+            "wa_f_715": (715, "ردود الفعل التلقائية (100 منشور - جميع الإيموجيات)", 123.50),
+            "wa_f_716": (716, "ردود الفعل التلقائية على قناة واتساب (10 - 👍)", 15.44),
+            "wa_f_717": (717, "ردود الفعل التلقائية على قناة واتساب (25 - 👍)", 30.88),
+            "wa_f_718": (718, "ردود الفعل التلقائية على قناة واتساب (50 - 👍)", 61.74),
+            "wa_f_719": (719, "ردود الفعل التلقائية على قناة واتساب (100 - 👍)", 123.50),
+            "wa_f_725": (725, "تصويت استطلاع رأي - الخيار الأول", 4.00),
+            "wa_f_726": (726, "تصويت استطلاع رأي - الخيار الثاني", 4.00),
+            "wa_f_727": (727, "تصويت استطلاع رأي - الخيار الثالث", 4.00),
+            "wa_f_728": (728, "تصويت استطلاع رأي - الخيار الرابع", 4.00)
+        }
+        s_id, s_name, s_price = wa_map.get(data, (729, "خدمة واتساب", 0.78))
+        user_selected_service[user_id] = {"service_id": s_id, "name": s_name, "price": s_price, "min": 10, "max": 100000000, "type": "channel", "callback_data": data}
         prompt_user_for_link(update.effective_message, user_selected_service[user_id], context)
 
     elif data.startswith("wa_r_") or data.startswith("wa_a_") or data.startswith("wa_p_") or data.startswith("tg_t_") or data.startswith("fb_f_") or data.startswith("ig_f_") or data.startswith("tg_v_") or data.startswith("tg_a_") or data.startswith("tg_r_") or data.startswith("tg_p_"):
         service_ids = {
-            "wa_r_1": 712, "wa_r_2": 713, "wa_r_3": 714, "wa_r_4": 715, "wa_r_5": 716, "wa_r_6": 717,
             "tg_t_653": 653, "tg_t_654": 654, "tg_t_659": 659, "tg_t_660": 660, "tg_t_661": 661, "tg_t_662": 662,
             "tg_t_613": 613, "tg_t_614": 614, "tg_t_646": 646, "tg_t_893": 893, "tg_t_894": 894, "tg_t_895": 895,
             "tg_v_628": 628, "tg_v_668": 668, "tg_v_669": 669, "tg_v_670": 670, "tg_v_671": 671,
@@ -1562,7 +1599,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "ig_f_724": 724, "ig_f_771": 771, "ig_f_772": 772, "ig_f_773": 773, "ig_f_769": 769, "ig_f_770": 770
         }
         prices = {
-            "wa_r_1": 0.50, "wa_r_2": 0.50, "wa_r_3": 0.50, "wa_r_4": 0.50, "wa_r_5": 0.50, "wa_r_6": 0.50,
             "tg_t_653": 2.46, "tg_t_654": 2.80, "tg_t_659": 2.00, "tg_t_660": 5.40, "tg_t_661": 5.60, "tg_t_662": 6.00,
             "tg_t_613": 4.00, "tg_t_614": 8.00, "tg_t_646": 30.00, "tg_t_893": 116.00, "tg_t_894": 196.00, "tg_t_895": 316.00,
             "tg_v_628": 0.04, "tg_v_668": 0.02, "tg_v_669": 0.10, "tg_v_670": 0.60, "tg_v_671": 1.22,
@@ -1579,8 +1615,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "ig_f_724": 3.40, "ig_f_771": 4.54, "ig_f_772": 1.874, "ig_f_773": 13.36, "ig_f_769": 0.032, "ig_f_770": 0.40
         }
         names = {
-            "wa_r_1": "تفاعلات واتساب - إيموجي 1", "wa_r_2": "تفاعلات واتساب - إيموجي 2", "wa_r_3": "تفاعلات واتساب - إيموجي 3",
-            "wa_r_4": "تفاعلات واتساب - إيموجي 4", "wa_r_5": "تفاعلات واتساب - إيموجي 5", "wa_r_6": "تفاعلات واتساب - إيموجي 6",
             "tg_t_653": "أعضاء Zero Drop", "tg_t_654": "أعضاء مدى الحياة", "tg_t_659": "أعضاء عرب 10 أيام",
             "tg_t_660": "أعضاء عرب 180 يوم", "tg_t_661": "أعضاء عرب 365 يوم", "tg_t_662": "أعضاء عرب مدى الحياة",
             "tg_t_613": "بريميوم 15 يوم", "tg_t_614": "بريميوم 30 يوم", "tg_t_646": "تعزيزات 2 يوم",
