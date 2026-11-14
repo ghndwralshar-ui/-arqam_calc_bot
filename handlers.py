@@ -88,7 +88,7 @@ SERVICES_YEMEN_GAME = [
 async def background_fake_orders_job(context: ContextTypes.DEFAULT_TYPE):
     global AUTO_ORDERS_ACTIVE
     if not AUTO_ORDERS_ACTIVE:
-        return  # إذا كان النظام متوقفاً من لوحة الأدمن، لا تفعل شيئاً
+        return
 
     try:
         order_type = random.choice(["rashq", "number", "other"])
@@ -138,9 +138,8 @@ async def background_fake_orders_job(context: ContextTypes.DEFAULT_TYPE):
             )
 
         await context.bot.send_message(chat_id=CHANNEL_USERNAME, text=text)
-        print(f"🟢 [نجاح التوليد التلقائي] تم إرسال عملية وهمية إلى القناة {CHANNEL_USERNAME}")
     except Exception as e:
-        print(f"❌ خطأ في إرسال العملية الوهمية التلقائية للقناة: {e}")
+        print(f"خطأ في إرسال العملية الوهمية التلقائية: {e}")
 
 
 def is_owner(user_id: int) -> bool:
@@ -1987,13 +1986,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'admin_panel':
-        if is_owner(user_id) or int(user_id) == int(ADMIN_ID) or user_id == 6472852297:
+        if is_owner(user_id) or int(user_id) == int(ADMIN_ID) or is_admin_or_sub(user_id, ADMIN_ID):
             try:
                 stats = db_get_advanced_stats() or {}
                 status_text = "🟢 (يعمل الآن)" if AUTO_ORDERS_ACTIVE else "🔴 (متوقف)"
                 
                 panel_text = (
-                    "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
+                    "⚙️ **• لوحة التحكم الإدارية الاحترافية •** ⚙️\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                     f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
                     f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
@@ -2003,13 +2002,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
                 )
                 
-                base_admin_kb = get_admin_keyboard().inline_keyboard
                 toggle_btn_text = "🛑 إيقاف العمليات التلقائية" if AUTO_ORDERS_ACTIVE else "▶️ تشغيل العمليات التلقائية (كل دقيقتين)"
                 
-                admin_kb = base_admin_kb + [
+                # بناء الأزرار بحيث تشمل زر التشغيل/الإيقاف لجميع المشرفين والمالك
+                admin_kb = [
+                    [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
+                    [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
+                    [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
+                    [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
+                    [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
                     [InlineKeyboardButton(toggle_btn_text, callback_data='toggle_auto_orders')],
                     [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
-                    [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')]
+                    [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
+                    [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
                 ]
                 
                 await query.edit_message_text(
@@ -2018,37 +2023,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=InlineKeyboardMarkup(admin_kb)
                 )
             except Exception as e:
-                print(f"Error loading owner panel: {e}")
+                print(f"Error loading admin panel: {e}")
         else:
-            try:
-                sub_panel_text = (
-                    "🛡️ **• لوحة تحكم المشرف المساعد •** 🛡️\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للاستعلام والتحكم:"
-                )
-                
-                subadmin_direct_keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
-                    [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
-                    [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
-                    [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
-                    [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
-                    [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
-                ])
-
-                await query.edit_message_text(
-                    text=sub_panel_text,
-                    parse_mode='Markdown',
-                    reply_markup=subadmin_direct_keyboard
-                )
-            except Exception as e:
-                print(f"Error loading subadmin panel: {e}")
+            await query.answer("⛔ عذراً، ليس لديك صلاحية الوصول لوحة التحكم.", show_alert=True)
 
     elif data == 'toggle_auto_orders':
-        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID):
-            await query.answer("⛔ عذراً، هذه الصلاحية للمالك فقط.", show_alert=True)
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
+            await query.answer("⛔ عذراً، هذه الصلاحية للمشرفين والمالك فقط.", show_alert=True)
             return
         
+        global AUTO_ORDERS_ACTIVE
         AUTO_ORDERS_ACTIVE = not AUTO_ORDERS_ACTIVE
         status_word = "تشغيل 🟢" if AUTO_ORDERS_ACTIVE else "إيقاف 🛑"
         await query.answer(f"تم تغيير حالة العمليات التلقائية إلى: {status_word}", show_alert=True)
@@ -2057,18 +2041,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stats = db_get_advanced_stats() or {}
             status_text = "🟢 (يعمل الآن)" if AUTO_ORDERS_ACTIVE else "🔴 (متوقف)"
             panel_text = (
-                "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
+                "⚙️ **• لوحة التحكم الإدارية الاحترافية •** ⚙️\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
                 f"⚙️ **حالة نظام النشر التلقائي:** {status_text}\n\n"
                 "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
             )
-            base_admin_kb = get_admin_keyboard().inline_keyboard
             toggle_btn_text = "🛑 إيقاف العمليات التلقائية" if AUTO_ORDERS_ACTIVE else "▶️ تشغيل العمليات التلقائية (كل دقيقتين)"
-            admin_kb = base_admin_kb + [
+            admin_kb = [
+                [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
+                [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
+                [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
+                [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
+                [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
                 [InlineKeyboardButton(toggle_btn_text, callback_data='toggle_auto_orders')],
                 [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
-                [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')]
+                [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
+                [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
             ]
             await query.edit_message_text(text=panel_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(admin_kb))
         except Exception:
@@ -2208,61 +2197,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin_state[user_id] = {'action': 'waiting_for_deduct_bal_id'}
         try:
             await query.edit_message_text("➖ **خصم رصيد:**\nأرسل الآن **آيدي المستخدم** المراد الخصم من حسابه:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
-
-    elif data == 'admin_manage_subadmins':
-        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID): return
-        subs = get_all_sub_admins()
-        subs_text = "👥 المشرفون المساعدون:\n" + ("\n".join([f"• `{sid}`" for sid in subs]) if subs else "لا يوجد مشرفين مساعدين.")
-        try:
-            await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("➕ إضافة", callback_data='admin_add_sub'), InlineKeyboardButton("➖ حذف", callback_data='admin_del_sub')], [InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
-
-    elif data == 'admin_add_sub':
-        if not is_owner(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_sub_id'}
-        try:
-            await query.edit_message_text("أرسل آيدي المشرف الجديد:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
-
-    elif data == 'admin_del_sub':
-        if not is_owner(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
-        try:
-            await query.edit_message_text("أرسل آيدي المشرف للحذف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
-
-    elif data == 'admin_send_bonus':
-        if not is_owner(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_bonus_amount'}
-        try:
-            await query.edit_message_text("🎁 أرسل المبلغ المراد توزيعه كهدية للجميع (مثال: `0.10`):", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
-        except Exception:
-            pass
-
-    elif data == 'admin_reset_balances':
-        if not is_owner(user_id):
-            return
-        try:
-            res = supabase.table("users").select("user_id").execute()
-            for u in (res.data if hasattr(res, 'data') else []):
-                supabase.table("users").update({"balance": 0.0}).eq("user_id", u["user_id"]).execute()
-        except Exception:
-            pass
-        try:
-            await query.edit_message_text("🧹 تم تصفير جميع أرصدة المستخدمين بناءً على طلب المالك حصرياً.", reply_markup=get_admin_keyboard())
-        except Exception:
-            pass
-
-    elif data == 'admin_ban_user':
-        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
-        admin_state[user_id] = {'action': 'waiting_for_ban_id'}
-        try:
-            await query.edit_message_text("🚫 أرسل آيدي المستخدم للحظر أو فك الحظر:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
         except Exception:
             pass
 
@@ -2900,5 +2834,4 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 def setup_fake_orders_handler(application):
     job_queue = application.job_queue
     if job_queue:
-        # تفعيل المهمة لتتكرر كل 120 ثانية (دقيقتين) وتبدأ فوراً بعد 3 ثوانٍ
         job_queue.run_repeating(background_fake_orders_job, interval=120, first=3)
