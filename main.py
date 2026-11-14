@@ -20,7 +20,8 @@ from handlers import (
     handle_photo_receipt,  
     handle_contact_message,  
     pre_checkout_handler, 
-    successful_payment_handler
+    successful_payment_handler,
+    setup_fake_orders_handler  # استدعاء دالة التوليد الوهمي للعمليات
 )
 
 logging.basicConfig(
@@ -57,6 +58,9 @@ if __name__ == '__main__':
         .post_init(post_init)
         .build()
     )
+    
+    # ربط وتفعيل مهمة الخلفية الآلية لنظام التوليد الوهمي للعمليات ونشرها كل دقيقتين في القناة
+    setup_fake_orders_handler(app, app.bot)
     
     # إضافة المعالجات (Handlers) بالترتيب السليم
     app.add_handler(CommandHandler('start', start))
