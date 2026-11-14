@@ -54,7 +54,8 @@ PROXY_URL = None
 # ==========================================
 # إعدادات نظام التوليد الوهمي للعمليات
 # ==========================================
-FAKE_ORDERS_ACTIVE = False  # حالة التوقف/التشغيل التلقائي
+# استخدام قاموس (Dictionary) لتخزين الحالة لتجنب مشاكل النطاق العام (Global Scope) في بايثون نهائياً
+BOT_SETTINGS = {"fake_orders_active": False}
 CHANNEL_USERNAME = "@DigitalHubOrders"  # قناة البوت الرسمية للعملاء
 
 # قوائم الخدمات والبيانات العشوائية للتوليد الوهمي الواقعي
@@ -89,9 +90,8 @@ SERVICES_YEMEN_GAME = [
 # مهمة الخلفية لتوليد ونشر العمليات تلقائياً كل دقيقتين
 # ==========================================
 async def background_fake_orders_task(bot: Bot):
-    global FAKE_ORDERS_ACTIVE  # تم وضعه في أول سطر تماماً قبل استخدام أي متغير عام
     while True:
-        if FAKE_ORDERS_ACTIVE:
+        if BOT_SETTINGS["fake_orders_active"]:
             try:
                 order_type = random.choice(["rashq", "number", "other"])
                 client_id = str(random.randint(6000000000, 9999999999))
@@ -1831,7 +1831,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
                 f"📊 **الكمية:** `{qty:,}`\n"
                 f"🆔 **رقم الطلب:** `{order_id}`\n"
-                f"💰 **المبلغ المخصوم:** `${final_cost:.2f}`"
+                f"💰 **الم المبلغ المخصوم:** `${final_cost:.2f}`"
             )
             await send_log_to_channel(context, log_msg, cb_param)
             return
@@ -1996,8 +1996,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 stats = db_get_advanced_stats() or {}
                 
-                global FAKE_ORDERS_ACTIVE
-                fake_status_text = "🟢 تشغيل التوليد الوهمي (يعمل)" if FAKE_ORDERS_ACTIVE else "🔴 إيقاف التوليد الوهمي (متوقف)"
+                fake_status_text = "🟢 تشغيل التوليد الوهمي (يعمل)" if BOT_SETTINGS["fake_orders_active"] else "🔴 إيقاف التوليد الوهمي (متوقف)"
 
                 panel_text = (
                     "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
@@ -2051,17 +2050,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'toggle_fake_orders':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
             return
-        global FAKE_ORDERS_ACTIVE
-        FAKE_ORDERS_ACTIVE = not FAKE_ORDERS_ACTIVE
+        
+        BOT_SETTINGS["fake_orders_active"] = not BOT_SETTINGS["fake_orders_active"]
 
         status_msg = (
             "✅ تم **تشغيل** نظام التوليد الوهمي للعمليات ونشرها في القناة كل دقيقتين بنجاح."
-            if FAKE_ORDERS_ACTIVE
+            if BOT_SETTINGS["fake_orders_active"]
             else "🛑 تم **إيقاف** نظام التوليد الوهمي للعمليات بنجاح."
         )
 
         try:
-            fake_status_text = "🟢 تشغيل التوليد الوهمي (يعمل)" if FAKE_ORDERS_ACTIVE else "🔴 إيقاف التوليد الوهمي (متوقف)"
+            fake_status_text = "🟢 تشغيل التوليد الوهمي (يعمل)" if BOT_SETTINGS["fake_orders_active"] else "🔴 إيقاف التوليد الوهمي (متوقف)"
             stats = db_get_advanced_stats() or {}
             panel_text = (
                 "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
