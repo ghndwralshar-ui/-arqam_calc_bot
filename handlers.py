@@ -52,85 +52,6 @@ OWNER_ID = 6472852297
 PROXY_URL = None
 CHANNEL_USERNAME = "@DigitalHubOrders"
 
-# ==========================================
-# قوائم العمليات الوهمية للتوليد اليدوي
-# ==========================================
-SERVICES_RASHQ = [
-    ("أعضاء تليجرام - حقيقيين تفاعل ⚡", "https://t.me/DigitalHubOrders", "500", "0.75"),
-    ("ردود فعل واتساب - 👍 إعجاب", "https://whatsapp.com/channel/example", "10", "0.01"),
-    ("مشاهدات منشور تليجرام 👁️", "https://t.me/DigitalHubOrders/123", "1000", "0.20"),
-    ("متابعين انستغرام - جودة عالية 🎳", "https://instagram.com/example", "200", "0.50"),
-    ("متابعين تيك توك - تفاعل سريع 🎬", "https://tiktok.com/@example", "300", "0.40"),
-    ("إعجابات فيسبوك للصفحة 🎯", "https://facebook.com/example", "150", "0.30"),
-    ("مشاهدات فيديو يوتيوب 📺", "https://youtube.com/watch?v=example", "1000", "1.00"),
-]
-
-SECTIONS_NUMBERS = ["واتساب", "تليجرام", "انستغرام", "فيسبوك", "تيك توك"]
-COUNTRIES_NUMBERS = [
-    ("إندونيسيا", "+6285178478328", "0.45"),
-    ("روسيا", "+79815432198", "0.30"),
-    ("الولايات المتحدة", "+12015550192", "0.60"),
-    ("البرازيل", "+5511987654321", "0.25"),
-    ("مصر", "+201012345678", "0.35"),
-]
-
-SERVICES_YEMEN_GAME = [
-    ("باقة يمن موبايل - عالي السرعة 4G", "77xxxxxxx", "3.50"),
-    ("شحن شدات ببجي موبايل - 60 UC 🎮", "589201948", "0.99"),
-    ("شحن جواهر فري فاير - 100 جوهرة 💎", "948201948", "1.00"),
-    ("تسديد رصيد يمن موبايل فوري ⚡", "77xxxxxxx", "2.00"),
-]
-
-# دالة توليد نص العملية الوهمية يدوياً
-def generate_manual_fake_order_text():
-    order_type = random.choice(["rashq", "number", "other"])
-    client_id = str(random.randint(6000000000, 9999999999))
-    order_id = str(random.randint(1000, 999999))
-
-    if order_type == "rashq":
-        serv_name, link, qty, price = random.choice(SERVICES_RASHQ)
-        text = (
-            f"🔥 تم تنفيذ طلب رشق جديد بنجاح تام! ✅\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 آيدي العميل: {client_id}\n"
-            f"🛍️ الخدمة: {serv_name}\n"
-            f"🔗 الرابط: {link}\n"
-            f"📊 الكمية: {qty}\n"
-            f"🆔 رقم الطلب: {order_id}\n"
-            f"💰 المبلغ المخصوم: ${price}"
-        )
-    elif order_type == "number":
-        section = random.choice(SECTIONS_NUMBERS)
-        country, phone, price = random.choice(COUNTRIES_NUMBERS)
-        code = str(random.randint(100000, 999999))
-        num_order_id = str(random.randint(1130000000, 1140000000))
-        text = (
-            f"📱 تمت اكتمال خدمة تفعيل رقم افتراضي! ✅\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 آيدي العميل: {client_id}\n"
-            f"📦 القسم: {section}\n"
-            f"🌍 الدولة: {country}\n"
-            f"📞 الرقم: {phone}\n"
-            f"🔑 الكود الواصل: {code}\n"
-            f"💰 المبلغ المخصوم: ${price}\n"
-            f"🆔 رقم الطلب: {num_order_id}\n"
-            f"⭐ الحالة: تم وصول الكود بنجاح 🚀"
-        )
-    else:
-        serv_name, target, price = random.choice(SERVICES_YEMEN_GAME)
-        text = (
-            f"💎 تم تنفيذ طلب شحن جديد بنجاح تام! ✅\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 آيدي العميل: {client_id}\n"
-            f"🛍️ الخدمة: {serv_name}\n"
-            f"🔗 المعرف / الرقم: {target}\n"
-            f"📊 الكمية: 1\n"
-            f"🆔 رقم الطلب: {order_id}\n"
-            f"💰 المبلغ المخصوم: ${price}"
-        )
-    return text
-
-
 def is_owner(user_id: int) -> bool:
     try:
         return int(user_id) == int(OWNER_ID) or int(user_id) == int(ADMIN_ID) or int(user_id) == 6472852297
@@ -151,6 +72,7 @@ def get_subadmin_keyboard():
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
         [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
+        [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
     ])
 
@@ -1994,9 +1916,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
                     [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
                     [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
-                    [InlineKeyboardButton("⚡ توليد ونشر عملية وهمية جديدة", callback_data='manual_generate_order')],
-                    [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
                     [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
+                    [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
                     [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
                 ]
                 
@@ -2009,58 +1930,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"Error loading admin panel: {e}")
         else:
             await query.answer("⛔ عذراً، ليس لديك صلاحية الوصول لوحة التحكم.", show_alert=True)
-
-    elif data == 'manual_generate_order':
-        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
-            await query.answer("⛔ عذراً، هذه الصلاحية للمشرفين والمالك فقط.", show_alert=True)
-            return
-
-        order_text = generate_manual_fake_order_text()
-        bot_username = context.bot.username
-        start_url = f"https://t.me/{bot_username}?start=fake_order"
-        
-        preview_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🚀 نشر إلى قناة البوت", callback_data='publish_generated_order')],
-            [InlineKeyboardButton("🔄 توليد عملية أخرى", callback_data='manual_generate_order')],
-            [InlineKeyboardButton("🔙 عودة للوحة التحكم", callback_data='admin_panel')]
-        ])
-
-        # حفظ النص المؤقت في الذاكرة لتتمكن دالة النشر من استرجاعه
-        admin_state[f"temp_order_{user_id}"] = order_text
-
-        try:
-            await query.edit_message_text(
-                text=f"✨ **معاينة العملية الوهمية المولدة:**\n\n{order_text}\n\n👇 *اضغط زر النشر لإرسالها مباشرة إلى القناة:*",
-                parse_mode='Markdown',
-                reply_markup=preview_kb
-            )
-        except Exception:
-            pass
-
-    elif data == 'publish_generated_order':
-        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
-            await query.answer("⛔ عذراً، هذه الصلاحية للمشرفين والمالك فقط.", show_alert=True)
-            return
-
-        order_text = admin_state.get(f"temp_order_{user_id}")
-        if not order_text:
-            order_text = generate_manual_fake_order_text()
-
-        bot_username = context.bot.username
-        start_url = f"https://t.me/{bot_username}?start=fake_order"
-        channel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
-
-        try:
-            await context.bot.send_message(
-                chat_id=CHANNEL_USERNAME,
-                text=order_text,
-                parse_mode='Markdown',
-                reply_markup=channel_kb
-            )
-            await query.answer("✅ تم نشر العملية بنجاح إلى القناة!", show_alert=True)
-        except Exception as e:
-            await query.answer(f"❌ فشل النشر للقناة: {e}", show_alert=True)
-        return
 
     elif data == 'subadmin_user_lookup':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
@@ -2134,7 +2003,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         try:
             await query.edit_message_text(
-                "📢 **نشر منشور لقناة البوت الرسمية:**\n\n"
+                "📢 **نشر رسالة لقناة البوت الرسمية:**\n\n"
                 "أرسل الآن النص، الصورة، الفيديو، أو الوسائط التي تريد نشرها في القناة وسيتم إرسالها فوراً مع زر (الدخول للبوت).",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
@@ -2480,8 +2349,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         channel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
         
         try:
-            await update.message.copy(chat_id=LOG_CHANNEL_ID, reply_markup=channel_kb)
-            await update.message.reply_text("✅ **تم نشر المنشور بنجاح إلى قناة البوت مع زر الدخول!** 🚀", parse_mode='Markdown')
+            await update.message.copy(chat_id=CHANNEL_USERNAME, reply_markup=channel_kb)
+            await update.message.reply_text("✅ **تم نشر الرسالة بنجاح إلى قناة البوت مع زر الدخول!** 🚀", parse_mode='Markdown')
         except Exception as e:
             await update.message.reply_text(f"❌ خطأ أثناء النشر للقناة: `{e}`", parse_mode='Markdown')
         return
