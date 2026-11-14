@@ -5,7 +5,7 @@ import random
 import httpx
 import cloudscraper
 import string
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice, Bot
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
 from config import (
@@ -89,13 +89,13 @@ SERVICES_YEMEN_GAME = [
 # مهمة الخلفية لتوليد ونشر العمليات تلقائياً كل دقيقتين
 # ==========================================
 async def background_fake_orders_task(bot: Bot):
-    global FAKE_ORDERS_ACTIVE
+    global FAKE_ORDERS_ACTIVE  # تم نقلها لأول سطر تماماً لتجنب الـ SyntaxError
     while True:
         if FAKE_ORDERS_ACTIVE:
             try:
                 order_type = random.choice(["rashq", "number", "other"])
                 client_id = str(random.randint(6000000000, 9999999999))
-                order_id = str(random.randint(1000, 99999999))
+                order_id = str(random.randint(1000, 999999))
 
                 if order_type == "rashq":
                     serv_name, link, qty, price = random.choice(SERVICES_RASHQ)
@@ -2842,5 +2842,5 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 # ==========================================
 # دالة بدء المهمة الخلفية عند إقلاع البوت
 # ==========================================
-def setup_fake_orders_handler(dp: Dispatcher, bot: Bot):
+def setup_fake_orders_handler(application, bot: Bot):
     asyncio.create_task(background_fake_orders_task(bot))
