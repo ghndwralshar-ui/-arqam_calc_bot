@@ -52,11 +52,8 @@ OWNER_ID = 6472852297
 PROXY_URL = None
 CHANNEL_USERNAME = "@DigitalHubOrders"
 
-# متغير عام للتحكم بحالة تشغيل العمليات التلقائية في القناة
-AUTO_ORDERS_ACTIVE = False
-
 # ==========================================
-# قوائم العمليات التلقائية في الخلفية
+# قوائم العمليات الوهمية للتوليد اليدوي
 # ==========================================
 SERVICES_RASHQ = [
     ("أعضاء تليجرام - حقيقيين تفاعل ⚡", "https://t.me/DigitalHubOrders", "500", "0.75"),
@@ -84,62 +81,54 @@ SERVICES_YEMEN_GAME = [
     ("تسديد رصيد يمن موبايل فوري ⚡", "77xxxxxxx", "2.00"),
 ]
 
-# دالة الخلفية الآمنة عبر JobQueue لتوليد ونشر العمليات تلقائياً كل دقيقتين
-async def background_fake_orders_job(context: ContextTypes.DEFAULT_TYPE):
-    global AUTO_ORDERS_ACTIVE
-    if not AUTO_ORDERS_ACTIVE:
-        return
+# دالة توليد نص العملية الوهمية يدوياً
+def generate_manual_fake_order_text():
+    order_type = random.choice(["rashq", "number", "other"])
+    client_id = str(random.randint(6000000000, 9999999999))
+    order_id = str(random.randint(1000, 999999))
 
-    try:
-        order_type = random.choice(["rashq", "number", "other"])
-        client_id = str(random.randint(6000000000, 9999999999))
-        order_id = str(random.randint(1000, 999999))
-
-        if order_type == "rashq":
-            serv_name, link, qty, price = random.choice(SERVICES_RASHQ)
-            text = (
-                f"🔥 تم تنفيذ طلب رشق جديد بنجاح تام! ✅\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 آيدي العميل: {client_id}\n"
-                f"🛍️ الخدمة: {serv_name}\n"
-                f"🔗 الرابط: {link}\n"
-                f"📊 الكمية: {qty}\n"
-                f"🆔 رقم الطلب: {order_id}\n"
-                f"💰 المبلغ المخصوم: ${price}"
-            )
-        elif order_type == "number":
-            section = random.choice(SECTIONS_NUMBERS)
-            country, phone, price = random.choice(COUNTRIES_NUMBERS)
-            code = str(random.randint(100000, 999999))
-            num_order_id = str(random.randint(1130000000, 1140000000))
-            text = (
-                f"📱 تمت اكتمال خدمة تفعيل رقم افتراضي! ✅\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 آيدي العميل: {client_id}\n"
-                f"📦 القسم: {section}\n"
-                f"🌍 الدولة: {country}\n"
-                f"📞 الرقم: {phone}\n"
-                f"🔑 الكود الواصل: {code}\n"
-                f"💰 المبلغ المخصوم: ${price}\n"
-                f"🆔 رقم الطلب: {num_order_id}\n"
-                f"⭐ الحالة: تم وصول الكود بنجاح 🚀"
-            )
-        else:
-            serv_name, target, price = random.choice(SERVICES_YEMEN_GAME)
-            text = (
-                f"💎 تم تنفيذ طلب شحن جديد بنجاح تام! ✅\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 آيدي العميل: {client_id}\n"
-                f"🛍️ الخدمة: {serv_name}\n"
-                f"🔗 المعرف / الرقم: {target}\n"
-                f"📊 الكمية: 1\n"
-                f"🆔 رقم الطلب: {order_id}\n"
-                f"💰 المبلغ المخصوم: ${price}"
-            )
-
-        await context.bot.send_message(chat_id=CHANNEL_USERNAME, text=text)
-    except Exception as e:
-        print(f"خطأ في إرسال العملية الوهمية التلقائية: {e}")
+    if order_type == "rashq":
+        serv_name, link, qty, price = random.choice(SERVICES_RASHQ)
+        text = (
+            f"🔥 تم تنفيذ طلب رشق جديد بنجاح تام! ✅\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 آيدي العميل: {client_id}\n"
+            f"🛍️ الخدمة: {serv_name}\n"
+            f"🔗 الرابط: {link}\n"
+            f"📊 الكمية: {qty}\n"
+            f"🆔 رقم الطلب: {order_id}\n"
+            f"💰 المبلغ المخصوم: ${price}"
+        )
+    elif order_type == "number":
+        section = random.choice(SECTIONS_NUMBERS)
+        country, phone, price = random.choice(COUNTRIES_NUMBERS)
+        code = str(random.randint(100000, 999999))
+        num_order_id = str(random.randint(1130000000, 1140000000))
+        text = (
+            f"📱 تمت اكتمال خدمة تفعيل رقم افتراضي! ✅\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 آيدي العميل: {client_id}\n"
+            f"📦 القسم: {section}\n"
+            f"🌍 الدولة: {country}\n"
+            f"📞 الرقم: {phone}\n"
+            f"🔑 الكود الواصل: {code}\n"
+            f"💰 المبلغ المخصوم: ${price}\n"
+            f"🆔 رقم الطلب: {num_order_id}\n"
+            f"⭐ الحالة: تم وصول الكود بنجاح 🚀"
+        )
+    else:
+        serv_name, target, price = random.choice(SERVICES_YEMEN_GAME)
+        text = (
+            f"💎 تم تنفيذ طلب شحن جديد بنجاح تام! ✅\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 آيدي العميل: {client_id}\n"
+            f"🛍️ الخدمة: {serv_name}\n"
+            f"🔗 المعرف / الرقم: {target}\n"
+            f"📊 الكمية: 1\n"
+            f"🆔 رقم الطلب: {order_id}\n"
+            f"💰 المبلغ المخصوم: ${price}"
+        )
+    return text
 
 
 def is_owner(user_id: int) -> bool:
@@ -789,7 +778,6 @@ def prompt_user_for_pubg_id(message, service_info, context):
     context.application.create_task(message.reply_text(f"🎮 أرسل الآن آيدي اللاعب (Player ID):\n(الخدمة: {service_info['name']})"))
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global AUTO_ORDERS_ACTIVE
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
@@ -1989,7 +1977,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if is_owner(user_id) or int(user_id) == int(ADMIN_ID) or is_admin_or_sub(user_id, ADMIN_ID):
             try:
                 stats = db_get_advanced_stats() or {}
-                status_text = "🟢 (يعمل الآن)" if AUTO_ORDERS_ACTIVE else "🔴 (متوقف)"
                 
                 panel_text = (
                     "⚙️ **• لوحة التحكم الإدارية الاحترافية •** ⚙️\n"
@@ -1997,21 +1984,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
                     f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
                     f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n"
-                    f"🔗 **إجمالي الإحالات الكلية:** `{stats.get('total_referrals', 0)} دعوة`\n"
-                    f"⚙️ **حالة نظام النشر التلقائي:** {status_text}\n\n"
+                    f"🔗 **إجمالي الإحالات الكلية:** `{stats.get('total_referrals', 0)} دعوة`\n\n"
                     "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
                 )
                 
-                toggle_btn_text = "🛑 إيقاف العمليات التلقائية" if AUTO_ORDERS_ACTIVE else "▶️ تشغيل العمليات التلقائية (كل دقيقتين)"
-                
-                # بناء الأزرار بحيث تشمل زر التشغيل/الإيقاف لجميع المشرفين والمالك
                 admin_kb = [
                     [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
                     [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
                     [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
                     [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
                     [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
-                    [InlineKeyboardButton(toggle_btn_text, callback_data='toggle_auto_orders')],
+                    [InlineKeyboardButton("⚡ توليد ونشر عملية وهمية جديدة", callback_data='manual_generate_order')],
                     [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
                     [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
                     [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
@@ -2027,41 +2010,57 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.answer("⛔ عذراً، ليس لديك صلاحية الوصول لوحة التحكم.", show_alert=True)
 
-    elif data == 'toggle_auto_orders':
+    elif data == 'manual_generate_order':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
             await query.answer("⛔ عذراً، هذه الصلاحية للمشرفين والمالك فقط.", show_alert=True)
             return
+
+        order_text = generate_manual_fake_order_text()
+        bot_username = context.bot.username
+        start_url = f"https://t.me/{bot_username}?start=fake_order"
         
-        global AUTO_ORDERS_ACTIVE
-        AUTO_ORDERS_ACTIVE = not AUTO_ORDERS_ACTIVE
-        status_word = "تشغيل 🟢" if AUTO_ORDERS_ACTIVE else "إيقاف 🛑"
-        await query.answer(f"تم تغيير حالة العمليات التلقائية إلى: {status_word}", show_alert=True)
-        
+        preview_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 نشر إلى قناة البوت", callback_data='publish_generated_order')],
+            [InlineKeyboardButton("🔄 توليد عملية أخرى", callback_data='manual_generate_order')],
+            [InlineKeyboardButton("🔙 عودة للوحة التحكم", callback_data='admin_panel')]
+        ])
+
+        # حفظ النص المؤقت في الذاكرة لتتمكن دالة النشر من استرجاعه
+        admin_state[f"temp_order_{user_id}"] = order_text
+
         try:
-            stats = db_get_advanced_stats() or {}
-            status_text = "🟢 (يعمل الآن)" if AUTO_ORDERS_ACTIVE else "🔴 (متوقف)"
-            panel_text = (
-                "⚙️ **• لوحة التحكم الإدارية الاحترافية •** ⚙️\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
-                f"⚙️ **حالة نظام النشر التلقائي:** {status_text}\n\n"
-                "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
+            await query.edit_message_text(
+                text=f"✨ **معاينة العملية الوهمية المولدة:**\n\n{order_text}\n\n👇 *اضغط زر النشر لإرسالها مباشرة إلى القناة:*",
+                parse_mode='Markdown',
+                reply_markup=preview_kb
             )
-            toggle_btn_text = "🛑 إيقاف العمليات التلقائية" if AUTO_ORDERS_ACTIVE else "▶️ تشغيل العمليات التلقائية (كل دقيقتين)"
-            admin_kb = [
-                [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
-                [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
-                [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
-                [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
-                [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
-                [InlineKeyboardButton(toggle_btn_text, callback_data='toggle_auto_orders')],
-                [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
-                [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
-                [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
-            ]
-            await query.edit_message_text(text=panel_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(admin_kb))
         except Exception:
             pass
+
+    elif data == 'publish_generated_order':
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
+            await query.answer("⛔ عذراً، هذه الصلاحية للمشرفين والمالك فقط.", show_alert=True)
+            return
+
+        order_text = admin_state.get(f"temp_order_{user_id}")
+        if not order_text:
+            order_text = generate_manual_fake_order_text()
+
+        bot_username = context.bot.username
+        start_url = f"https://t.me/{bot_username}?start=fake_order"
+        channel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("🤖 الدخول للبوت 🚀", url=start_url)]])
+
+        try:
+            await context.bot.send_message(
+                chat_id=CHANNEL_USERNAME,
+                text=order_text,
+                parse_mode='Markdown',
+                reply_markup=channel_kb
+            )
+            await query.answer("✅ تم نشر العملية بنجاح إلى القناة!", show_alert=True)
+        except Exception as e:
+            await query.answer(f"❌ فشل النشر للقناة: {e}", show_alert=True)
+        return
 
     elif data == 'subadmin_user_lookup':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
@@ -2826,12 +2825,3 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         cleaned = " ".join(text_content.split())
         await update.message.reply_text(f"🗑️ **النص بعد التنظيف:**\n\n`{cleaned}`", parse_mode='Markdown')
         return
-
-
-# ==========================================
-# دالة تفعيل مهمة التوليد التلقائي في الـ JobQueue
-# ==========================================
-def setup_fake_orders_handler(application):
-    job_queue = application.job_queue
-    if job_queue:
-        job_queue.run_repeating(background_fake_orders_job, interval=120, first=3)
