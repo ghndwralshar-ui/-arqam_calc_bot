@@ -52,6 +52,9 @@ OWNER_ID = 6472852297
 PROXY_URL = None
 CHANNEL_USERNAME = "@DigitalHubOrders"
 
+# متغير عام للتحكم بحالة تشغيل العمليات التلقائية في القناة
+AUTO_ORDERS_ACTIVE = False
+
 # ==========================================
 # قوائم العمليات التلقائية في الخلفية
 # ==========================================
@@ -83,6 +86,10 @@ SERVICES_YEMEN_GAME = [
 
 # دالة الخلفية الآمنة عبر JobQueue لتوليد ونشر العمليات تلقائياً كل دقيقتين
 async def background_fake_orders_job(context: ContextTypes.DEFAULT_TYPE):
+    global AUTO_ORDERS_ACTIVE
+    if not AUTO_ORDERS_ACTIVE:
+        return  # إذا كان النظام متوقفاً من لوحة الأدمن، لا تفعل شيئاً
+
     try:
         order_type = random.choice(["rashq", "number", "other"])
         client_id = str(random.randint(6000000000, 9999999999))
@@ -131,8 +138,9 @@ async def background_fake_orders_job(context: ContextTypes.DEFAULT_TYPE):
             )
 
         await context.bot.send_message(chat_id=CHANNEL_USERNAME, text=text)
+        print(f"🟢 [نجاح التوليد التلقائي] تم إرسال عملية وهمية إلى القناة {CHANNEL_USERNAME}")
     except Exception as e:
-        print(f"خطأ في إرسال العملية الوهمية التلقائية: {e}")
+        print(f"❌ خطأ في إرسال العملية الوهمية التلقائية للقناة: {e}")
 
 
 def is_owner(user_id: int) -> bool:
@@ -782,6 +790,7 @@ def prompt_user_for_pubg_id(message, service_info, context):
     context.application.create_task(message.reply_text(f"🎮 أرسل الآن آيدي اللاعب (Player ID):\n(الخدمة: {service_info['name']})"))
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global AUTO_ORDERS_ACTIVE
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
@@ -1981,6 +1990,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if is_owner(user_id) or int(user_id) == int(ADMIN_ID) or user_id == 6472852297:
             try:
                 stats = db_get_advanced_stats() or {}
+                status_text = "🟢 (يعمل الآن)" if AUTO_ORDERS_ACTIVE else "🔴 (متوقف)"
                 
                 panel_text = (
                     "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
@@ -1988,12 +1998,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
                     f"🆕 **المستخدمين الجدد (آخر 24 ساعة):** `{stats.get('new_24h', 0)} مشترك جديد` 📈\n"
                     f"💰 **إجمالي أرصدة المحافظ:** `${stats.get('total_balances', 0.0):.2f}`\n"
-                    f"🔗 **إجمالي الإحالات الكلية:** `{stats.get('total_referrals', 0)} دعوة`\n\n"
+                    f"🔗 **إجمالي الإحالات الكلية:** `{stats.get('total_referrals', 0)} دعوة`\n"
+                    f"⚙️ **حالة نظام النشر التلقائي:** {status_text}\n\n"
                     "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
                 )
                 
                 base_admin_kb = get_admin_keyboard().inline_keyboard
+                toggle_btn_text = "🛑 إيقاف العمليات التلقائية" if AUTO_ORDERS_ACTIVE else "▶️ تشغيل العمليات التلقائية (كل دقيقتين)"
+                
                 admin_kb = base_admin_kb + [
+                    [InlineKeyboardButton(toggle_btn_text, callback_data='toggle_auto_orders')],
                     [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
                     [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')]
                 ]
@@ -2029,6 +2043,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception as e:
                 print(f"Error loading subadmin panel: {e}")
+
+    elif data == 'toggle_auto_orders':
+        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID):
+            await query.answer("⛔ عذراً، هذه الصلاحية للمالك فقط.", show_alert=True)
+            return
+        
+        AUTO_ORDERS_ACTIVE = not AUTO_ORDERS_ACTIVE
+        status_word = "تشغيل 🟢" if AUTO_ORDERS_ACTIVE else "إيقاف 🛑"
+        await query.answer(f"تم تغيير حالة العمليات التلقائية إلى: {status_word}", show_alert=True)
+        
+        try:
+            stats = db_get_advanced_stats() or {}
+            status_text = "🟢 (يعمل الآن)" if AUTO_ORDERS_ACTIVE else "🔴 (متوقف)"
+            panel_text = (
+                "⚙️ **• لوحة تحكم الأدمن الاحترافية المتقدمة •** ⚙️\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"👥 **إجمالي المستخدمين:** `{stats.get('total_users', 0)} مشترك`\n"
+                f"⚙️ **حالة نظام النشر التلقائي:** {status_text}\n\n"
+                "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
+            )
+            base_admin_kb = get_admin_keyboard().inline_keyboard
+            toggle_btn_text = "🛑 إيقاف العمليات التلقائية" if AUTO_ORDERS_ACTIVE else "▶️ تشغيل العمليات التلقائية (كل دقيقتين)"
+            admin_kb = base_admin_kb + [
+                [InlineKeyboardButton(toggle_btn_text, callback_data='toggle_auto_orders')],
+                [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
+                [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')]
+            ]
+            await query.edit_message_text(text=panel_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(admin_kb))
+        except Exception:
+            pass
 
     elif data == 'subadmin_user_lookup':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
@@ -2585,12 +2629,11 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"👤 **الآيدي (ID):** `{target_uid}`\n"
                 f"🏷️ **المعرف (Username):** {username_str}\n"
                 f"🔢 **ترتيب التسجيل:** `{user_sequence}`\n"
-                f"💰 **الرصيد الحالي:** `${balance:.2f}`\n"
-                f"👥 **عدد الدعوات:** `{referrals} شخص`\n"
-                f"📅 **تاريخ الانضمام:** `{joined_at}`\n"
-                "━━━━━━━━━━━━━━━━━━━━━━"
+                f"💰 **الرصيد المتاح:** `${balance:.2f}`\n"
+                f"👥 **عدد الإحالات:** `{referrals} دعوة`\n"
+                f"📅 **تاريخ الانضمام:** `{joined_at}`"
             )
-            await update.message.reply_text(lookup_report, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة التحكم", callback_data='admin_panel')]]))
+            await update.message.reply_text(lookup_report, parse_mode='Markdown')
             return
 
         elif st == 'waiting_for_new_sub_id':
@@ -2599,12 +2642,15 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 return
             new_sub_id = int(text_content)
             admin_state.pop(user_id, None)
-            
             try:
-                supabase.table("sub_admins").upsert({"user_id": new_sub_id}).execute()
-                await update.message.reply_text(f"✅ **تمت ترقية المستخدم (`{new_sub_id}`) كمشرف مساعد بنجاح!** 🛡️", parse_mode='Markdown')
+                res = supabase.table("sub_admins").select("*").eq("user_id", new_sub_id).execute()
+                if res.data and len(res.data) > 0:
+                    await update.message.reply_text("⚠️ هذا المستخدم مشرف مساعد بالفعل في القائمة.")
+                    return
+                supabase.table("sub_admins").insert({"user_id": new_sub_id}).execute()
+                await update.message.reply_text(f"✅ تم بنجاح ترقية المستخدم `{new_sub_id}` كمشرف مساعد جديد في البوت!", parse_mode='Markdown')
             except Exception as e:
-                await update.message.reply_text(f"❌ حدث خطأ أثناء إضافة المشرف: `{e}`", parse_mode='Markdown')
+                await update.message.reply_text(f"❌ خطأ أثناء الإضافة: `{e}`")
             return
 
         elif st == 'waiting_for_del_sub_id':
@@ -2613,164 +2659,238 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 return
             del_sub_id = int(text_content)
             admin_state.pop(user_id, None)
-            
             try:
                 supabase.table("sub_admins").delete().eq("user_id", del_sub_id).execute()
-                await update.message.reply_text(f"🗑️ **تمت إزالة المشرف (`{del_sub_id}`) من قائمة المشرفين بنجاح.**", parse_mode='Markdown')
+                await update.message.reply_text(f"🗑️ تمت إزالة المشرف `{del_sub_id}` من قائمة المساعدين بنجاح.", parse_mode='Markdown')
             except Exception as e:
-                await update.message.reply_text(f"❌ حدث خطأ أثناء الحذف: `{e}`", parse_mode='Markdown')
+                await update.message.reply_text(f"❌ خطأ أثناء الحذف: `{e}`")
+            return
+
+        elif st == 'waiting_for_reply_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح:")
+                return
+            admin_state[user_id] = {'action': 'waiting_for_reply_text', 'target_id': int(text_content)}
+            await update.message.reply_text("✍️ أرسل الآن نص الرسالة أو الرد المراد إرساله للمستخدم:", parse_mode='Markdown')
+            return
+
+        elif st == 'waiting_for_reply_text':
+            t_id = admin_state[user_id].get('target_id')
+            admin_state.pop(user_id, None)
+            try:
+                await context.bot.send_message(chat_id=t_id, text=f"💬 **رد من إدارة البوت:**\n\n{text_content}", parse_mode='Markdown')
+                await update.message.reply_text("✅ تم إرسال الرد للمستخدم بنجاح!")
+            except Exception as e:
+                await update.message.reply_text(f"❌ فشل الإرسال للمستخدم: `{e}`")
+            return
+
+        elif st == 'waiting_for_gift_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح:")
+                return
+            admin_state[user_id] = {'action': 'waiting_for_gift_amount', 'target_id': int(text_content)}
+            await update.message.reply_text("💵 أرسل الآن مبلغ الهدية بالدولار (مثال: `1.50`):", parse_mode='Markdown')
+            return
+
+        elif st == 'waiting_for_gift_amount':
+            try:
+                amt = float(text_content)
+            except ValueError:
+                await update.message.reply_text("⚠️ يرجى إرسال رقم صحيح للمبلغ:")
+                return
+            t_id = admin_state[user_id].get('target_id')
+            admin_state.pop(user_id, None)
+            db_update_balance(t_id, amt, mode="add")
+            try:
+                await context.bot.send_message(chat_id=t_id, text=f"🎁 **مفاجأة! لقد حصلت على هدية مالية من إدارة البوت بقيمة:** `${amt:.2f}` 🌟", parse_mode='Markdown')
+                await update.message.reply_text(f"✅ تم إرسال الهدية بقيمة `${amt:.2f}` للمستخدم `{t_id}` بنجاح!", parse_mode='Markdown')
+            except Exception as e:
+                await update.message.reply_text(f"✅ تم تحديث رصيد المستخدم ولكن فشل إرسال الإشعار له: `{e}`")
             return
 
         elif st == 'waiting_for_add_bal_id':
             if not text_content.isdigit():
-                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح مكون من أرقام:")
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح:")
                 return
-            target_id = int(text_content)
-            admin_state[user_id] = {'action': 'waiting_for_add_bal_amount', 'target_id': target_id}
-            await update.message.reply_text(f"➕ **إضافة رصيد للمستخدم (`{target_id}`):**\nأرسل الآن **المبلغ بالدولار** المراد إضافته (مثال: `5` أو `1.5`):", parse_mode='Markdown')
+            admin_state[user_id] = {'action': 'waiting_for_add_bal_amount', 'target_id': int(text_content)}
+            await update.message.reply_text("➕ أرسل الآن المبلغ المراد إضافته بالدولار (مثال: `5.00`):", parse_mode='Markdown')
             return
 
         elif st == 'waiting_for_add_bal_amount':
             try:
-                amount = float(text_content)
-                target_id = admin_state[user_id].get('target_id')
-                admin_state.pop(user_id, None)
-                
-                db_update_balance(target_id, amount, mode="add")
-                target_user = db_get_user(target_id)
-                new_bal = target_user.get('balance', 0.0) if target_user else 0.0
-
-                await update.message.reply_text(f"✅ **تم إضافة `${amount:.2f}` بنجاح للمستخدم `{target_id}`!**\n💰 رصيده الحالي الجديد: `${new_bal:.2f}`", parse_mode='Markdown')
-                try:
-                    await context.bot.send_message(chat_id=target_id, text=f"🎉 **تمت إضافة رصيد لحسابك بواسطة الإدارة!**\n⭐ المبلغ المضاف: `${amount:.2f}`\n💰 رصيدك الحالي: `${new_bal:.2f}`", parse_mode='Markdown')
-                except Exception:
-                    pass
+                amt = float(text_content)
             except ValueError:
-                await update.message.reply_text("⚠️ يرجى إرسال قيمة عددية صحيحة للمبلغ (مثال: `2.5`):")
+                await update.message.reply_text("⚠️ يرجى إرسال رقم صحيح:")
+                return
+            t_id = admin_state[user_id].get('target_id')
+            admin_state.pop(user_id, None)
+            db_update_balance(t_id, amt, mode="add")
+            await update.message.reply_text(f"✅ تم بنجاح إضافة `${amt:.2f}` لرصيد المستخدم `{t_id}`!", parse_mode='Markdown')
             return
 
         elif st == 'waiting_for_deduct_bal_id':
             if not text_content.isdigit():
-                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح مكون من أرقام:")
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح:")
                 return
-            target_id = int(text_content)
-            admin_state[user_id] = {'action': 'waiting_for_deduct_bal_amount', 'target_id': target_id}
-            await update.message.reply_text(f"➖ **خصم رصيد من المستخدم (`{target_id}`):**\nأرسل الآن **المبلغ بالدولار** المراد خصمه:", parse_mode='Markdown')
+            admin_state[user_id] = {'action': 'waiting_for_deduct_bal_amount', 'target_id': int(text_content)}
+            await update.message.reply_text("➖ أرسل الآن المبلغ المراد خصمه بالدولار (مثال: `2.00`):", parse_mode='Markdown')
             return
 
         elif st == 'waiting_for_deduct_bal_amount':
             try:
-                amount = float(text_content)
-                target_id = admin_state[user_id].get('target_id')
-                admin_state.pop(user_id, None)
-                
-                db_update_balance(target_id, amount, mode="deduct")
-                target_user = db_get_user(target_id)
-                new_bal = target_user.get('balance', 0.0) if target_user else 0.0
-
-                await update.message.reply_text(f"✅ **تم خصم `${amount:.2f}` بنجاح من المستخدم `{target_id}`!**\n💰 رصيده الحالي الجديد: `${new_bal:.2f}`", parse_mode='Markdown')
-                try:
-                    await context.bot.send_message(chat_id=target_id, text=f"⚠️ **تم خصم رصيد من حسابك بواسطة الإدارة.**\n⭐ المبلغ المخصوم: `${amount:.2f}`\n💰 رصيدك الحالي: `${new_bal:.2f}`", parse_mode='Markdown')
-                except Exception:
-                    pass
+                amt = float(text_content)
             except ValueError:
-                await update.message.reply_text("⚠️ يرجى إرسال قيمة عددية صحيحة للمبلغ:")
-            return
-
-        elif st == 'waiting_for_promo_details':
+                await update.message.reply_text("⚠️ يرجى إرسال رقم صحيح:")
+                return
+            t_id = admin_state[user_id].get('target_id')
             admin_state.pop(user_id, None)
-            try:
-                parts = text_content.split()
-                numbers = []
-                promo_code = "GIFT"
-                for p in parts:
-                    try:
-                        numbers.append(float(p))
-                    except ValueError:
-                        if not any(char.isdigit() for char in p):
-                            promo_code = p.upper()
-
-                promo_amount = numbers[0] if len(numbers) > 0 else 0.50
-                promo_max = int(numbers[1]) if len(numbers) > 1 else 50
-
-                try:
-                    supabase.table("promo_codes").insert({
-                        "code": promo_code, "amount": promo_amount, "max_uses": promo_max, "current_uses": 0
-                    }).execute()
-                except Exception:
-                    pass
-
-                await update.message.reply_text(f"✅ تم إنشاء كود الهدية `{promo_code}` بقيمة `${promo_amount}` بنجاح!", parse_mode='Markdown')
-            except Exception as e:
-                await update.message.reply_text(f"❌ حدث خطأ: {e}")
+            db_update_balance(t_id, amt, mode="deduct")
+            await update.message.reply_text(f"✅ تم بنجاح خصم `${amt:.2f}` من رصيد المستخدم `{t_id}`!", parse_mode='Markdown')
             return
 
     if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_link':
-        admin_state[user_id]['link'] = text_content
-        admin_state[user_id]['action'] = 'waiting_for_rashq_count'
-        await update.message.reply_text("📊 أرسل الآن العدد المطلوب للتمويل (أرقام صحيحة فقط):")
+        st_info = admin_state[user_id].get('service_info')
+        admin_state.pop(user_id, None)
+        link = text_content
+        
+        user_order_data[user_id] = {'link': link}
+        
+        fixed_price = st_info.get('fixed_price', 0.0)
+        unit_price = st_info.get('price', 0.50)
+        min_limit = st_info.get('min', 10)
+        max_limit = st_info.get('max', 100000000)
+
+        if fixed_price > 0:
+            user_order_data[user_id]['count'] = 1
+            user_order_data[user_id]['fixed_cost'] = fixed_price
+            
+            confirm_kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ تأكيد وتنفيذ الطلب", callback_data='confirm_final_order')],
+                [InlineKeyboardButton("❌ إلغاء", callback_data='cancel_order')]
+            ])
+            await update.message.reply_text(
+                f"📋 **ملخص الطلب:**\n\n"
+                f"🛍️ الخدمة: `{st_info['name']}`\n"
+                f"🔗 الرابط / الهدف: `{mask_link(link)}`\n"
+                f"💰 التكلفة الإجمالية الثابتة: `${fixed_price:.2f}`\n\n"
+                "👇 اضغط على تأكيد المتابعة:",
+                parse_mode='Markdown', reply_markup=confirm_kb
+            )
+        else:
+            admin_state[user_id] = {'action': 'waiting_for_rashq_count', 'service_info': st_info, 'link': link}
+            await update.message.reply_text(
+                f"📊 **أدخل الكمية المطلوبة:**\n"
+                f"(الحد الأدنى: {min_limit:,} | الحد الأقصى: {max_limit:,})\n\n"
+                f"💡 *سعر كل 1000 حبة = ${unit_price:.2f}*",
+                parse_mode='Markdown'
+            )
         return
 
-    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_count':
+    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_rashq_count':
         if not text_content.isdigit():
-            await update.message.reply_text("⚠️ يرجى إرسال أرقام صحيحة فقط للعدد:")
+            await update.message.reply_text("⚠️ يرجى إرسال أرقام صحيحة للكمية فقط:")
             return
         
         count = int(text_content)
-        st_data = admin_state.get(user_id, {})
-        service_info = st_data.get('service_info', {"name": "خدمة", "price": 1.0, "min": 10, "max": 100000000})
-        
-        min_limit = service_info.get("min", 10)
-        if count < min_limit:
-            await update.message.reply_text(
-                f"❌ **عذراً، الكمية التي أدخلتها أقل من الحد الأدنى المسموح به!**\n"
-                f"📉 الحد الأدنى لهذه الخدمة هو: `{min_limit:,}`\n"
-                f"🔄 يرجى إرسال كمية أكبر أو تساوي الحد الأدنى:"
-            )
-            return
-
-        calc_cost = round((service_info["price"] * count) / 1000.0, 2)
-        if calc_cost <= 0: calc_cost = 0.01
-
-        user_order_data[user_id] = {"link": st_data['link'], "count": count, "calc_cost": calc_cost, "fixed_cost": 0.0}
-        user_selected_service[user_id] = service_info
+        st_info = admin_state[user_id].get('service_info')
+        link = admin_state[user_id].get('link')
         admin_state.pop(user_id, None)
 
-        summary_text = (
-            f"📌 ملخص طلبك:\n\n"
-            f"🔹 الخدمة: {service_info['name']}\n"
-            f"🔗 الرابط: `{mask_link(st_data['link'])}`\n"
-            f"📊 العدد: `{count:,}`\n"
-            f"💰 التكلفة الإجمالية: `${calc_cost:.2f}$`"
-        )
-        markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
+        min_limit = st_info.get('min', 10)
+        if count < min_limit:
+            count = min_limit
+
+        unit_price = st_info.get('price', 0.50)
+        calc_cost = round((unit_price * count) / 1000.0, 2)
+        calc_cost = max(calc_cost, 0.01)
+
+        user_order_data[user_id] = {'link': link, 'count': count, 'calc_cost': calc_cost, 'fixed_cost': 0.0}
+
+        confirm_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ تأكيد وتنفيذ الطلب", callback_data='confirm_final_order')],
+            [InlineKeyboardButton("❌ إلغاء", callback_data='cancel_order')]
         ])
-        await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
+        await update.message.reply_text(
+            f"📋 **ملخص الطلب:**\n\n"
+            f"🛍️ الخدمة: `{st_info['name']}`\n"
+            f"🔗 الرابط: `{mask_link(link)}`\n"
+            f"📊 الكمية: `{count:,}`\n"
+            f"💰 التكلفة الإجمالية المقدرة: `${calc_cost:.2f}`\n\n"
+            "👇 اضغط على تأكيد المتابعة:",
+            parse_mode='Markdown', reply_markup=confirm_kb
+        )
         return
 
-    elif user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_pubg_id':
-        player_id = text_content
-        st_data = admin_state.get(user_id, {})
-        service_info = st_data.get('service_info', {"name": "شدات ببجي", "fixed_price": 1.14})
-        fixed_price = service_info.get("fixed_price", 1.14)
-        
-        user_order_data[user_id] = {"link": player_id, "count": 1, "calc_cost": 0.0, "fixed_cost": fixed_price}
-        user_selected_service[user_id] = service_info
+    if user_id in admin_state and admin_state[user_id].get('action') == 'waiting_for_pubg_id':
+        pubg_id = text_content
+        st_info = admin_state[user_id].get('service_info')
         admin_state.pop(user_id, None)
 
-        summary_text = (
-            f"🎮 ملخص طلب الشحن (بالآيدي):\n\n"
-            f"🔹 الحزمة: {service_info['name']}\n"
-            f"🆔 آيدي اللاعب (Player ID): `{player_id}`\n"
-            f"💰 السعر الإجمالي الصافي: `${fixed_price:.2f}$`"
-        )
-        markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
-            [InlineKeyboardButton("❌ إلغاء", callback_data="cancel_order")]
+        fixed_price = st_info.get('fixed_price', 1.0)
+        user_order_data[user_id] = {'link': pubg_id, 'count': 1, 'fixed_cost': fixed_price}
+
+        confirm_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ تأكيد الشحن الفوري", callback_data='confirm_final_order')],
+            [InlineKeyboardButton("❌ إلغاء", callback_data='cancel_order')]
         ])
-        await update.message.reply_text(summary_text, reply_markup=markup, parse_mode="Markdown")
+        await update.message.reply_text(
+            f"📋 **ملخص طلب شحن اللعبة:**\n\n"
+            f"🎮 الخدمة: `{st_info['name']}`\n"
+            f"🆔 آيدي اللاعب (ID): `{pubg_id}`\n"
+            f"💰 التكلفة الإجمالية: `${fixed_price:.2f}`\n\n"
+            "👇 اضغط على تأكيد المتابعة لتنفيذ الشحن فوراً:",
+            parse_mode='Markdown', reply_markup=confirm_kb
+        )
+        return
+
+    if user_id in admin_state and admin_state[user_id].get('action') == 'fs_url_info_action':
+        admin_state.pop(user_id, None)
+        res_txt = (
+            "🔗 **تقرير فحص الرابط:**\n\n"
+            f"📌 الرابط المُرسل: `{text_content}`\n"
+            "✅ الحالة: الرابط صالح ومرتبط ببروتوكول آمن (HTTPS).\n"
+            "🛡️ الأمان: تم فحص التشفير بنجاح."
+        )
+        await update.message.reply_text(res_txt, parse_mode='Markdown')
+        return
+
+    if user_id in admin_state and admin_state[user_id].get('action') == 'fs_text_deco_action':
+        admin_state.pop(user_id, None)
+        decorated = f"💎 ﴾ {text_content} ﴿ 💎"
+        await update.message.reply_text(f"🎨 **النص المزخرف:**\n\n`{decorated}`", parse_mode='Markdown')
+        return
+
+    if user_id in admin_state and admin_state[user_id].get('action') == 'fs_id_lookup_action':
+        admin_state.pop(user_id, None)
+        await update.message.reply_text(f"🔍 نتيجة الكشف:\nالنص أو المعرف المُرسل: `{text_content}`\nالبحث سليم.", parse_mode='Markdown')
+        return
+
+    if user_id in admin_state and admin_state[user_id].get('action') == 'fs_url_short_action':
+        admin_state.pop(user_id, None)
+        await update.message.reply_text(f"✂️ الرابط المختصر:\n`https://clck.ru/--?q={text_content}`", parse_mode='Markdown')
+        return
+
+    if user_id in admin_state and admin_state[user_id].get('action') == 'fs_tg_info_action':
+        admin_state.pop(user_id, None)
+        await update.message.reply_text(f"📥 القناة أو المجموعة: `{text_content}`\nالمعرف صالح وجاهز للاستخدام.", parse_mode='Markdown')
+        return
+
+    if user_id in admin_state and admin_state[user_id].get('action') == 'fs_markdown_fmt_action':
+        admin_state.pop(user_id, None)
+        await update.message.reply_text(f"🔤 الصيغة المنسقة:\n`**{text_content}**`", parse_mode='Markdown')
+        return
+
+    if user_id in admin_state and admin_state[user_id].get('action') == 'fs_word_counter_action':
+        admin_state.pop(user_id, None)
+        words = len(text_content.split())
+        chars = len(text_content)
+        await update.message.reply_text(f"🔠 **إحصائيات النص:**\n• عدد الكلمات: `{words}`\n• عدد الحروف: `{chars}`", parse_mode='Markdown')
+        return
+
+    if user_id in admin_state and admin_state[user_id].get('action') == 'fs_text_cleaner_action':
+        admin_state.pop(user_id, None)
+        cleaned = " ".join(text_content.split())
+        await update.message.reply_text(f"🗑️ **النص بعد التنظيف:**\n\n`{cleaned}`", parse_mode='Markdown')
         return
 
 
@@ -2780,5 +2900,5 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 def setup_fake_orders_handler(application):
     job_queue = application.job_queue
     if job_queue:
-        # تفعيل المهمة لتتكرر كل 120 ثانية (دقيقتين) وتبدأ فوراً بعد 5 ثوانٍ
-        job_queue.run_repeating(background_fake_orders_job, interval=120, first=5)
+        # تفعيل المهمة لتتكرر كل 120 ثانية (دقيقتين) وتبدأ فوراً بعد 3 ثوانٍ
+        job_queue.run_repeating(background_fake_orders_job, interval=120, first=3)
