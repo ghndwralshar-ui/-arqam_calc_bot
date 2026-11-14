@@ -74,55 +74,65 @@ def sections_menu_keyboard():
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")]
     ])
 
+# ==================== الأقسام المحدثة لخدمات واتساب (بالأسعار المضاعفة ضعفين) ====================
+
 def whatsapp_services_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 بروفايل وأعضاء قناة واتساب", callback_data="wa_subscribers")],
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل ومنشورات واتساب", callback_data="wa_reactions")],
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل تلقائية للمنشورات الجديدة", callback_data="wa_auto_reactions")],
-        [InlineKeyboardButton("🟢 تصويتات استطلاع رأي واتساب", callback_data="wa_polls")],
+        [InlineKeyboardButton("👥 🟢 أعضاء ومتابعي قناة واتساب", callback_data="wa_subscribers")],
+        [InlineKeyboardButton("💬 🟢 تفاعلات وإيموجي منشورات واتساب", callback_data="wa_reactions")],
+        [InlineKeyboardButton("⚡ 🟢 تفاعلات بروفايل تلقائية للمنشورات الجديدة", callback_data="wa_auto_reactions")],
+        [InlineKeyboardButton("📊 🟢 تصويتات استطلاع رأي واتساب", callback_data="wa_polls")],
         [InlineKeyboardButton("🔙 العودة للأقسام", callback_data="main_rashq")]
     ])
 
 def channel_subscribers_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 بروفايل واتساب - أعضاء بدون ضمان", callback_data="sub_no_guarantee")],
-        [InlineKeyboardButton("🟢 بروفايل واتساب - ضمان 30 يوم", callback_data="sub_30d")],
-        [InlineKeyboardButton("🟢 بروفايل واتساب - ضمان 60 يوم", callback_data="sub_60d")],
-        [InlineKeyboardButton("🟢 بروفايل واتساب - ضمان 90 يوم", callback_data="sub_90d")],
-        [InlineKeyboardButton("🟢 بروفايل واتساب - عالمي", callback_data="sub_global")],
-        [InlineKeyboardButton("🟢 بروفايل واتساب - عربي", callback_data="sub_arabic")],
+        [InlineKeyboardButton("🟢 أعضاء قناة واتساب - بدون ضمان (729) — 0.78$", callback_data="wa_f_729")],
+        [InlineKeyboardButton("🟢 أعضاء قناة واتساب - ضمان 30 يوم (730) — 0.89$", callback_data="wa_f_730")],
+        [InlineKeyboardButton("🟢 أعضاء قناة واتساب - ضمان 60 يوم (731) — 0.97$", callback_data="wa_f_731")],
+        [InlineKeyboardButton("🟢 أعضاء قناة واتساب - ضمان 90 يوم (732) — 1.05$", callback_data="wa_f_732")],
+        [InlineKeyboardButton("🌍 أعضاء قناة واتساب [عالمي] (805) — 1.84$", callback_data="wa_f_805")],
+        [InlineKeyboardButton("🇸🇾 🇾🇪 أعضاء قناة واتساب [عربي] (806) — 11.14$", callback_data="wa_f_806")],
         [InlineKeyboardButton("🔙 العودة لخدمات واتساب", callback_data="sec_whatsapp")]
     ])
 
 def emoji_reactions_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل عشوائية", callback_data="react_random")],
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل إعجاب (Like)", callback_data="react_like")],
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل حب (Heart)", callback_data="react_heart")],
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل ضحك (Haha)", callback_data="react_haha")],
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل تعجب (Wow)", callback_data="react_wow")],
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل حزن (Sad)", callback_data="react_sad")],
-        [InlineKeyboardButton("🟢 تفاعلات بروفايل دعاء (Pray)", callback_data="react_pray")],
+        [InlineKeyboardButton("❤️ ردود فعل واتساب - مزيج عشوائي (733) — 0.20$", callback_data="wa_f_733")],
+        [InlineKeyboardButton("👍 ردود فعل واتساب - 👍 إعجاب (814) — 0.20$", callback_data="wa_f_814")],
+        [InlineKeyboardButton("❤️ ردود فعل واتساب - ❤️ حب (815) — 0.20$", callback_data="wa_f_815")],
+        [InlineKeyboardButton("😆 ردود فعل واتساب - 😆 ضحك (736) — 0.20$", callback_data="wa_f_736")],
+        [InlineKeyboardButton("😮 ردود فعل واتساب - 😮 دهشة (737) — 0.20$", callback_data="wa_f_737")],
+        [InlineKeyboardButton("😢 ردود فعل واتساب - 😢 حزن (738) — 0.20$", callback_data="wa_f_738")],
+        [InlineKeyboardButton("🙏 ردود فعل واتساب - 🙏 دعاء (739) — 0.20$", callback_data="wa_f_739")],
         [InlineKeyboardButton("🔙 العودة لخدمات واتساب", callback_data="sec_whatsapp")]
     ])
 
 def auto_reactions_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 ردود فعل بروفايل تلقائية (10 منشورات)", callback_data="auto_10")],
-        [InlineKeyboardButton("🟢 ردود فعل بروفايل تلقائية (25 منشوراً)", callback_data="auto_25")],
-        [InlineKeyboardButton("🟢 ردود فعل بروفايل تلقائية (50 منشوراً)", callback_data="auto_50")],
-        [InlineKeyboardButton("🟢 ردود فعل بروفايل تلقائية (100 منشور)", callback_data="auto_100")],
+        [InlineKeyboardButton("🔥 ردود الفعل التلقائية (10 منشورات - مزيج) (712) — 15.44$", callback_data="wa_f_712")],
+        [InlineKeyboardButton("❤️ ردود الفعل التلقائية على قناة واتساب (10 - ❤️) (720) — 15.44$", callback_data="wa_f_720")],
+        [InlineKeyboardButton("❤️ ردود الفعل التلقائية على قناة واتساب (25 - ❤️) (721) — 30.88$", callback_data="wa_f_721")],
+        [InlineKeyboardButton("❤️ ردود الفعل التلقائية على قناة واتساب (50 - ❤️) (722) — 61.74$", callback_data="wa_f_722")],
+        [InlineKeyboardButton("❤️ ردود الفعل التلقائية على قناة واتساب (100 - ❤️) (723) — 123.50$", callback_data="wa_f_723")],
+        [InlineKeyboardButton("👍 ردود الفعل التلقائية (100 منشور - إيموجيات) (715) — 123.50$", callback_data="wa_f_715")],
+        [InlineKeyboardButton("👍 ردود الفعل التلقائية على قناة واتساب (10 - 👍) (716) — 15.44$", callback_data="wa_f_716")],
+        [InlineKeyboardButton("👍 ردود الفعل التلقائية على قناة واتساب (25 - 👍) (717) — 30.88$", callback_data="wa_f_717")],
+        [InlineKeyboardButton("👍 ردود الفعل التلقائية على قناة واتساب (50 - 👍) (718) — 61.74$", callback_data="wa_f_718")],
+        [InlineKeyboardButton("👍 ردود الفعل التلقائية على قناة واتساب (100 - 👍) (719) — 123.50$", callback_data="wa_f_719")],
         [InlineKeyboardButton("🔙 العودة لخدمات واتساب", callback_data="sec_whatsapp")]
     ])
 
 def polls_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🟢 تصويت بروفايل واتساب - الخيار الأول", callback_data="poll_1")],
-        [InlineKeyboardButton("🟢 تصويت بروفايل واتساب - الخيار الثاني", callback_data="poll_2")],
-        [InlineKeyboardButton("🟢 تصويت بروفايل واتساب - الخيار الثالث", callback_data="poll_3")],
-        [InlineKeyboardButton("🟢 تصويت بروفايل واتساب - الخيار الرابع", callback_data="poll_4")],
+        [InlineKeyboardButton("📊 تصويت استطلاع رأي - الخيار الأول (725) — 4.00$", callback_data="wa_f_725")],
+        [InlineKeyboardButton("📊 تصويت استطلاع رأي - الخيار الثاني (726) — 4.00$", callback_data="wa_f_726")],
+        [InlineKeyboardButton("📊 تصويت استطلاع رأي - الخيار الثالث (727) — 4.00$", callback_data="wa_f_727")],
+        [InlineKeyboardButton("📊 تصويت استطلاع رأي - الخيار الرابع (728) — 4.00$", callback_data="wa_f_728")],
         [InlineKeyboardButton("🔙 العودة لخدمات واتساب", callback_data="sec_whatsapp")]
     ])
+
+# ==============================================================================
 
 def telegram_services_keyboard():
     return InlineKeyboardMarkup([
