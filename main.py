@@ -60,7 +60,7 @@ if __name__ == '__main__':
     )
     
     # ربط وتفعيل مهمة الخلفية الآلية لنظام التوليد الوهمي للعمليات ونشرها كل دقيقتين في القناة
-    setup_fake_orders_handler(app, app.bot)
+    setup_fake_orders_handler(app)
     
     # إضافة المعالجات (Handlers) بالترتيب السليم
     app.add_handler(CommandHandler('start', start))
