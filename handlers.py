@@ -66,10 +66,11 @@ FORCED_SUB_MESSAGE = (
 
 def get_subadmin_keyboard():
     return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
+        [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
         [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
         [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
-        [InlineKeyboardButton("➕ إضافة رصيد (بالدولار)", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد (بالدولار)", callback_data='admin_deduct_balance')],
-        [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast'), InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
+        [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
         [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
     ])
 
@@ -1902,15 +1903,89 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 sub_panel_text = (
                     "🛡️ **• لوحة تحكم المشرف المساعد •** 🛡️\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للرد على المستخدمين وإدارة الأرصدة:"
+                    "مرحباً بك يا مشرف! يمكنك استخدام الأزرار أدناه للاستعلام والتحكم:"
                 )
+                
+                subadmin_direct_keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
+                    [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
+                    [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
+                    [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
+                    [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
+                    [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
+                ])
+
                 await query.edit_message_text(
                     text=sub_panel_text,
                     parse_mode='Markdown',
-                    reply_markup=get_subadmin_keyboard()
+                    reply_markup=subadmin_direct_keyboard
                 )
             except Exception as e:
                 print(f"Error loading subadmin panel: {e}")
+
+    elif data == 'subadmin_user_lookup':
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
+        admin_state[user_id] = {'action': 'waiting_for_lookup_user_id'}
+        try:
+            await query.edit_message_text(
+                "🔍 **الاستعلام الشامل عن مستخدم:**\n\n"
+                "أرسل الآن **آيدي المستخدم (ID)** المراد جلب معلوماته بالكامل:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
+            )
+        except Exception:
+            pass
+
+    elif data == 'subadmin_manage_admins_list':
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
+        subs = get_all_sub_admins()
+        
+        subs_text = "👥 **قائمة المشرفين المساعدين الحاليين في البوت:**\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        if subs:
+            for idx, sid in enumerate(subs, 1):
+                subs_text += f"{idx}. الآيدي: `{sid}`\n"
+        else:
+            subs_text += "⚠️ لا يوجد مشرفون مساعدون مسجلون حالياً.\n"
+
+        subs_kb = [
+            [InlineKeyboardButton("➕ إضافة مشرف جديد", callback_data='subadmin_add_new')],
+            [InlineKeyboardButton("➖ حذف مشرف حالي", callback_data='subadmin_del_existing')],
+            [InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]
+        ]
+        try:
+            await query.edit_message_text(subs_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(subs_kb))
+        except Exception:
+            pass
+
+    elif data == 'subadmin_add_new':
+        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID):
+            await query.answer("⛔ عذراً، هذه الصلاحية مخصصة للمالك الأساسي فقط.", show_alert=True)
+            return
+        admin_state[user_id] = {'action': 'waiting_for_new_sub_id'}
+        try:
+            await query.edit_message_text(
+                "➕ **إضافة مشرف مساعد جديد:**\n\n"
+                "أرسل الآن آيدي (ID) المستخدم المراد ترقيته كمشرف:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='subadmin_manage_admins_list')]])
+            )
+        except Exception:
+            pass
+
+    elif data == 'subadmin_del_existing':
+        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID):
+            await query.answer("⛔ عذراً، هذه الصلاحية مخصصة للمالك الأساسي فقط.", show_alert=True)
+            return
+        admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
+        try:
+            await query.edit_message_text(
+                "➖ **حذف مشرف مساعد:**\n\n"
+                "أرسل الآن آيدي (ID) المشرف المراد إزالته من القائمة:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='subadmin_manage_admins_list')]])
+            )
+        except Exception:
+            pass
 
     elif data == 'owner_publish_to_channel':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
@@ -2371,7 +2446,75 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     if (is_admin_or_sub(user_id, ADMIN_ID) or is_owner(user_id)) and user_id in admin_state:
         st = admin_state[user_id].get('action')
 
-        if st == 'waiting_for_add_bal_id':
+        if st == 'waiting_for_lookup_user_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح مكون من أرقام:")
+                return
+            target_uid = int(text_content)
+            admin_state.pop(user_id, None)
+
+            target_data = db_get_user(target_uid)
+            if not target_data:
+                await update.message.reply_text(f"❌ عذراً، لم يتم العثور على أي مستخدم بالآيدي `{target_uid}` في قاعدة البيانات.", parse_mode='Markdown')
+                return
+
+            all_users = db_get_all_users()
+            user_sequence = "غير محدد"
+            for idx, u in enumerate(all_users, 1):
+                uid_val = u.get("user_id") if isinstance(u, dict) else u
+                if int(uid_val) == target_uid:
+                    user_sequence = f"رقم {idx} في البوت"
+                    break
+
+            username = target_data.get('username')
+            username_str = f"@{username}" if username else "لا يوجد معرف"
+            balance = target_data.get('balance', 0.0)
+            joined_at = target_data.get('created_at', target_data.get('joined_date', 'غير مسجل'))
+            referrals = target_data.get('referrals', 0)
+
+            lookup_report = (
+                "📊 **• تقرير شامل عن معلومات المستخدم •** 🔍\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 **الآيدي (ID):** `{target_uid}`\n"
+                f"🏷️ **المعرف (Username):** {username_str}\n"
+                f"🔢 **ترتيب التسجيل:** `{user_sequence}`\n"
+                f"💰 **الرصيد الحالي:** `${balance:.2f}`\n"
+                f"👥 **عدد الدعوات:** `{referrals} شخص`\n"
+                f"📅 **تاريخ الانضمام:** `{joined_at}`\n"
+                "━━━━━━━━━━━━━━━━━━━━━━"
+            )
+            await update.message.reply_text(lookup_report, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة التحكم", callback_data='admin_panel')]]))
+            return
+
+        elif st == 'waiting_for_new_sub_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح مكون من أرقام:")
+                return
+            new_sub_id = int(text_content)
+            admin_state.pop(user_id, None)
+            
+            try:
+                supabase.table("sub_admins").upsert({"user_id": new_sub_id}).execute()
+                await update.message.reply_text(f"✅ **تمت ترقية المستخدم (`{new_sub_id}`) كمشرف مساعد بنجاح!** 🛡️", parse_mode='Markdown')
+            except Exception as e:
+                await update.message.reply_text(f"❌ حدث خطأ أثناء إضافة المشرف: `{e}`", parse_mode='Markdown')
+            return
+
+        elif st == 'waiting_for_del_sub_id':
+            if not text_content.isdigit():
+                await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح مكون من أرقام:")
+                return
+            del_sub_id = int(text_content)
+            admin_state.pop(user_id, None)
+            
+            try:
+                supabase.table("sub_admins").delete().eq("user_id", del_sub_id).execute()
+                await update.message.reply_text(f"🗑️ **تمت إزالة المشرف (`{del_sub_id}`) من قائمة المشرفين بنجاح.**", parse_mode='Markdown')
+            except Exception as e:
+                await update.message.reply_text(f"❌ حدث خطأ أثناء الحذف: `{e}`", parse_mode='Markdown')
+            return
+
+        elif st == 'waiting_for_add_bal_id':
             if not text_content.isdigit():
                 await update.message.reply_text("⚠️ يرجى إرسال آيدي صحيح مكون من أرقام:")
                 return
