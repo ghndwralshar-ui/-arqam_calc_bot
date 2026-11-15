@@ -219,7 +219,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    # عدة محاولات واستراتيجيات لضمان عدم رفض الطلب اليدوي من السيرفر الخارجي
+    # تحديث وتوسيع صيغ الطلب لتجاوز خطأ الرفض اليدوي وإرسال الكمية والرقم بالشكل المتوافق مع API
     payloads = [
         {
             'key': str(HMCARD_API_KEY).strip(),
@@ -235,6 +235,14 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
             'link': clean_phone,
             'quantity': amount_val,
             'runs': 1
+        },
+        {
+            'key': str(HMCARD_API_KEY).strip(),
+            'action': 'add',
+            'service': cleaned_service_id,
+            'link': clean_phone,
+            'quantity': 1,
+            'runs': amount_val
         }
     ]
 
@@ -258,7 +266,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                             return True, str(order_id), "تم التنفيذ بنجاح"
                         elif error_msg:
                             if "manual order" in error_msg.lower() or "something went wrong" in error_msg.lower():
-                                await asyncio.sleep(2.0)
+                                await asyncio.sleep(1.0)
                                 continue
                             return False, None, error_msg
             except Exception as e:
@@ -282,15 +290,15 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
                         if "manual order" in error_msg.lower() or "something went wrong" in error_msg.lower():
-                            await asyncio.sleep(2.0)
+                            await asyncio.sleep(1.0)
                             continue
                         return False, None, error_msg
             except Exception as e:
                 print(f"Cloudscraper Yemen Order Error (Attempt {attempt+1}): {e}")
 
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(1.0)
 
-    return False, None, "عذراً، الموقع يواجه ضغطاً مؤقتاً أو رفض الطلب اليدوي، يرجى المحاولة بعد قليل أو اختيار خدمة أخرى."
+    return False, None, "عذراً، يواجه الموقع ضغطاً مؤقتاً أو أن خدمة يمن موبايل تتطلب صيانة من المزود، حاول بعد قليل."
 
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
