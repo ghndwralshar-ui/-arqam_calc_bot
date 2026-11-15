@@ -13,9 +13,10 @@ def db_get_user(user_id):
         res = supabase.table("users").select("*").eq("user_id", user_id).execute()
         rows = res.data if hasattr(res, 'data') else []
         if not rows:
-            all_res = supabase.table("users").select("user_sequence").execute()
-            all_u = all_res.data if hasattr(all_res, 'data') else []
-            max_seq = max([r.get("user_sequence", 0) for r in all_u]) if all_u else 0
+            # التعديل هنا: جلب أعلى رقم تسلسل مباشرة من القاعدة بطلب أسرع وأدق دون التقيد بحد الـ 1000 صف
+            max_seq_res = supabase.table("users").select("user_sequence").order("user_sequence", desc=True).limit(1).execute()
+            max_seq_data = max_seq_res.data if hasattr(max_seq_res, 'data') else []
+            max_seq = int(max_seq_data[0].get("user_sequence", 0)) if max_seq_data else 0
             new_seq = max_seq + 1
 
             new_data = {
@@ -53,7 +54,6 @@ def db_set_referrer(user_id: int, referrer_id: int) -> bool:
             return False
         
         user = db_get_user(user_id)
-        # إذا لم يتم تعيين مُحيل له مسبقاً (وكانت القيمة 0)
         if user.get("referred_by", 0) == 0:
             supabase.table("users").update({"referred_by": referrer_id}).eq("user_id", user_id).execute()
             return True
@@ -66,7 +66,7 @@ def db_claim_referral_reward(user_id: int) -> bool:
     try:
         user = db_get_user(user_id)
         if user.get("reward_claimed", 0) == 1:
-            return False # تم استلام المكافأة مسبقاً
+            return False 
         
         supabase.table("users").update({"reward_claimed": 1}).eq("user_id", user_id).execute()
         return True
@@ -170,7 +170,7 @@ def db_check_and_save_transaction(transaction_id: str, user_id: int, amount_yer:
     try:
         existing = supabase.table("transactions").select("*").eq("transaction_id", transaction_id).execute()
         if existing.data and len(existing.data) > 0:
-            return False # العملية مستخدمة من قبل!
+            return False 
             
         supabase.table("transactions").insert({
             "transaction_id": transaction_id,
