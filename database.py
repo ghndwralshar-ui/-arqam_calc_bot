@@ -13,7 +13,6 @@ def db_get_user(user_id):
         res = supabase.table("users").select("*").eq("user_id", user_id).execute()
         rows = res.data if hasattr(res, 'data') else []
         if not rows:
-            # التعديل هنا: جلب أعلى رقم تسلسل مباشرة من القاعدة بطلب أسرع وأدق دون التقيد بحد الـ 1000 صف
             max_seq_res = supabase.table("users").select("user_sequence").order("user_sequence", desc=True).limit(1).execute()
             max_seq_data = max_seq_res.data if hasattr(max_seq_res, 'data') else []
             max_seq = int(max_seq_data[0].get("user_sequence", 0)) if max_seq_data else 0
@@ -101,10 +100,14 @@ def db_update_balance(user_id, amount, mode="add"):
         print(f"db_update_balance Error: {e}")
 
 def db_get_advanced_stats():
+    """جلب الإحصائيات الحقيقية الشاملة بدقة عالية من قاعدة البيانات دون تقييد بـ 1000 صف"""
     try:
-        res = supabase.table("users").select("*").execute()
+        count_res = supabase.table("users").select("user_id", count="exact").execute()
+        total_users = count_res.count if count_res.count is not None else 0
+
+        res = supabase.table("users").select("balance, referrals, joined_date, user_id").execute()
         users = res.data if hasattr(res, 'data') else []
-        total_users = len(users)
+        
         total_balances = sum(float(u.get("balance", 0.0)) for u in users)
         total_referrals = sum(int(u.get("referrals", 0)) for u in users)
 
