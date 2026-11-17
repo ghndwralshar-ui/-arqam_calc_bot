@@ -3,7 +3,6 @@ import re
 import json
 import random
 import httpx
-import cloudscraper
 import string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
 from telegram.ext import ContextTypes
@@ -202,9 +201,6 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "ALL_YEMEN_B
     return []
 
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int, min_allowed: int = 1):
-    """
-    دالة محدثة كلياً ومضبوطة لمنع أخطاء الـ Manual Order والـ Minimum Quantity عبر صيغة Form-Data القياسية.
-    """
     url = str(HMCARD_API_URL).strip()
     
     target_qty = int(amount_yer)
@@ -231,6 +227,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         try:
             response = await client.post(url, data=payload)
             raw_text = response.content.decode('utf-8', errors='ignore').strip()
+            print(f"HMCARD Yemen Order Raw Response: {raw_text}") # طباعة للاستجابة الخام في السجلات
             
             if response.status_code == 200:
                 start_idx = raw_text.find('{')
@@ -278,7 +275,8 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     try:
         async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
             response = await client.post(HMCARD_API_URL, data=payload)
-            raw_resp = response.content.decode('utf-8', errors='ignore')
+            raw_resp = response.content.decode('utf-8', errors='ignore').strip()
+            print(f"HMCARD Rashq Order Raw Response: {raw_resp}") # طباعة الاستجابة في الـ Terminal لتتبع الأخطاء
 
             if response.status_code == 200:
                 start_idx = raw_resp.find('{')
@@ -291,6 +289,9 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
                         return False, None, error_msg
+                return False, None, f"استجابة غير مطابقة JSON: {raw_resp[:120]}"
+            else:
+                return False, None, f"خطأ HTTP: {response.status_code}"
     except Exception as e:
         return False, None, f"خطأ اتصال: {str(e)[:80]}"
 
@@ -2226,6 +2227,87 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ تأكيد وإرسال الطلب", callback_data="confirm_ym_order")],
                     [InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]
+                ])
+            )
+            return
+
+        elif st_action == 'waiting_for_rashq_link':
+            service_info = admin_state[user_id].get('service_info')
+            admin_state.pop(user_id, None)
+            
+            link = text_content
+            stype = service_info.get("type", "channel")
+            count = 1000 # افتراضي أو يمكن طلبه
+            
+            if stype == "poll":
+                parts = text_content.split()
+                if len(parts) >= 2:
+                    link = parts[0]
+                    try:
+                        count = int(parts[1])
+                    except ValueError:
+                        count = 1
+                else:
+                    link = text_content
+                    count = 1
+            
+            calc_cost = round((service_info.get("price", 1.0) * count) / 1000.0, 2)
+            fixed_cost = service_info.get("fixed_price", 0.0)
+            final_cost = fixed_cost if fixed_cost > 0 else max(calc_cost, 0.01)
+
+            user_order_data[user_id] = {
+                'link': link,
+                'count': count,
+                'calc_cost': calc_cost,
+                'fixed_cost': fixed_cost
+            }
+            
+            summary = (
+                "📋 **تأكيد تفاصيل الطلب:**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🛍️ **الخدمة:** `{service_info['name']}`\n"
+                f"🔗 **الهدف:** `{mask_link(link)}`\n"
+                f"📊 **الكمية:** `{count:,}`\n"
+                f"💰 **التكلفة:** `${final_cost:.2f}`\n\n"
+                "👇 اضغط تأكيد لإرسال الطلب للسيرفر فوراً:"
+            )
+            await update.message.reply_text(
+                summary,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
+                    [InlineKeyboardButton("❌ إلغاء", callback_data="main_menu")]
+                ])
+            )
+            return
+
+        elif st_action == 'waiting_for_pubg_id':
+            service_info = admin_state[user_id].get('service_info')
+            admin_state.pop(user_id, None)
+            
+            player_id = text_content
+            fixed_cost = service_info.get("fixed_price", 1.0)
+
+            user_order_data[user_id] = {
+                'link': player_id,
+                'count': 1,
+                'fixed_cost': fixed_cost
+            }
+            
+            summary = (
+                "🎮 **تأكيد طلب شحن اللعبة:**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🕹️ **الخدمة:** `{service_info['name']}`\n"
+                f"🆔 **آيدي اللاعب (ID):** `{player_id}`\n"
+                f"💰 **التكلفة:** `${fixed_cost:.2f}`\n\n"
+                "👇 اضغط تأكيد لإرسال الطلب للسيرفر فوراً:"
+            )
+            await update.message.reply_text(
+                summary,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ تأكيد الشحن", callback_data="confirm_final_order")],
+                    [InlineKeyboardButton("❌ إلغاء", callback_data="main_menu")]
                 ])
             )
             return
