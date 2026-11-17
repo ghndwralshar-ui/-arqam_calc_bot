@@ -1,11 +1,12 @@
-import asyncio
+Import asyncio
 import re
 import json
 import random
 import httpx
+import cloudscraper
 import string
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice
-from telegram.ext import ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, LabeledPrice, Bot
+from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
 from config import (
     BOT_TOKEN, ADMIN_ID, SUPPORT_USERNAME, FORCED_CHANNEL_USERNAME, 
@@ -63,6 +64,17 @@ FORCED_SUB_MESSAGE = (
     "عذراً عزيزي العميل، لتفعيل حسابك والبدء في استخدام كافة خدمات البوت (الأرقام الافتراضية، والرشق، وشحن الألعاب)، يجب عليك أولاً الاشتراك في قناة البوت الرسمية.\n\n"
     "👇 **اشترك الآن عبر الأزرار أدناه، ثم اضغط على زر التحقق للمتابعة:**"
 )
+
+def get_subadmin_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
+        [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
+        [InlineKeyboardButton("💬 الرد على مستخدم عبر الآيدي", callback_data='admin_reply_user')],
+        [InlineKeyboardButton("🎁 إرسال هدية لشخص عبر الآيدي", callback_data='admin_send_gift_user')],
+        [InlineKeyboardButton("➕ إضافة رصيد", callback_data='admin_add_balance'), InlineKeyboardButton("➖ خصم رصيد", callback_data='admin_deduct_balance')],
+        [InlineKeyboardButton("📢 نشر رسالة لقناة البوت", callback_data='owner_publish_to_channel')],
+        [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
+    ])
 
 async def check_user_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     if is_owner(user_id) or int(user_id) == int(ADMIN_ID):
@@ -165,151 +177,111 @@ async def analyze_receipt_with_gemini(photo_bytes: bytearray) -> str:
     except Exception as e:
         return f"ERROR_EXCEPTION: حدث استثناء أثناء الاتصال: {str(e)[:100]}"
 
-async def fetch_hmcard_services_by_category(category_keyword: str = "ALL_YEMEN_BALANCE"):
+async def fetch_hmcard_services_by_category(category_keyword: str = "يمن موبايل"):
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'services'
     }
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
+    keywords_to_try = [category_keyword, "يمن موبايل", "yemen mobile", "يمن", "yemen", "رصيد", "باقات", "تسديد"]
     async with httpx.AsyncClient(headers=headers, timeout=25.0, follow_redirects=True) as client:
         try:
             res = await client.post(HMCARD_API_URL, data=payload)
             if res.status_code == 200:
                 data = res.json()
                 if isinstance(data, list) and len(data) > 0:
-                    filtered = []
-                    for s in data:
-                        s_name = str(s.get('name', '')).lower()
-                        s_cat = str(s.get('category', '')).lower()
-                        if any(k in s_name or k in s_cat for k in ["يمن", "yemen", "رصيد", "باقات", "تسديد", "سبأفون", "you", "mtn", "واي"]):
-                            filtered.append({
-                                'service': int(s.get('service')),
-                                'name': str(s.get('name', '')),
-                                'rate': float(s.get('rate', 0.0)),
-                                'min': int(s.get('min', 1)),
-                                'max': int(s.get('max', 1000000)),
-                                'type': str(s.get('type', 'Default'))
-                            })
-                    return filtered if filtered else data[:40]
+                    for kw in keywords_to_try:
+                        filtered = []
+                        for s in data:
+                            s_name = str(s.get('name', '')).lower()
+                            s_cat = str(s.get('category', '')).lower()
+                            if kw.lower() in s_name or kw.lower() in s_cat:
+                                filtered.append(s)
+                        if filtered:
+                            return filtered
+                    return data[:30] 
         except Exception as e:
-            print(f"Error fetching services: {e}")
+            print(f"Error in dynamic fetch fallback: {e}")
     return []
 
-async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int, min_allowed: int = 1):
-    url = str(HMCARD_API_URL).strip()
-    
-    target_qty = int(amount_yer)
-    if target_qty < int(min_allowed):
-        target_qty = int(min_allowed)
-
-    clean_phone = re.sub(r'[^\d]', '', str(phone)).strip()
-
-    payload = {
-        'key': str(HMCARD_API_KEY).strip(),
-        'action': 'add',
-        'service': int(service_id),
-        'link': clean_phone,
-        'quantity': int(target_qty)
-    }
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest'
-    }
-
-    async with httpx.AsyncClient(headers=headers, timeout=35.0, follow_redirects=True) as client:
-        try:
-            response = await client.post(url, data=payload)
-            raw_text = response.content.decode('utf-8', errors='ignore').strip()
-            
-            # 🔍 دالة التشخيص المعمقة والبحث عن الخطأ الجذري في الـ Terminal
-            print(f"\n=======================================================")
-            print(f"🔍 [تقرير تشخيص خطأ HMCARD الجذري]")
-            print(f"🌐 رابط الـ API: {url}")
-            print(f"📦 رقم الخدمة (Service ID): {service_id}")
-            print(f"📞 الهدف المرسل (Link): {clean_phone}")
-            print(f"📊 الكمية المرسلة (Quantity): {target_qty}")
-            print(f"📡 رمز استجابة HTTP Status: {response.status_code}")
-            print(f"📥 النص الخام المستلم (Raw Response):\n{raw_text}")
-            print(f"=======================================================\n")
-            
-            if response.status_code == 200:
-                start_idx = raw_text.find('{')
-                end_idx = raw_text.rfind('}')
-                
-                if start_idx != -1 and end_idx != -1:
-                    clean_json_str = raw_text[start_idx:end_idx+1]
-                    try:
-                        resp_json = json.loads(clean_json_str)
-                    except json.JSONDecodeError as json_err:
-                        print(f"❌ [خطأ تحليل JSON]: فشل تحويل النص إلى JSON: {json_err}")
-                        return False, None, f"خطأ تحليل الاستجابة: {raw_text[:80]}", target_qty
-                    
-                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-                    
-                    if order_id:
-                        print(f"✅ [نجاح]: تم إنشاء الطلب برقم: {order_id}")
-                        return True, str(order_id), "تم التنفيذ بنجاح", target_qty
-                    elif error_msg:
-                        print(f"❌ [الخطأ الجذري المستخرج من السيرفر]: {error_msg}")
-                        return False, None, error_msg, target_qty
-                    else:
-                        print(f"⚠️ [تحذير]: الاستجابة صالحة ولكن لا يوجد فيها order أو error واضح: {resp_json}")
-                        return False, None, f"استجابة غير متوقعة من المنصة: {raw_text[:100]}", target_qty
-                
-                print(f"❌ [خطأ هيكلي]: النص المستلم لا يحتوي على أقواس JSON صالحة.")
-                return False, None, f"استجابة غير صالحة: {raw_text[:100]}", target_qty
-            else:
-                print(f"❌ [خطأ شبكة HTTP]: رمز الاستجابة غير صحيح: {response.status_code}")
-                return False, None, f"خطأ HTTP من الموقع (الرمز: {response.status_code})", target_qty
-                
-        except Exception as e:
-            print(f"❌ [استثناء برمجي خطير أثناء إرسال الطلب]: {str(e)}")
-            return False, None, f"خطأ في الاتصال: {str(e)[:90]}", target_qty
-
-async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
-    clean_link = str(link).strip()
+async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
+    clean_phone = str(phone).strip()
     cleaned_service_id = int(service_id)
-    base_quantity = int(quantity)
+    amount_val = int(amount_yer)
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    payload = {
-        'key': str(HMCARD_API_KEY).strip(),
-        'action': 'add',
-        'service': cleaned_service_id,
-        'link': clean_link,
-        'quantity': base_quantity
-    }
+    # تحديث وتوسيع صيغ الطلب لتجاوز خطأ الرفض اليدوي وإرسال الكمية والرقم بالشكل المتوافق مع API
+    payloads = [
+        {
+            'key': str(HMCARD_API_KEY).strip(),
+            'action': 'add',
+            'service': cleaned_service_id,
+            'link': clean_phone,
+            'quantity': amount_val
+        },
+        {
+            'key': str(HMCARD_API_KEY).strip(),
+            'action': 'add',
+            'service': cleaned_service_id,
+            'link': clean_phone,
+            'quantity': amount_val,
+            'runs': 1
+        },
+        {
+            'key': str(HMCARD_API_KEY).strip(),
+            'action': 'add',
+            'service': cleaned_service_id,
+            'link': clean_phone,
+            'quantity': 1,
+            'runs': amount_val
+        }
+    ]
 
-    try:
-        async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
-            response = await client.post(HMCARD_API_URL, data=payload)
-            raw_resp = response.content.decode('utf-8', errors='ignore').strip()
-            
-            print(f"\n================ [تشخيص عام لـ HMCARD] ================")
-            print(f"Service ID: {cleaned_service_id} | Link: {clean_link} | Qty: {base_quantity}")
-            print(f"Response: {raw_resp}")
-            print(f"=======================================================\n")
-            
-            if response.status_code == 200:
-                start_idx = raw_resp.find('{')
-                end_idx = raw_resp.rfind('}')
-                if start_idx != -1 and end_idx != -1:
-                    resp_json = json.loads(raw_resp[start_idx:end_idx+1])
+    for attempt in range(4):
+        for payload in payloads:
+            try:
+                async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
+                    res = await client.post(HMCARD_API_URL, data=payload)
+                    if res.status_code == 200:
+                        try:
+                            resp_json = res.json()
+                        except Exception:
+                            raw_text = res.text
+                            clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                            resp_json = json.loads(clean_json)
+                        
+                        order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                        error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                        
+                        if order_id:
+                            return True, str(order_id), "تم التنفيذ بنجاح"
+                        elif error_msg:
+                            if "manual order" in error_msg.lower() or "something went wrong" in error_msg.lower():
+                                await asyncio.sleep(1.0)
+                                continue
+                            return False, None, error_msg
+            except Exception as e:
+                print(f"Httpx Yemen Order Error (Attempt {attempt+1}): {e}")
+
+            try:
+                scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+                response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+                if response.status_code == 200:
+                    try:
+                        resp_json = response.json()
+                    except Exception:
+                        raw_resp = response.content.decode('utf-8', errors='ignore')
+                        clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                        resp_json = json.loads(clean_json)
                     
                     order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                     error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
@@ -317,14 +289,76 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     if order_id:
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
+                        if "manual order" in error_msg.lower() or "something went wrong" in error_msg.lower():
+                            await asyncio.sleep(1.0)
+                            continue
                         return False, None, error_msg
-                return False, None, f"استجابة غير مطابقة JSON: {raw_resp[:120]}"
-            else:
-                return False, None, f"خطأ HTTP من السيرفر: {response.status_code}"
-    except Exception as e:
-        return False, None, f"خطأ اتصال: {str(e)[:80]}"
+            except Exception as e:
+                print(f"Cloudscraper Yemen Order Error (Attempt {attempt+1}): {e}")
 
-    return False, None, "عذراً، فشل تنفيذ الطلب من المنصة."
+        await asyncio.sleep(1.0)
+
+    return False, None, "عذراً، يواجه الموقع ضغطاً مؤقتاً أو أن خدمة يمن موبايل تتطلب صيانة من المزود، حاول بعد قليل."
+
+async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
+    clean_link = str(link).strip()
+    cleaned_service_id = int(service_id)
+    base_quantity = int(quantity)
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+    }
+
+    strategies = [
+        lambda q: q,                      
+        lambda q: max(q, 100),            
+        lambda q: max(q + 50, 100),       
+        lambda q: base_quantity * 2,      
+        lambda q: 500                     
+    ]
+
+    for strat_idx, strat in enumerate(strategies):
+        current_quantity = strat(base_quantity)
+        payload = {
+            'key': str(HMCARD_API_KEY).strip(),
+            'action': 'add',
+            'service': cleaned_service_id,
+            'link': clean_link,
+            'quantity': current_quantity
+        }
+
+        try:
+            scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+            if PROXY_URL: scraper.proxies = {"http": PROXY_URL, "https": PROXY_URL}
+
+            response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+            raw_resp = response.content.decode('utf-8', errors='ignore')
+
+            if response.status_code == 200 and "Bot Verification" not in raw_resp:
+                try:
+                    clean_json = raw_resp[raw_resp.find('{'):raw_resp.rfind('}')+1]
+                    resp_json = json.loads(clean_json)
+                    
+                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                    
+                    if order_id:
+                        return True, str(order_id), "تم التنفيذ بنجاح"
+                    elif error_msg:
+                        if "غير متاح" in error_msg.lower() or "manual order" in error_msg.lower() or "something went wrong" in error_msg.lower():
+                            continue
+                        elif any(k in error_msg.lower() for k in ["minimum", "balance"]):
+                            return False, None, error_msg
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        await asyncio.sleep(0.3)
+
+    return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -464,6 +498,7 @@ async def send_log_to_channel(context: ContextTypes.DEFAULT_TYPE, log_text: str,
             )
         except Exception as admin_err:
             print(f"❌ خطأ إرسال تنبيه العملية للمشرف {admin_id}: {admin_err}")
+
 
 async def check_sms_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -745,9 +780,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == 'yemen_mobile_menu':
         u_data = db_get_user(user_id)
-        await query.answer("⏳ جاري جلب أقسام وخدمات الرصيد في اليمن من الموقع...", show_alert=False)
+        await query.answer("⏳ جاري جلب خدمات يمن موبايل المحدثة من الموقع...", show_alert=False)
         
-        services = await fetch_hmcard_services_by_category("ALL_YEMEN_BALANCE")
+        services = await fetch_hmcard_services_by_category("يمن موبايل")
         
         buttons = []
         if services:
@@ -763,16 +798,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons.append([InlineKeyboardButton("🔙 عودة للقائمة الرئيسية", callback_data='main_menu')])
         
         yemen_menu_text = (
-            "🇾🇪 📡 **قسم خدمات رصيد وباقات الشبكات في اليمن (مباشر من الموقع)** 📡 🇾🇪\n"
+            "🇾🇪 📡 **قسم شحن رصيد وباقات يمن موبايل (مباشر من الموقع)** 📡 🇾🇪\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"👤 **آيدي الحساب:** `{user_id}`\n"
             f"💎 **رصيدك الحالي:** `${u_data['balance']:.2f}`\n\n"
-            "💡 **الخطوات والتعليمات:**\n"
-            "1️⃣ اختر الخدمة أو القسم المطلوب أدناه.\n"
-            "2️⃣ أدخل رقم الهاتف الموجه إليه الخدمة وتأكد منه جيداً.\n"
-            "3️⃣ أدخل المبلغ المطلوب بالريال اليمني.\n"
-            "4️⃣ اضغط على تأكيد ليتم خصم التكلفة وإرسال الطلب للسيرفر فوراً.\n\n"
-            "👇 **اختر القسم أو الخدمة المطلوبة أدناه:**"
+            "💡 يتم جلب الأسعار والخدمات وتحديثها **ديناميكياً** من السيرفر مباشرة.\n"
+            "👇 **اختر الخدمة المطلوبة أدناه:**"
         )
         try:
             await query.edit_message_text(yemen_menu_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(buttons))
@@ -781,34 +812,66 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith('ym_srv_'):
         service_id_str = data.split('_')[2]
-        services = await fetch_hmcard_services_by_category("ALL_YEMEN_BALANCE")
-        matched_srv = next((s for s in services if str(s.get('service')) == service_id_str), None)
-        
-        if not matched_srv:
-            await query.answer("⚠️ تعذر جلب تفاصيل الخدمة من الموقع.", show_alert=True)
-            return
+        services = await fetch_hmcard_services_by_category("يمن موبايل")
+        matched_srv = None
+        for s in services:
+            if str(s.get('service')) == service_id_str:
+                matched_srv = s
+                break
+                
+        s_name = matched_srv.get('name', f"خدمة رقم #{service_id_str}") if matched_srv else "يمن موبايل"
+        s_rate = float(matched_srv.get('rate', 1.0)) if matched_srv else 1.0
 
-        s_name = matched_srv['name']
-        s_rate = matched_srv['rate']
-        s_min = matched_srv['min']
-        s_max = matched_srv['max']
+        admin_state[user_id] = {
+            'action': 'waiting_ym_amount_or_preset',
+            'service_id': int(service_id_str),
+            'service_name': s_name,
+            'rate': s_rate
+        }
+        
+        preset_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("500 ريال", callback_data="ym_preset_500"), InlineKeyboardButton("1,000 ريال", callback_data="ym_preset_1000")],
+            [InlineKeyboardButton("2,000 ريال", callback_data="ym_preset_2000"), InlineKeyboardButton("3,000 ريال", callback_data="ym_preset_3000")],
+            [InlineKeyboardButton("5,000 ريال", callback_data="ym_preset_5000"), InlineKeyboardButton("10,000 ريال", callback_data="ym_preset_10000")],
+            [InlineKeyboardButton("🔙 عودة", callback_data='yemen_mobile_menu')]
+        ])
+
+        try:
+            await query.edit_message_text(
+                f"🟢 **{s_name}** 💰\n\n"
+                "✏️ **أرسل المبلغ الصافي المطلوب بالريال:**\n"
+                "(الحد الأدنى: 100 ريال يمني كما هو موضح في تفاصيل الخدمة بالموقع)\n\n"
+                "💡 *يمكنك أيضاً إرسال أي مبلغ حر أو اختيار من الباقات السريعة أدناه:*",
+                parse_mode='Markdown',
+                reply_markup=preset_kb
+            )
+        except Exception:
+            pass
+
+    elif data.startswith('ym_preset_'):
+        amount_yer = float(data.split('_')[2])
+        st = admin_state.get(user_id, {})
+        service_id = st.get('service_id')
+        service_name = st.get('service_name', 'يمن موبايل')
+        rate = st.get('rate', 1.0)
+        
+        cost_usd = round((rate * amount_yer) / 1000.0, 4)
 
         admin_state[user_id] = {
             'action': 'waiting_ym_phone',
-            'service_id': int(service_id_str),
-            'service_name': s_name,
-            'rate': s_rate,
-            'min': s_min,
-            'max': s_max
+            'service_id': service_id,
+            'service_name': service_name,
+            'amount_yer': amount_yer,
+            'cost': cost_usd
         }
 
         try:
             await query.edit_message_text(
-                f"📡 **الخدمة المختارة:** `{s_name}`\n"
-                f"💵 **السعر:** `${s_rate}`\n"
-                f"📊 **الحد الأدنى:** `{s_min}` | **الحد الأقصى:** `{s_max}`\n\n"
-                "1️⃣ **أرسل الآن رقم الهاتف المراد الشحن إليه:**\n"
-                "*(أدخل الرقم فقط مثل: `771234567`)*",
+                f"🟢 **{service_name}**\n\n"
+                f"💰 **المبلغ المطلوب:** `{amount_yer:,.0f} ريال`\n"
+                f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
+                "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
+                "مثال: `771234567` أو `781234567`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
             )
@@ -828,7 +891,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         phone = order_info['phone']
         service_name = order_info['service_name']
         amount_yer = order_info['amount_yer']
-        min_limit = order_info.get('min', 1)
 
         if current_bal < cost:
             try:
@@ -841,7 +903,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        success, hm_order_id, error_reason, final_qty = await send_yemen_mobile_order_to_hmcard(service_id, phone, int(amount_yer), min_limit)
+        success, hm_order_id, error_reason = await send_yemen_mobile_order_to_hmcard(service_id, phone, int(amount_yer))
 
         if success and hm_order_id:
             db_update_balance(u_id, cost, mode="deduct")
@@ -849,9 +911,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await query.edit_message_text(
                     f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
-                    f"📡 الخدمة: `{service_name}`\n"
+                    f"📡 الشبكة: يمن موبايل 🟢\n"
                     f"📞 الرقم: `{phone}`\n"
-                    f"💰 الكمية المعتمدة: `{final_qty:,}`\n"
+                    f"💎 الخدمة: `{service_name}`\n"
                     f"🆔 رقم الطلب: `{hm_order_id}`\n"
                     f"💸 المخصوم: `${cost:.3f}`\n"
                     f"💳 رصيدك المتبقي: `${new_bal:.3f}`",
@@ -865,12 +927,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
             log_text = (
-                "🇾🇪 **تم تنفيذ طلب خدمة رصيد في اليمن بنجاح تام!** ✅\n"
+                "🇾🇪 **تم تنفيذ طلب شحن يمن موبايل بنجاح تام!** ✅\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"👤 آيدي العميل: `{u_id}`\n"
                 f"📦 الخدمة: `{service_name}`\n"
                 f"📱 الرقم: `{phone}`\n"
-                f"💵 الكمية: `{final_qty:,.0f}`\n"
+                f"💵 المبلغ باليمني: `{amount_yer:,.0f} ريال`\n"
                 f"🆔 رقم الطلب: `{hm_order_id}`\n"
                 f"💰 المبلغ المخصوم: `${cost:.4f}`"
             )
@@ -1000,8 +1062,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"🌍 **الدولة:** {c_name_ar}\n"
                         f"📞 **مفتاح الدولة:** `{c_dial}`\n"
                         f"📱 **الرقم المشتري:** `{phone}`\n"
-                        f"⭐ **السعر:** `${country_price:.2f}`\n\n"
-                        f"⏳ **جاري رصد واستقبال الكود تلقائياً...** 🚀"
+                        f"⭐ **السعر:** `${country_price:.2f}` *(لا يُخصم الرصيد إلا بعد وصول الكود)*\n\n"
+                        f"⏳ **جاري رصد واستقبال الكود تلقائياً...**\n"
+                        f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
                     )
                     
                     sent_msg = await query.edit_message_text(
@@ -1705,7 +1768,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception:
                 pass
+
+            service_name = service.get('name', 'خدمة رقمية')
+            error_log_msg = (
+                "⚠️ **تنبيه رادار: فشل تنفيذ طلب من المنصة!** ❌\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 **آيدي العميل:** `{user_id}`\n"
+                f"🛍️ **الخدمة:** `{service_name}`\n"
+                f"🔗 **الرابط:** `{mask_link(order['link'])}`\n"
+                f"📊 **الكمية:** `{qty:,}`\n"
+                f"🚨 **سبب الرفض الدقيق:** `{error_reason}`"
+            )
+            try:
+                asyncio.create_task(context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=error_log_msg, parse_mode='Markdown'))
+            except Exception:
+                pass
             return
+
+    elif data == "cancel_order":
+        try:
+            await query.edit_message_text("❌ تم إلغاء الطلب بنجاح.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data='main_menu')]]))
+        except Exception:
+            pass
 
     elif data == 'bot_instructions':
         instructions_text = (
@@ -1835,6 +1919,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if is_owner(user_id) or int(user_id) == int(ADMIN_ID) or is_admin_or_sub(user_id, ADMIN_ID):
             try:
                 stats = db_get_advanced_stats() or {}
+                
                 panel_text = (
                     "⚙️ **• لوحة التحكم الإدارية الاحترافية •** ⚙️\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1844,6 +1929,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"🔗 **إجمالي الإحالات الكلية:** `{stats.get('total_referrals', 0)} دعوة`\n\n"
                     "👇 **اختر الإجراء المطلـوب من الأزرار أدناه:**"
                 )
+                
                 admin_kb = [
                     [InlineKeyboardButton("🔍 استعلام عن مستخدم بالآيدي", callback_data='subadmin_user_lookup')],
                     [InlineKeyboardButton("👥 عرض وإدارة المشرفين", callback_data='subadmin_manage_admins_list')],
@@ -1854,7 +1940,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("📢 إذاعة عامة للمستخدمين", callback_data='admin_broadcast')],
                     [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data='main_menu')]
                 ]
-                await query.edit_message_text(text=panel_text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(admin_kb))
+                
+                await query.edit_message_text(
+                    text=panel_text,
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup(admin_kb)
+                )
             except Exception as e:
                 print(f"Error loading admin panel: {e}")
         else:
@@ -1864,17 +1955,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         admin_state[user_id] = {'action': 'waiting_for_lookup_user_id'}
         try:
-            await query.edit_message_text("🔍 **الاستعلام الشامل عن مستخدم:**\n\nأرسل الآن **آيدي المستخدم (ID)** المراد جلب معلوماته بالكامل:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
+            await query.edit_message_text(
+                "🔍 **الاستعلام الشامل عن مستخدم:**\n\n"
+                "أرسل الآن **آيدي المستخدم (ID)** المراد جلب معلوماته بالكامل:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
+            )
         except Exception:
             pass
 
     elif data == 'subadmin_manage_admins_list':
         if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
         subs = get_all_sub_admins()
+        
         subs_text = "👥 **قائمة المشرفين المساعدين الحاليين في البوت:**\n━━━━━━━━━━━━━━━━━━━━━━\n"
         if subs:
-            for idx, sid in enumerate(subs, 1): subs_text += f"{idx}. الآيدي: `{sid}`\n"
-        else: subs_text += "⚠️ لا يوجد مشرفون مساعدون مسجلون حالياً.\n"
+            for idx, sid in enumerate(subs, 1):
+                subs_text += f"{idx}. الآيدي: `{sid}`\n"
+        else:
+            subs_text += "⚠️ لا يوجد مشرفون مساعدون مسجلون حالياً.\n"
+
         subs_kb = [
             [InlineKeyboardButton("➕ إضافة مشرف جديد", callback_data='subadmin_add_new')],
             [InlineKeyboardButton("➖ حذف مشرف حالي", callback_data='subadmin_del_existing')],
@@ -1886,26 +1986,73 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif data == 'subadmin_add_new':
-        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID): return
+        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID):
+            await query.answer("⛔ عذراً، هذه الصلاحية مخصصة للمالك الأساسي فقط.", show_alert=True)
+            return
         admin_state[user_id] = {'action': 'waiting_for_new_sub_id'}
         try:
-            await query.edit_message_text("➕ **إضافة مشرف مساعد جديد:**\n\nأرسل الآن آيدي (ID) المستخدم المراد ترقيته كمشرف:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='subadmin_manage_admins_list')]]))
+            await query.edit_message_text(
+                "➕ **إضافة مشرف مساعد جديد:**\n\n"
+                "أرسل الآن آيدي (ID) المستخدم المراد ترقيته كمشرف:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='subadmin_manage_admins_list')]])
+            )
         except Exception:
             pass
 
     elif data == 'subadmin_del_existing':
-        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID): return
+        if not is_owner(user_id) and int(user_id) != int(ADMIN_ID):
+            await query.answer("⛔ عذراً، هذه الصلاحية مخصصة للمالك الأساسي فقط.", show_alert=True)
+            return
         admin_state[user_id] = {'action': 'waiting_for_del_sub_id'}
         try:
-            await query.edit_message_text("➖ **حذف مشرف مساعد:**\n\nأرسل الآن آيدي (ID) المشرف المراد إزالته من القائمة:", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='subadmin_manage_admins_list')]]))
+            await query.edit_message_text(
+                "➖ **حذف مشرف مساعد:**\n\n"
+                "أرسل الآن آيدي (ID) المشرف المراد إزالته من القائمة:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='subadmin_manage_admins_list')]])
+            )
         except Exception:
             pass
 
     elif data == 'owner_publish_to_channel':
-        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id):
+            return
+        
         admin_state[user_id] = {'action': 'waiting_for_owner_channel_post'}
+        
         try:
-            await query.edit_message_text("📢 **نشر رسالة لقناة البوت الرسمية:**\n\nأرسل الآن النص، الصورة، أو الوسائط التي تريد نشرها في القناة وسيتم إرسالها فوراً مع زر (الدخول للبوت).", parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
+            await query.edit_message_text(
+                "📢 **نشر رسالة لقناة البوت الرسمية:**\n\n"
+                "أرسل الآن النص، الصورة، الفيديو، أو الوسائط التي تريد نشرها في القناة وسيتم إرسالها فوراً مع زر (الدخول للبوت).",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
+
+    elif data == 'admin_top_refs':
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
+        stats = db_get_advanced_stats()
+        top_list = stats['top_refs']
+        text = "🏆 **قائمة أطراف الإحالات (أعلى 5 أشخاص نشطين):**\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        if top_list:
+            for idx, (uid, refs) in enumerate(top_list, 1): text += f"{idx}. الآيدي: `{uid}` ⟵ **{refs} دعوة** 🌟\n"
+        else: text += "⚠️ لا توجد إحالات مسجلة حتى الآن."
+        try:
+            await query.edit_message_text(text, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
+        except Exception:
+            pass
+
+    elif data == 'admin_create_promo':
+        if not is_admin_or_sub(user_id, ADMIN_ID) and not is_owner(user_id): return
+        admin_state[user_id] = {'action': 'waiting_for_promo_details'}
+        try:
+            await query.edit_message_text(
+                "🎟️ **إنشاء كود هدية جديد:**\n"
+                "أرسل التفاصيل بالصيغة التالية:\n"
+                "`الكود المبلغ عدد_الاستخدامات`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة", callback_data='admin_panel')]]))
         except Exception:
             pass
 
@@ -2133,203 +2280,84 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     if user_id in admin_state:
         st_action = admin_state[user_id].get('action')
         
-        if st_action == 'waiting_ym_phone':
-            clean_phone = re.sub(r'[^\d]', '', text_content)
-            if len(clean_phone) != 9:
+        if st_action == 'waiting_ym_amount_or_preset':
+            if not text_content.isdigit() or not (100 <= float(text_content) <= 826000):
                 await update.message.reply_text(
-                    "❌ **رقم الهاتف غير صحيح!**\n"
-                    "يرجى إدخال رقم هاتف يمني صحيح مكون من 9 أرقام (مثال: `771234567`):",
-                    parse_mode='Markdown'
+                    "❌ **عذراً، المبلغ المدخل غير صحيح!**\n"
+                    "يجب ألا يقل المبلغ عن الحد الأدنى المسموح به (100 ريال يمني).\n"
+                    "✏️ يرجى إرسال المبلغ الصافي المطلوب بالريال:"
                 )
                 return
-
+            
+            amount_yer = float(text_content)
             st = admin_state[user_id]
-            s_min = st['min']
-            s_max = st['max']
-            s_rate = st['rate']
-            s_name = st['service_name']
-            s_id = st['service_id']
+            service_id = st.get('service_id')
+            service_name = st.get('service_name')
+            rate = st.get('rate', 1.0)
+            
+            cost_usd = round((rate * amount_yer) / 1000.0, 4)
 
-            if s_min == 1 and s_max == 1:
-                admin_state.pop(user_id, None)
-                cost_usd = round(s_rate, 4)
-                user_order_data[user_id] = {
-                    'service_id': s_id,
-                    'service_name': s_name,
-                    'phone': clean_phone,
-                    'amount_yer': 1,
-                    'cost': cost_usd,
-                    'min': s_min,
-                    'rate': s_rate
-                }
-                summary_msg = (
-                    "🔔 **تأكيد طلب الباقة (مطابق للموقع)**\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📡 **الخدمة:** `{s_name}`\n"
-                    f"📱 **رقم الهاتف:** `{clean_phone}`\n"
-                    f"📦 **الكمية / الباقة:** `1 باقة`\n"
-                    f"💵 **التكلفة الإجمالية:** `${cost_usd:.4f}`\n\n"
-                    "👇 اضغط تأكيد لإرسال الطلب للموقع فوراً:"
-                )
-                await update.message.reply_text(
-                    summary_msg,
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("✅ تأكيد وإرسال الطلب", callback_data="confirm_ym_order")],
-                        [InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]
-                    ])
-                )
-                return
-
-            admin_state[user_id]['action'] = 'waiting_ym_amount'
-            admin_state[user_id]['phone'] = clean_phone
+            admin_state[user_id] = {
+                'action': 'waiting_ym_phone',
+                'service_id': service_id,
+                'service_name': service_name,
+                'amount_yer': amount_yer,
+                'cost': cost_usd
+            }
 
             await update.message.reply_text(
-                f"✅ **تم حفظ رقم الهاتف:** `{clean_phone}`\n\n"
-                f"2️⃣ **أرسل الآن مبلغ الشحن (الكمية) بالريال اليمني:**\n"
-                f"🔹 **الحد الأدنى المسموح في الموقع:** `{s_min}`\n"
-                f"🔹 **الحد الأقصى المسموح في الموقع:** `{s_max}`",
+                f"🟢 **{service_name}**\n\n"
+                f"💰 **المبلغ المطلوب:** `{amount_yer:,.0f} ريال`\n"
+                f"💵 **التكلفة:** `${cost_usd:.4f}`\n\n"
+                "📞 **أرسل رقم الهاتف (9 أرقام):**\n"
+                "مثال: `771234567` أو `781234567`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
             )
             return
 
-        elif st_action == 'waiting_ym_amount':
-            if not text_content.isdigit():
-                await update.message.reply_text("⚠️ يرجى إدخال مبلغ الشحن بالأرقام فقط:")
-                return
-
-            amount_val = int(text_content)
-            st = admin_state[user_id]
-            s_min = st['min']
-            s_max = st['max']
-
-            adjusted_amount = amount_val
-            if amount_val < s_min:
-                adjusted_amount = s_min
-
-            if adjusted_amount > s_max:
+        elif st_action == 'waiting_ym_phone':
+            if not (text_content.isdigit() and len(text_content) == 9 and (text_content.startswith('77') or text_content.startswith('78'))):
                 await update.message.reply_text(
-                    f"❌ **المبلغ يتجاوز الحد الأقصى المسموح في الموقع!**\n"
-                    f"يجب ألا يتجاوز المبلغ (`{s_max}`). أرسل مبلغاً صحيحاً:",
-                    parse_mode='Markdown'
+                    "❌ **عذراً، الرقم المدخل غير صحيح!**\n"
+                    "يجب أن يتكون الرقم من 9 أرقام ويبدأ بـ **77** أو **78**.\n"
+                    "📱 يرجى إرسال الرقم الصحيح مجدداً:"
                 )
                 return
-
-            s_rate = st['rate']
-            s_name = st['service_name']
-            s_id = st['service_id']
-            clean_phone = st['phone']
-
-            cost_usd = round((s_rate * adjusted_amount) / 1000.0, 4)
+            
+            phone = text_content
+            st = admin_state[user_id]
+            service_id = st.get('service_id')
+            service_name = st.get('service_name')
+            amount_yer = st.get('amount_yer')
+            cost = st.get('cost')
+            
             admin_state.pop(user_id, None)
+            u_data = db_get_user(user_id)
+            current_balance = float(u_data.get('balance', 0.0))
 
             user_order_data[user_id] = {
-                'service_id': s_id,
-                'service_name': s_name,
-                'phone': clean_phone,
-                'amount_yer': adjusted_amount,
-                'cost': cost_usd,
-                'min': s_min,
-                'rate': s_rate
+                'service_id': service_id,
+                'service_name': service_name,
+                'phone': phone,
+                'amount_yer': amount_yer,
+                'cost': cost
             }
 
             summary_msg = (
-                "🔔 **تأكيد طلب الشحن (مطابق للموقع)**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"📡 **الخدمة:** `{s_name}`\n"
-                f"📱 **رقم الهاتف:** `{clean_phone}`\n"
-                f"💰 **مبلغ الشحن المعتمد:** `{adjusted_amount:,}`\n"
-                f"💵 **التكلفة الإجمالية:** `${cost_usd:.4f}`\n\n"
-                "👇 اضغط تأكيد لإرسال الطلب للموقع فوراً:"
+                "🔔 **تأكيد الطلب**\n\n"
+                f"📡 الشبكة: يمن موبايل 🟢\n"
+                f"📞 الرقم: `{phone}`\n"
+                f"💎 الخدمة: `{amount_yer:,.0f} ريال يمن موبايل (تسديد رصيد)`\n"
+                f"💵 التكلفة: `${cost:.4f}`\n\n"
+                "⚠️ *تأكد من صحة الرقم قبل المتابعة.*"
             )
             await update.message.reply_text(
                 summary_msg,
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("✅ تأكيد وإرسال الطلب", callback_data="confirm_ym_order")],
-                    [InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]
-                ])
-            )
-            return
-
-        elif st_action == 'waiting_for_rashq_link':
-            service_info = admin_state[user_id].get('service_info')
-            admin_state.pop(user_id, None)
-            
-            link = text_content
-            stype = service_info.get("type", "channel")
-            count = 1000 
-            
-            if stype == "poll":
-                parts = text_content.split()
-                if len(parts) >= 2:
-                    link = parts[0]
-                    try:
-                        count = int(parts[1])
-                    except ValueError:
-                        count = 1
-                else:
-                    link = text_content
-                    count = 1
-            
-            calc_cost = round((service_info.get("price", 1.0) * count) / 1000.0, 2)
-            fixed_cost = service_info.get("fixed_price", 0.0)
-            final_cost = fixed_cost if fixed_cost > 0 else max(calc_cost, 0.01)
-
-            user_order_data[user_id] = {
-                'link': link,
-                'count': count,
-                'calc_cost': calc_cost,
-                'fixed_cost': fixed_cost
-            }
-            
-            summary = (
-                "📋 **تأكيد تفاصيل الطلب:**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🛍️ **الخدمة:** `{service_info['name']}`\n"
-                f"🔗 **الهدف:** `{mask_link(link)}`\n"
-                f"📊 **الكمية:** `{count:,}`\n"
-                f"💰 **التكلفة:** `${final_cost:.2f}`\n\n"
-                "👇 اضغط تأكيد لإرسال الطلب للسيرفر فوراً:"
-            )
-            await update.message.reply_text(
-                summary,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_final_order")],
-                    [InlineKeyboardButton("❌ إلغاء", callback_data="main_menu")]
-                ])
-            )
-            return
-
-        elif st_action == 'waiting_for_pubg_id':
-            service_info = admin_state[user_id].get('service_info')
-            admin_state.pop(user_id, None)
-            
-            player_id = text_content
-            fixed_cost = service_info.get("fixed_price", 1.0)
-
-            user_order_data[user_id] = {
-                'link': player_id,
-                'count': 1,
-                'fixed_cost': fixed_cost
-            }
-            
-            summary = (
-                "🎮 **تأكيد طلب شحن اللعبة:**\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🕹️ **الخدمة:** `{service_info['name']}`\n"
-                f"🆔 **آيدي اللاعب (ID):** `{player_id}`\n"
-                f"💰 **التكلفة:** `${fixed_cost:.2f}`\n\n"
-                "👇 اضغط تأكيد لإرسال الطلب للسيرفر فوراً:"
-            )
-            await update.message.reply_text(
-                summary,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("✅ تأكيد الشحن", callback_data="confirm_final_order")],
-                    [InlineKeyboardButton("❌ إلغاء", callback_data="main_menu")]
+                    [InlineKeyboardButton("✅ تأكيد الطلب", callback_data="confirm_ym_order")],
+                    [InlineKeyboardButton("🔙 رجوع", callback_data='yemen_mobile_menu')]
                 ])
             )
             return
@@ -2541,3 +2569,5 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             db_update_balance(t_id, amt, mode="deduct")
             await update.message.reply_text(f"✅ تم بنجاح خصم `${amt:.2f}` من رصيد المستخدم `{t_id}`!", parse_mode='Markdown')
             return
+
+    if user_id in admin_state and admin_state[us
