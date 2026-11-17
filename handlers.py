@@ -229,7 +229,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         try:
             response = await client.post(url, data=payload)
             raw_text = response.content.decode('utf-8', errors='ignore').strip()
-            print(f"HMCARD Yemen Order Raw Response: {raw_text}")
+            print(f"--- [DIAGNOSTIC YEMEN ORDER RESPONSE] ---\n{raw_text}\n-----------------------------------------")
             
             if response.status_code == 200:
                 start_idx = raw_text.find('{')
@@ -245,6 +245,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                     if order_id:
                         return True, str(order_id), "تم التنفيذ بنجاح", target_qty
                     elif error_msg:
+                        print(f"❌ [سبب رفض الموقع لخدمة اليمن]: {error_msg}")
                         return False, None, error_msg, target_qty
                 
                 return False, None, f"استجابة غير صالحة من السيرفر: {raw_text[:100]}", target_qty
@@ -252,12 +253,38 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                 return False, None, f"خطأ HTTP من الموقع (الرمز: {response.status_code})", target_qty
                 
         except Exception as e:
+            print(f"❌ [خطأ اتصال يمن موبايل]: {e}")
             return False, None, f"خطأ في الاتصال: {str(e)[:90]}", target_qty
 
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
     cleaned_service_id = int(service_id)
     base_quantity = int(quantity)
+
+    # التحقق التلقائي المسبق من حدود الخدمة (الحد الأدنى والأقصى) من الموقع لتفادي أي خطأ
+    min_qty = 1
+    max_qty = 1000000
+    try:
+        check_payload = {'key': str(HMCARD_API_KEY).strip(), 'action': 'services'}
+        async with httpx.AsyncClient(timeout=10.0) as check_client:
+            chk_res = await check_client.post(HMCARD_API_URL, data=check_payload)
+            if chk_res.status_code == 200:
+                chk_data = chk_res.json()
+                if isinstance(chk_data, list):
+                    for s in chk_data:
+                        if int(s.get('service', 0)) == cleaned_service_id:
+                            min_qty = int(s.get('min', 1))
+                            max_qty = int(s.get('max', 1000000))
+                            break
+    except Exception as ex:
+        print(f"⚠️ تحذير فحص الحدود: {ex}")
+
+    # تصحيح الكمية إذا خالفت شروط الموقع لتفادي خطأ الحد الأدنى تماماً
+    if base_quantity < min_qty:
+        print(f"🔧 تصحيح تلقائي للكمية من {base_quantity} إلى الحد الأدنى {min_qty}")
+        base_quantity = min_qty
+    if base_quantity > max_qty:
+        base_quantity = max_qty
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
@@ -280,7 +307,14 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
             response = await client.post(HMCARD_API_URL, data=payload)
             raw_resp = response.content.decode('utf-8', errors='ignore').strip()
-            print(f"HMCARD Rashq Order Raw Response: {raw_resp}")
+            
+            # طباعة الاستجابة التشخيصية بالكامل في الـ Terminal لرؤية السبب الحقيقي من الموقع
+            print(f"\n========================================")
+            print(f"🔍 [تشخيص إرسال طلب HMCARD]")
+            print(f"📦 رقم الخدمة: {cleaned_service_id} | الكمية: {base_quantity} | الرابط: {clean_link}")
+            print(f"📥 استجابة السيرفر الخام:")
+            print(raw_resp)
+            print(f"========================================\n")
 
             if response.status_code == 200:
                 start_idx = raw_resp.find('{')
@@ -289,14 +323,17 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     resp_json = json.loads(raw_resp[start_idx:end_idx+1])
                     order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                     error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                    
                     if order_id:
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
+                        print(f"❌ [سبب الرفض الدقيق من الموقع]: {error_msg}")
                         return False, None, error_msg
                 return False, None, f"استجابة غير مطابقة JSON: {raw_resp[:120]}"
             else:
-                return False, None, f"خطأ HTTP: {response.status_code}"
+                return False, None, f"خطأ HTTP من السيرفر: {response.status_code}"
     except Exception as e:
+        print(f"❌ [استثناء تقني أثناء إرسال الطلب]: {e}")
         return False, None, f"خطأ اتصال: {str(e)[:80]}"
 
     return False, None, "عذراً، فشل تنفيذ الطلب من المنصة."
