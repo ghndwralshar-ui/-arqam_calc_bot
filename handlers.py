@@ -207,10 +207,9 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
     if target_qty < int(min_allowed):
         target_qty = int(min_allowed)
 
-    # تنظيف رقم الهاتف وإزالة أي فراغات أو رموز لضمان قبوله كهدف صحيح في السيرفر
     clean_phone = re.sub(r'[^\d]', '', str(phone)).strip()
 
-    # تعديل الصيغة لتجاوز خطأ الطلب اليدوي نهائياً (إرسال الرقم كـ link والكمية كـ quantity بدون runs إضافية تعارض الخدمات الفردية)
+    # إرسال البارامترات الأساسية حسب التوثيق الرسمي تماماً (بدون runs أو interval لتفادي خطأ الطلب اليدوي)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -232,12 +231,10 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
             response = await client.post(url, data=payload)
             raw_text = response.content.decode('utf-8', errors='ignore').strip()
             
-            print(f"\n========================================")
-            print(f"🔍 [تشخيص استجابة HMCARD لخدمات اليمن]")
-            print(f"📦 رقم الخدمة: {service_id} | الكمية: {target_qty} | الرقم النظيف: {clean_phone}")
-            print(f"📥 استجابة السيرفر الخام:")
-            print(raw_text)
-            print(f"========================================\n")
+            print(f"\n================ مرحلة استجابة HMCARD ================")
+            print(f"Service: {service_id} | Qty: {target_qty} | Phone: {clean_phone}")
+            print(f"Response Raw: {raw_text}")
+            print(f"=======================================================\n")
             
             if response.status_code == 200:
                 start_idx = raw_text.find('{')
@@ -269,43 +266,19 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     cleaned_service_id = int(service_id)
     base_quantity = int(quantity)
 
-    min_qty = 1
-    max_qty = 1000000
-    try:
-        check_payload = {'key': str(HMCARD_API_KEY).strip(), 'action': 'services'}
-        async with httpx.AsyncClient(timeout=10.0) as check_client:
-            chk_res = await check_client.post(HMCARD_API_URL, data=check_payload)
-            if chk_res.status_code == 200:
-                chk_data = chk_res.json()
-                if isinstance(chk_data, list):
-                    for s in chk_data:
-                        if int(s.get('service', 0)) == cleaned_service_id:
-                            min_qty = int(s.get('min', 1))
-                            max_qty = int(s.get('max', 1000000))
-                            break
-    except Exception as ex:
-        print(f"⚠️ تحذير فحص الحدود: {ex}")
-
-    if base_quantity < min_qty:
-        base_quantity = min_qty
-    if base_quantity > max_qty:
-        base_quantity = max_qty
-
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
+    # مطابقة تامة لتوثيق المنصة الرسمي (البارامترات الأساسية فقط)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
         'service': cleaned_service_id,
         'link': clean_link,
-        'quantity': base_quantity,
-        'runs': 1,
-        'interval': 0
+        'quantity': base_quantity
     }
 
     try:
@@ -313,31 +286,28 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             response = await client.post(HMCARD_API_URL, data=payload)
             raw_resp = response.content.decode('utf-8', errors='ignore').strip()
             
-            print(f"\n========================================")
-            print(f"🔍 [تشخيص إرسال طلب HMCARD]")
-            print(f"📦 رقم الخدمة: {cleaned_service_id} | الكمية: {base_quantity} | الرابط: {clean_link}")
-            print(f"📥 استجابة السيرفر الخام:")
-            print(raw_resp)
-            print(f"========================================\n")
-
+            print(f"\n================ الاستجابة من HMCARD ================")
+            print(f"Service ID: {cleaned_service_id} | Link: {clean_link} | Qty: {base_quantity}")
+            print(f"Response: {raw_resp}")
+            print(f"=====================================================\n")
+            
             if response.status_code == 200:
                 start_idx = raw_resp.find('{')
                 end_idx = raw_resp.rfind('}')
                 if start_idx != -1 and end_idx != -1:
                     resp_json = json.loads(raw_resp[start_idx:end_idx+1])
+                    
                     order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                     error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                     
                     if order_id:
                         return True, str(order_id), "تم التنفيذ بنجاح"
                     elif error_msg:
-                        print(f"❌ [سبب الرفض الدقيق من الموقع]: {error_msg}")
                         return False, None, error_msg
                 return False, None, f"استجابة غير مطابقة JSON: {raw_resp[:120]}"
             else:
                 return False, None, f"خطأ HTTP من السيرفر: {response.status_code}"
     except Exception as e:
-        print(f"❌ [استثناء تقني أثناء إرسال الطلب]: {e}")
         return False, None, f"خطأ اتصال: {str(e)[:80]}"
 
     return False, None, "عذراً، فشل تنفيذ الطلب من المنصة."
@@ -824,7 +794,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💵 **السعر:** `${s_rate}`\n"
                 f"📊 **الحد الأدنى:** `{s_min}` | **الحد الأقصى:** `{s_max}`\n\n"
                 "1️⃣ **أرسل الآن رقم الهاتف المراد الشحن إليه:**\n"
-                "*(أدخل الرقم فقط مثل: `771234567` - يُعامل كرقم هاتف وليس رابطاً)*",
+                "*(أدخل الرقم فقط مثل: `771234567`)*",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
             )
@@ -1016,9 +986,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"🌍 **الدولة:** {c_name_ar}\n"
                         f"📞 **مفتاح الدولة:** `{c_dial}`\n"
                         f"📱 **الرقم المشتري:** `{phone}`\n"
-                        f"⭐ **السعر:** `${country_price:.2f}` *(لا يُخصم الرصيد إلا بعد وصول الكود)*\n\n"
-                        f"⏳ **جاري رصد واستقبال الكود تلقائياً...**\n"
-                        f"💡 *قم بوضع الرقم في التطبيق واطلب الكود فوراً!* 🚀"
+                        f"⭐ **السعر:** `${country_price:.2f}`\n\n"
+                        f"⏳ **جاري رصد واستقبال الكود تلقائياً...** 🚀"
                     )
                     
                     sent_msg = await query.edit_message_text(
@@ -2205,8 +2174,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"✅ **تم حفظ رقم الهاتف:** `{clean_phone}`\n\n"
                 f"2️⃣ **أرسل الآن مبلغ الشحن (الكمية) بالريال اليمني:**\n"
                 f"🔹 **الحد الأدنى المسموح في الموقع:** `{s_min}`\n"
-                f"🔹 **الحد الأقصى المسموح في الموقع:** `{s_max}`\n\n"
-                f"💡 *ملاحظة:* إذا أدخلت مبلغاً أقل من الحد الأدنى، سيتم تصحيحه تلقائياً ليتوافق مع شروط الموقع!",
+                f"🔹 **الحد الأقصى المسموح في الموقع:** `{s_max}`",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
             )
@@ -2252,17 +2220,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 'rate': s_rate
             }
 
-            notice_msg = ""
-            if adjusted_amount != amount_val:
-                notice_msg = f"\n⚠️ **تنبيه:** تم تصحيح المبلغ تلقائياً من `{amount_val}` إلى الحد الأدنى للموقع (`{s_min}`) لضمان نجاح العملية!\n"
-
             summary_msg = (
                 "🔔 **تأكيد طلب الشحن (مطابق للموقع)**\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📡 **الخدمة:** `{s_name}`\n"
                 f"📱 **رقم الهاتف:** `{clean_phone}`\n"
                 f"💰 **مبلغ الشحن المعتمد:** `{adjusted_amount:,}`\n"
-                f"{notice_msg}"
                 f"💵 **التكلفة الإجمالية:** `${cost_usd:.4f}`\n\n"
                 "👇 اضغط تأكيد لإرسال الطلب للموقع فوراً:"
             )
