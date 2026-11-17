@@ -213,7 +213,7 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "ALL_YEMEN_B
 
 async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int, min_allowed: int = 1):
     """
-    دالة ذكية لتصحيح كمية رصيد اليمن تلقائياً في حال كانت أقل من الحد الأدنى للموقع
+    دالة ذكية معدلة لإرسال طلبات اليمن وتجاوز أخطاء الموقع اليدوية (Something went wrong / Minimum quantity)
     """
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -221,11 +221,12 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    quantities_to_try = [amount_yer]
-    if amount_yer < min_allowed:
-        quantities_to_try.append(min_allowed)
+    # تجهيز قائمة الكميات البديلة لتجربتها تلقائياً في حال رفض الموقع للكمية الأولى
+    quantities_to_try = [int(amount_yer)]
+    if int(amount_yer) < int(min_allowed):
+        quantities_to_try.append(int(min_allowed))
     
-    for fallback_val in [max(amount_yer, min_allowed), 500, 1000, 2000]:
+    for fallback_val in [max(int(amount_yer), int(min_allowed)), 500, 1000, 2000, 5000]:
         if fallback_val not in quantities_to_try:
             quantities_to_try.append(fallback_val)
 
@@ -240,9 +241,15 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                 'quantity': int(current_qty)
             }
             try:
-                res = await client.post(HMCARD_API_URL, data=payload)
-                if res.status_code == 200:
-                    resp_json = res.json()
+                # استخدام cloudscraper لضمان تجاوز الحماية ومشاكل الـ Cloudflare إن وجدت
+                scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+                response = scraper.post(HMCARD_API_URL, data=payload, headers=headers, timeout=30)
+                raw_text = response.content.decode('utf-8', errors='ignore').strip()
+                
+                if response.status_code == 200 and "Bot Verification" not in raw_text:
+                    clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}')+1]
+                    resp_json = json.loads(clean_json if clean_json else raw_text)
+                    
                     order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                     error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                     
@@ -251,7 +258,8 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                     
                     if error_msg:
                         last_error = error_msg
-                        if any(k in error_msg.lower() for k in ["quantity", "minimum", "greater than"]):
+                        # إذا كان الخطأ متعلقاً بالكمية أو خطأ يدوي مؤقت، نقوم بتجربة الكمية التالية في الحلقة
+                        if any(k in error_msg.lower() for k in ["quantity", "minimum", "greater than", "something went wrong", "manual order"]):
                             continue
                         else:
                             return False, None, error_msg, current_qty
@@ -1898,8 +1906,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🔍 **الاستعلام الشامل عن مستخدم:**\n\n"
                 "أرسل الآن **آيدي المستخدم (ID)** المراد جلب معلوماته بالكامل:",
                 parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]])
-            )
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 عودة للوحة", callback_data='admin_panel')]]))
         except Exception:
             pass
 
@@ -2275,7 +2282,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"2️⃣ **أرسل الآن مبلغ الشحن (الكمية) بالريال اليمني:**\n"
                 f"🔹 **الحد الأدنى المسموح في الموقع:** `{s_min}`\n"
                 f"🔹 **الحد الأقصى المسموح في الموقع:** `{s_max}`\n\n"
-                f"💡 *ملاحظة:* إذا أدخلت مبلغاً أقل من الحد الأدنى (مثل 100)، سيتم تصحيحه تلقائياً ليتوافق مع شروط الموقع!",
+                f"💡 *ملاحظة:* إذا أدخلت مبلغاً أقل من الحد الأدنى، سيتم تصحيحه تلقائياً ليتوافق مع شروط الموقع!",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
             )
