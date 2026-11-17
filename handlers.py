@@ -2570,4 +2570,4 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text(f"✅ تم بنجاح خصم `${amt:.2f}` من رصيد المستخدم `{t_id}`!", parse_mode='Markdown')
             return
 
-    if user_id in admin_state and admin_state[us
+    if user_id in admin_state and admin_state[us]
