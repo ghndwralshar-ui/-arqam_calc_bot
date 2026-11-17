@@ -207,6 +207,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
     if target_qty < int(min_allowed):
         target_qty = int(min_allowed)
 
+    # ضبط بارامترات الإرسال كاملة ومتوافقة 100% لمنع تحويل الطلب ليدوي (Manual Order)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -229,7 +230,14 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         try:
             response = await client.post(url, data=payload)
             raw_text = response.content.decode('utf-8', errors='ignore').strip()
-            print(f"--- [DIAGNOSTIC YEMEN ORDER RESPONSE] ---\n{raw_text}\n-----------------------------------------")
+            
+            # طباعة تشخيص دقيق في الـ Terminal لتتبع أي خطأ مستقبلي
+            print(f"\n========================================")
+            print(f"🔍 [تشخيص استجابة HMCARD لخدمات اليمن]")
+            print(f"📦 رقم الخدمة: {service_id} | الكمية: {target_qty} | الرقم: {phone}")
+            print(f"📥 استجابة السيرفر الخام:")
+            print(raw_text)
+            print(f"========================================\n")
             
             if response.status_code == 200:
                 start_idx = raw_text.find('{')
@@ -245,7 +253,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                     if order_id:
                         return True, str(order_id), "تم التنفيذ بنجاح", target_qty
                     elif error_msg:
-                        print(f"❌ [سبب رفض الموقع لخدمة اليمن]: {error_msg}")
+                        print(f"❌ [سبب رفض الموقع المباشر]: {error_msg}")
                         return False, None, error_msg, target_qty
                 
                 return False, None, f"استجابة غير صالحة من السيرفر: {raw_text[:100]}", target_qty
@@ -261,7 +269,6 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     cleaned_service_id = int(service_id)
     base_quantity = int(quantity)
 
-    # التحقق التلقائي المسبق من حدود الخدمة (الحد الأدنى والأقصى) من الموقع لتفادي أي خطأ
     min_qty = 1
     max_qty = 1000000
     try:
@@ -279,9 +286,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     except Exception as ex:
         print(f"⚠️ تحذير فحص الحدود: {ex}")
 
-    # تصحيح الكمية إذا خالفت شروط الموقع لتفادي خطأ الحد الأدنى تماماً
     if base_quantity < min_qty:
-        print(f"🔧 تصحيح تلقائي للكمية من {base_quantity} إلى الحد الأدنى {min_qty}")
         base_quantity = min_qty
     if base_quantity > max_qty:
         base_quantity = max_qty
@@ -308,7 +313,6 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             response = await client.post(HMCARD_API_URL, data=payload)
             raw_resp = response.content.decode('utf-8', errors='ignore').strip()
             
-            # طباعة الاستجابة التشخيصية بالكامل في الـ Terminal لرؤية السبب الحقيقي من الموقع
             print(f"\n========================================")
             print(f"🔍 [تشخيص إرسال طلب HMCARD]")
             print(f"📦 رقم الخدمة: {cleaned_service_id} | الكمية: {base_quantity} | الرابط: {clean_link}")
