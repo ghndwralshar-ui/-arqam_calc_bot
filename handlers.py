@@ -209,7 +209,6 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
 
     clean_phone = re.sub(r'[^\d]', '', str(phone)).strip()
 
-    # إرسال البارامترات الأساسية حسب التوثيق الرسمي تماماً (بدون runs أو interval لتفادي خطأ الطلب اليدوي)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -231,9 +230,15 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
             response = await client.post(url, data=payload)
             raw_text = response.content.decode('utf-8', errors='ignore').strip()
             
-            print(f"\n================ مرحلة استجابة HMCARD ================")
-            print(f"Service: {service_id} | Qty: {target_qty} | Phone: {clean_phone}")
-            print(f"Response Raw: {raw_text}")
+            # 🔍 دالة التشخيص المعمقة والبحث عن الخطأ الجذري في الـ Terminal
+            print(f"\n=======================================================")
+            print(f"🔍 [تقرير تشخيص خطأ HMCARD الجذري]")
+            print(f"🌐 رابط الـ API: {url}")
+            print(f"📦 رقم الخدمة (Service ID): {service_id}")
+            print(f"📞 الهدف المرسل (Link): {clean_phone}")
+            print(f"📊 الكمية المرسلة (Quantity): {target_qty}")
+            print(f"📡 رمز استجابة HTTP Status: {response.status_code}")
+            print(f"📥 النص الخام المستلم (Raw Response):\n{raw_text}")
             print(f"=======================================================\n")
             
             if response.status_code == 200:
@@ -242,23 +247,33 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
                 
                 if start_idx != -1 and end_idx != -1:
                     clean_json_str = raw_text[start_idx:end_idx+1]
-                    resp_json = json.loads(clean_json_str)
+                    try:
+                        resp_json = json.loads(clean_json_str)
+                    except json.JSONDecodeError as json_err:
+                        print(f"❌ [خطأ تحليل JSON]: فشل تحويل النص إلى JSON: {json_err}")
+                        return False, None, f"خطأ تحليل الاستجابة: {raw_text[:80]}", target_qty
                     
                     order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
                     error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
                     
                     if order_id:
+                        print(f"✅ [نجاح]: تم إنشاء الطلب برقم: {order_id}")
                         return True, str(order_id), "تم التنفيذ بنجاح", target_qty
                     elif error_msg:
-                        print(f"❌ [سبب رفض الموقع المباشر]: {error_msg}")
+                        print(f"❌ [الخطأ الجذري المستخرج من السيرفر]: {error_msg}")
                         return False, None, error_msg, target_qty
+                    else:
+                        print(f"⚠️ [تحذير]: الاستجابة صالحة ولكن لا يوجد فيها order أو error واضح: {resp_json}")
+                        return False, None, f"استجابة غير متوقعة من المنصة: {raw_text[:100]}", target_qty
                 
-                return False, None, f"استجابة غير صالحة من السيرفر: {raw_text[:100]}", target_qty
+                print(f"❌ [خطأ هيكلي]: النص المستلم لا يحتوي على أقواس JSON صالحة.")
+                return False, None, f"استجابة غير صالحة: {raw_text[:100]}", target_qty
             else:
+                print(f"❌ [خطأ شبكة HTTP]: رمز الاستجابة غير صحيح: {response.status_code}")
                 return False, None, f"خطأ HTTP من الموقع (الرمز: {response.status_code})", target_qty
                 
         except Exception as e:
-            print(f"❌ [خطأ اتصال يمن موبايل]: {e}")
+            print(f"❌ [استثناء برمجي خطير أثناء إرسال الطلب]: {str(e)}")
             return False, None, f"خطأ في الاتصال: {str(e)[:90]}", target_qty
 
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
@@ -272,7 +287,6 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    # مطابقة تامة لتوثيق المنصة الرسمي (البارامترات الأساسية فقط)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
@@ -286,10 +300,10 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
             response = await client.post(HMCARD_API_URL, data=payload)
             raw_resp = response.content.decode('utf-8', errors='ignore').strip()
             
-            print(f"\n================ الاستجابة من HMCARD ================")
+            print(f"\n================ [تشخيص عام لـ HMCARD] ================")
             print(f"Service ID: {cleaned_service_id} | Link: {clean_link} | Qty: {base_quantity}")
             print(f"Response: {raw_resp}")
-            print(f"=====================================================\n")
+            print(f"=======================================================\n")
             
             if response.status_code == 200:
                 start_idx = raw_resp.find('{')
