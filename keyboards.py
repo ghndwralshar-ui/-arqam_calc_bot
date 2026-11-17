@@ -9,8 +9,8 @@ def get_forced_subscription_keyboard():
 
 def get_main_keyboard(user_id, is_admin_func):
     buttons = [
-        # الزر الرئيسي الجديد لخدمات يمن موبايل
-        [InlineKeyboardButton("🇾🇪 🎁🔥 ربح رصيد يمن موبايل مجاناً 🔥🎁 🇾🇪", callback_data='yemen_mobile_menu')],
+        # الزر بعد التعديل والتجميل
+        [InlineKeyboardButton("🇾🇪🔥 • ربح خدمات الرصيد في اليمن • 🎁✨", callback_data='yemen_mobile_menu')],
         [InlineKeyboardButton("🎁 • ربح رقم مجاني فيسبوك او انستغرام • 🚀", callback_data='free_social_number')],
         [InlineKeyboardButton("🛒 شــراء رقــم افتـراضـي", callback_data='buy_virtual_number')],
         [InlineKeyboardButton("✈️ عروض Telegram", callback_data='deals_telegram'), InlineKeyboardButton("💬 عروض WhatsApp", callback_data='deals_whatsapp')],
