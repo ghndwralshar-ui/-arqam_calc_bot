@@ -207,15 +207,16 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
     if target_qty < int(min_allowed):
         target_qty = int(min_allowed)
 
-    # ضبط بارامترات الإرسال كاملة ومتوافقة 100% لمنع تحويل الطلب ليدوي (Manual Order)
+    # تنظيف رقم الهاتف وإزالة أي فراغات أو رموز لضمان قبوله كهدف صحيح في السيرفر
+    clean_phone = re.sub(r'[^\d]', '', str(phone)).strip()
+
+    # تعديل الصيغة لتجاوز خطأ الطلب اليدوي نهائياً (إرسال الرقم كـ link والكمية كـ quantity بدون runs إضافية تعارض الخدمات الفردية)
     payload = {
         'key': str(HMCARD_API_KEY).strip(),
         'action': 'add',
         'service': int(service_id),
-        'link': str(phone).strip(),
-        'quantity': int(target_qty),
-        'runs': 1,
-        'interval': 0
+        'link': clean_phone,
+        'quantity': int(target_qty)
     }
 
     headers = {
@@ -231,10 +232,9 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
             response = await client.post(url, data=payload)
             raw_text = response.content.decode('utf-8', errors='ignore').strip()
             
-            # طباعة تشخيص دقيق في الـ Terminal لتتبع أي خطأ مستقبلي
             print(f"\n========================================")
             print(f"🔍 [تشخيص استجابة HMCARD لخدمات اليمن]")
-            print(f"📦 رقم الخدمة: {service_id} | الكمية: {target_qty} | الرقم: {phone}")
+            print(f"📦 رقم الخدمة: {service_id} | الكمية: {target_qty} | الرقم النظيف: {clean_phone}")
             print(f"📥 استجابة السيرفر الخام:")
             print(raw_text)
             print(f"========================================\n")
