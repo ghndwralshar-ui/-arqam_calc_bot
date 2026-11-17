@@ -212,7 +212,9 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         'action': 'add',
         'service': int(service_id),
         'link': str(phone).strip(),
-        'quantity': int(target_qty)
+        'quantity': int(target_qty),
+        'runs': 1,
+        'interval': 0
     }
 
     headers = {
@@ -227,7 +229,7 @@ async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_
         try:
             response = await client.post(url, data=payload)
             raw_text = response.content.decode('utf-8', errors='ignore').strip()
-            print(f"HMCARD Yemen Order Raw Response: {raw_text}") # طباعة للاستجابة الخام في السجلات
+            print(f"HMCARD Yemen Order Raw Response: {raw_text}")
             
             if response.status_code == 200:
                 start_idx = raw_text.find('{')
@@ -269,14 +271,16 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
         'action': 'add',
         'service': cleaned_service_id,
         'link': clean_link,
-        'quantity': base_quantity
+        'quantity': base_quantity,
+        'runs': 1,
+        'interval': 0
     }
 
     try:
         async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
             response = await client.post(HMCARD_API_URL, data=payload)
             raw_resp = response.content.decode('utf-8', errors='ignore').strip()
-            print(f"HMCARD Rashq Order Raw Response: {raw_resp}") # طباعة الاستجابة في الـ Terminal لتتبع الأخطاء
+            print(f"HMCARD Rashq Order Raw Response: {raw_resp}")
 
             if response.status_code == 200:
                 start_idx = raw_resp.find('{')
@@ -2237,7 +2241,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             
             link = text_content
             stype = service_info.get("type", "channel")
-            count = 1000 # افتراضي أو يمكن طلبه
+            count = 1000 
             
             if stype == "poll":
                 parts = text_content.split()
