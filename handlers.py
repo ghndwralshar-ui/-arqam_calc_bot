@@ -211,35 +211,56 @@ async def fetch_hmcard_services_by_category(category_keyword: str = "ALL_YEMEN_B
             print(f"Error fetching services: {e}")
     return []
 
-async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int):
-    payload = {
-        'key': str(HMCARD_API_KEY).strip(),
-        'action': 'add',
-        'service': int(service_id),
-        'link': str(phone).strip(),
-        'quantity': int(amount_yer)
-    }
+async def send_yemen_mobile_order_to_hmcard(service_id: int, phone: str, amount_yer: int, min_allowed: int = 1):
+    """
+    دالة ذكية لتصحيح كمية رصيد اليمن تلقائياً في حال كانت أقل من الحد الأدنى للموقع
+    """
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
     }
 
-    try:
-        async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
-            res = await client.post(HMCARD_API_URL, data=payload)
-            if res.status_code == 200:
-                resp_json = res.json()
-                order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
-                error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
-                if order_id:
-                    return True, str(order_id), "تم التنفيذ بنجاح"
-                if error_msg:
-                    return False, None, error_msg
-    except Exception as e:
-        return False, None, f"خطأ في الاتصال بالموقع: {str(e)[:80]}"
+    quantities_to_try = [amount_yer]
+    if amount_yer < min_allowed:
+        quantities_to_try.append(min_allowed)
+    
+    for fallback_val in [max(amount_yer, min_allowed), 500, 1000, 2000]:
+        if fallback_val not in quantities_to_try:
+            quantities_to_try.append(fallback_val)
 
-    return False, None, "لم يتم استلام رد صالح من سيرفر الموقع."
+    async with httpx.AsyncClient(headers=headers, timeout=30.0, follow_redirects=True) as client:
+        last_error = "خطأ غير معروف"
+        for current_qty in quantities_to_try:
+            payload = {
+                'key': str(HMCARD_API_KEY).strip(),
+                'action': 'add',
+                'service': int(service_id),
+                'link': str(phone).strip(),
+                'quantity': int(current_qty)
+            }
+            try:
+                res = await client.post(HMCARD_API_URL, data=payload)
+                if res.status_code == 200:
+                    resp_json = res.json()
+                    order_id = resp_json.get("order") or resp_json.get("order_id") or resp_json.get("id")
+                    error_msg = str(resp_json.get("error") or resp_json.get("message") or "")
+                    
+                    if order_id:
+                        return True, str(order_id), "تم التنفيذ بنجاح", current_qty
+                    
+                    if error_msg:
+                        last_error = error_msg
+                        if any(k in error_msg.lower() for k in ["quantity", "minimum", "greater than"]):
+                            continue
+                        else:
+                            return False, None, error_msg, current_qty
+            except Exception as e:
+                last_error = str(e)[:80]
+                
+            await asyncio.sleep(0.3)
+
+    return False, None, last_error, amount_yer
 
 async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
     clean_link = str(link).strip()
@@ -290,8 +311,8 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
                     elif error_msg:
                         if "غير متاح" in error_msg.lower() or "manual order" in error_msg.lower() or "something went wrong" in error_msg.lower():
                             continue
-                        elif any(k in error_msg.lower() for k in ["minimum", "balance"]):
-                            return False, None, error_msg
+                        elif any(k in error_msg.lower() for k in ["minimum", "balance", "quantity"]):
+                            continue
                 except Exception:
                     pass
         except Exception:
@@ -299,7 +320,7 @@ async def send_order_to_hmcard(service_id: int, link: str, quantity: int):
 
         await asyncio.sleep(0.3)
 
-    return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب تنسيقاً خاصاً."
+    return False, None, "عذراً، الخدمة تحت الصيانة أو تتطلب كمية أعلى تطابق شروط الموقع."
 
 async def get_available_countries_for_service(service: str):
     url = f"https://5sim.net/v1/guest/prices?product={service}"
@@ -746,7 +767,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💡 **الخطوات والتعليمات:**\n"
             "1️⃣ اختر الخدمة أو القسم المطلوب أدناه.\n"
             "2️⃣ أدخل رقم الهاتف الموجه إليه الخدمة وتأكد منه جيداً.\n"
-            "3️⃣ أدخل المبلغ المطلوب بالريال اليمني (أو الباقة).\n"
+            "3️⃣ أدخل المبلغ المطلوب بالريال اليمني (سيتم تصحيحه تلقائياً إذا كان أقل من الحد الأدنى للموقع).\n"
             "4️⃣ اضغط على تأكيد ليتم خصم التكلفة وإرسال الطلب للسيرفر فوراً.\n\n"
             "👇 **اختر القسم أو الخدمة المطلوبة أدناه:**"
         )
@@ -804,6 +825,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         phone = order_info['phone']
         service_name = order_info['service_name']
         amount_yer = order_info['amount_yer']
+        min_limit = order_info.get('min', 1)
 
         if current_bal < cost:
             try:
@@ -816,16 +838,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-        success, hm_order_id, error_reason = await send_yemen_mobile_order_to_hmcard(service_id, phone, int(amount_yer))
+        success, hm_order_id, error_reason, final_qty = await send_yemen_mobile_order_to_hmcard(service_id, phone, int(amount_yer), min_limit)
+
+        if final_qty != amount_yer:
+            s_rate = order_info.get('rate', 0.0)
+            cost = round((s_rate * final_qty) / 1000.0, 4)
 
         if success and hm_order_id:
             db_update_balance(u_id, cost, mode="deduct")
             new_bal = db_get_user(u_id).get('balance', 0.0)
             try:
                 await query.edit_message_text(
-                    f"✅ **تم تنفيذ طلبك بنجاح تام!** 🚀✨\n\n"
+                    f"✅ **تم تنفيذ طلبك بنجاح تام (بعد التصحيح التلقائي)!** 🚀✨\n\n"
                     f"📡 الخدمة: `{service_name}`\n"
                     f"📞 الرقم: `{phone}`\n"
+                    f"💰 المبلغ الفعلي المرسل: `{final_qty:,} ريال`\n"
                     f"🆔 رقم الطلب: `{hm_order_id}`\n"
                     f"💸 المخصوم: `${cost:.3f}`\n"
                     f"💳 رصيدك المتبقي: `${new_bal:.3f}`",
@@ -844,7 +871,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"👤 آيدي العميل: `{u_id}`\n"
                 f"📦 الخدمة: `{service_name}`\n"
                 f"📱 الرقم: `{phone}`\n"
-                f"💵 المبلغ باليمني: `{amount_yer:,.0f} ريال`\n"
+                f"💵 المبلغ باليمني: `{final_qty:,.0f} ريال`\n"
                 f"🆔 رقم الطلب: `{hm_order_id}`\n"
                 f"💰 المبلغ المخصوم: `${cost:.4f}`"
             )
@@ -2217,7 +2244,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                     'service_name': s_name,
                     'phone': clean_phone,
                     'amount_yer': 1,
-                    'cost': cost_usd
+                    'cost': cost_usd,
+                    'min': s_min,
+                    'rate': s_rate
                 }
                 summary_msg = (
                     "🔔 **تأكيد طلب الباقة (مطابق للموقع)**\n"
@@ -2245,7 +2274,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"✅ **تم حفظ رقم الهاتف:** `{clean_phone}`\n\n"
                 f"2️⃣ **أرسل الآن مبلغ الشحن (الكمية) بالريال اليمني:**\n"
                 f"🔹 **الحد الأدنى المسموح في الموقع:** `{s_min}`\n"
-                f"🔹 **الحد الأقصى المسموح في الموقع:** `{s_max}`",
+                f"🔹 **الحد الأقصى المسموح في الموقع:** `{s_max}`\n\n"
+                f"💡 *ملاحظة:* إذا أدخلت مبلغاً أقل من الحد الأدنى (مثل 100)، سيتم تصحيحه تلقائياً ليتوافق مع شروط الموقع!",
                 parse_mode='Markdown',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ إلغاء", callback_data='yemen_mobile_menu')]])
             )
@@ -2261,11 +2291,14 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             s_min = st['min']
             s_max = st['max']
 
-            if amount_val < s_min or amount_val > s_max:
+            adjusted_amount = amount_val
+            if amount_val < s_min:
+                adjusted_amount = s_min
+
+            if adjusted_amount > s_max:
                 await update.message.reply_text(
-                    f"❌ **المبلغ خارج الحدود المسموحة في الموقع!**\n"
-                    f"يجب أن يكون المبلغ بين `{s_min}` و `{s_max}`.\n"
-                    f"✏️ أرسل المبلغ الصحيح الآن:",
+                    f"❌ **المبلغ يتجاوز الحد الأقصى المسموح في الموقع!**\n"
+                    f"يجب ألا يتجاوز المبلغ (`{s_max}`). أرسل مبلغاً صحيحاً:",
                     parse_mode='Markdown'
                 )
                 return
@@ -2275,23 +2308,30 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             s_id = st['service_id']
             clean_phone = st['phone']
 
-            cost_usd = round((s_rate * amount_val) / 1000.0, 4)
+            cost_usd = round((s_rate * adjusted_amount) / 1000.0, 4)
             admin_state.pop(user_id, None)
 
             user_order_data[user_id] = {
                 'service_id': s_id,
                 'service_name': s_name,
                 'phone': clean_phone,
-                'amount_yer': amount_val,
-                'cost': cost_usd
+                'amount_yer': adjusted_amount,
+                'cost': cost_usd,
+                'min': s_min,
+                'rate': s_rate
             }
+
+            notice_msg = ""
+            if adjusted_amount != amount_val:
+                notice_msg = f"\n⚠️ **تنبيه:** تم تصحيح المبلغ تلقائياً من `{amount_val}` إلى الحد الأدنى للموقع (`{s_min}`) لضمان نجاح العملية!\n"
 
             summary_msg = (
                 "🔔 **تأكيد طلب الشحن (مطابق للموقع)**\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📡 **الخدمة:** `{s_name}`\n"
                 f"📱 **رقم الهاتف:** `{clean_phone}`\n"
-                f"💰 **مبلغ الشحن (الكمية):** `{amount_val:,}`\n"
+                f"💰 **مبلغ الشحن المعتمد:** `{adjusted_amount:,}`\n"
+                f"{notice_msg}"
                 f"💵 **التكلفة الإجمالية:** `${cost_usd:.4f}`\n\n"
                 "👇 اضغط تأكيد لإرسال الطلب للموقع فوراً:"
             )
